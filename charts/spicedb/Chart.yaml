@@ -1,0 +1,17 @@
+apiVersion: v2
+name: spicedb
+description: A Helm chart for SpiceDB - an open source, Zanzibar-inspired permissions database
+type: application
+version: 0.1.0
+appVersion: "v1.39.0"
+keywords:
+  - spicedb
+  - permissions
+  - authorization
+  - zanzibar
+  - authz
+home: https://github.com/authzed/spicedb
+sources:
+  - https://github.com/authzed/spicedb
+maintainers:
+  - name: SpiceDB Helm Chart Maintainers

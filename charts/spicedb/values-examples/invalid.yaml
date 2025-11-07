@@ -1,0 +1,33 @@
+# Invalid values file for testing schema validation
+# This file intentionally contains schema violations
+
+# Violation: replicaCount must be >= 1
+replicaCount: 0
+
+image:
+  repository: authzed/spicedb
+  # Violation: invalid pullPolicy value
+  pullPolicy: SometimesIfMaybe
+  tag: "v1.39.0"
+
+service:
+  # Violation: invalid service type
+  type: SuperLoadBalancer
+  # Violation: port out of range
+  grpcPort: 99999
+  httpPort: 8443
+  metricsPort: 9090
+  dispatchPort: 50053
+
+resources:
+  requests:
+    # Violation: invalid CPU format
+    cpu: "not-a-number"
+    # Violation: invalid memory format (missing unit)
+    memory: "1024"
+
+config:
+  # Violation: invalid datastore engine
+  datastoreEngine: mongodb
+  # Violation: invalid log level
+  logLevel: trace

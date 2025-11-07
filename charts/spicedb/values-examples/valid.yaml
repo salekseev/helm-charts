@@ -1,0 +1,72 @@
+# Valid values file for testing schema validation
+replicaCount: 3
+
+image:
+  repository: authzed/spicedb
+  pullPolicy: IfNotPresent
+  tag: "v1.39.0"
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations:
+    example.com/annotation: "value"
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+
+podLabels:
+  environment: production
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+
+service:
+  type: ClusterIP
+  grpcPort: 50051
+  httpPort: 8443
+  metricsPort: 9090
+  dispatchPort: 50053
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+config:
+  datastoreEngine: postgres
+  logLevel: info
+
+nodeSelector:
+  disktype: ssd
+
+tolerations:
+  - key: "key1"
+    operator: "Equal"
+    value: "value1"
+    effect: "NoSchedule"
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: topology.kubernetes.io/zone

@@ -1,0 +1,111 @@
+suite: test service
+templates:
+  - service.yaml
+tests:
+  # Basic rendering tests
+  - it: should render a Service
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: apiVersion
+          value: v1
+
+  - it: should have correct metadata
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb
+      - isNotEmpty:
+          path: metadata.labels
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: spicedb
+
+  # Service type tests
+  - it: should default to ClusterIP
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: should allow custom service type
+    set:
+      service.type: LoadBalancer
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+
+  # Port configuration tests
+  - it: should expose gRPC port
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: grpc
+            port: 50051
+            targetPort: grpc
+            protocol: TCP
+
+  - it: should expose HTTP port
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: http
+            port: 8443
+            targetPort: http
+            protocol: TCP
+
+  - it: should expose metrics port
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: metrics
+            port: 9090
+            targetPort: metrics
+            protocol: TCP
+
+  - it: should expose dispatch port
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: dispatch
+            port: 50053
+            targetPort: dispatch
+            protocol: TCP
+
+  - it: should allow custom port configuration
+    set:
+      service.grpcPort: 50052
+      service.httpPort: 8444
+      service.metricsPort: 9091
+      service.dispatchPort: 50054
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: grpc
+            port: 50052
+            targetPort: grpc
+            protocol: TCP
+      - contains:
+          path: spec.ports
+          content:
+            name: http
+            port: 8444
+            targetPort: http
+            protocol: TCP
+
+  # Selector tests
+  - it: should have correct selector labels
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/name"]
+          value: spicedb
+      - equal:
+          path: spec.selector["app.kubernetes.io/instance"]
+          value: RELEASE-NAME

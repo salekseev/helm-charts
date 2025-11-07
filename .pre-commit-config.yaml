@@ -1,0 +1,88 @@
+# Pre-commit hooks for SpiceDB Helm Chart
+# See https://pre-commit.com for more information
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+        description: Trims trailing whitespace
+
+      - id: end-of-file-fixer
+        name: Fix end of files
+        description: Ensures files end with a newline
+
+      - id: check-yaml
+        name: Check YAML syntax
+        description: Validates YAML files
+        args: ['--allow-multiple-documents']
+        exclude: 'charts/spicedb/templates/.*'  # Helm templates use Go templates
+
+      - id: check-added-large-files
+        name: Check for large files
+        description: Prevents committing large files
+        args: ['--maxkb=500']
+
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+        description: Checks for merge conflict markers
+
+      - id: mixed-line-ending
+        name: Check line endings
+        description: Ensures consistent line endings
+
+  # Helm specific checks
+  - repo: local
+    hooks:
+      - id: helm-lint
+        name: Helm Lint
+        description: Runs helm lint on the chart
+        entry: bash -c 'cd charts/spicedb && helm lint . --strict'
+        language: system
+        files: 'charts/spicedb/(Chart\.yaml|values\.yaml|templates/.*\.yaml|templates/.*\.tpl)'
+        pass_filenames: false
+
+      - id: helm-unittest
+        name: Helm Unit Tests
+        description: Runs helm unittest on the chart
+        entry: bash -c 'cd charts/spicedb && helm unittest --color .'
+        language: system
+        files: 'charts/spicedb/(values\.yaml|templates/.*\.yaml|templates/.*\.tpl|tests/.*_test\.yaml)'
+        pass_filenames: false
+
+      - id: conftest-policies
+        name: Conftest Policy Validation
+        description: Validates example manifests against OPA policies
+        entry: bash -c 'cd charts/spicedb && conftest test -p policies/ policies/examples/compliant-deployment.yaml && if conftest test -p policies/ policies/examples/non-compliant-deployment.yaml 2>/dev/null; then echo "ERROR: Non-compliant manifest should fail" && exit 1; else echo "OK: Non-compliant manifest correctly rejected"; fi'
+        language: system
+        files: 'charts/spicedb/policies/.*\.rego'
+        pass_filenames: false
+
+      - id: values-schema-validation
+        name: Values Schema Validation
+        description: Validates values.yaml against values.schema.json
+        entry: bash -c 'cd charts/spicedb && helm lint . --strict --values values.yaml'
+        language: system
+        files: 'charts/spicedb/(values\.yaml|values\.schema\.json)'
+        pass_filenames: false
+
+# Configuration
+default_language_version:
+  python: python3
+
+# Run specific hooks
+default_stages: [commit]
+
+# Fail fast - stop on first failure
+fail_fast: false
+
+# Exclude patterns
+exclude: |
+  (?x)^(
+      \.taskmaster/.*|
+      \.git/.*|
+      \.github/.*|
+      .*\.md$
+  )

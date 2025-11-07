@@ -1,0 +1,68 @@
+# Policy Metadata
+# This file documents the purpose and severity of each OPA policy
+
+policies:
+  - name: deny-privileged-containers
+    description: Prevents containers from running in privileged mode
+    severity: high
+    rationale: Privileged containers have access to all devices and can perform almost any action that the host can perform
+
+  - name: deny-latest-tag
+    description: Prevents use of 'latest' image tag
+    severity: medium
+    rationale: Using 'latest' tag makes deployments non-deterministic and can lead to unexpected behavior
+
+  - name: deny-no-tag
+    description: Requires explicit image tags
+    severity: medium
+    rationale: Images without tags default to 'latest' which is non-deterministic
+
+  - name: deny-missing-resource-limits
+    description: Requires resource limits on all containers
+    severity: high
+    rationale: Without limits, containers can consume excessive resources and impact other workloads
+
+  - name: deny-missing-resource-requests
+    description: Requires resource requests on all containers
+    severity: high
+    rationale: Without requests, scheduler cannot make informed placement decisions
+
+  - name: warn-missing-liveness-probe
+    description: Warns when liveness probe is not defined
+    severity: low
+    rationale: Liveness probes help Kubernetes detect and recover from unhealthy containers
+
+  - name: warn-missing-readiness-probe
+    description: Warns when readiness probe is not defined
+    severity: low
+    rationale: Readiness probes prevent traffic from being sent to containers that aren't ready
+
+  - name: warn-missing-recommended-labels
+    description: Warns when recommended Kubernetes labels are missing
+    severity: low
+    rationale: Standard labels improve observability and management
+
+  - name: deny-run-as-root
+    description: Prevents containers from running as root user
+    severity: high
+    rationale: Running as root increases attack surface if container is compromised
+
+  - name: deny-writable-root-filesystem
+    description: Requires read-only root filesystem
+    severity: high
+    rationale: Read-only filesystem prevents malware from persisting changes
+
+  - name: warn-host-network
+    description: Warns about use of host network namespace
+    severity: medium
+    rationale: Host network bypasses network isolation and can expose services
+
+  - name: warn-host-pid
+    description: Warns about use of host PID namespace
+    severity: medium
+    rationale: Host PID namespace allows visibility into all processes on the node
+
+  - name: deny-dangerous-capabilities
+    description: Prevents addition of dangerous Linux capabilities
+    severity: high
+    rationale: Certain capabilities like SYS_ADMIN provide near root-level access
