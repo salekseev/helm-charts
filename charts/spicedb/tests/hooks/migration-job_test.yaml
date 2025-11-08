@@ -26,10 +26,19 @@ tests:
       - hasDocuments:
           count: 0
 
+  - it: should NOT create migration job when using memory datastore
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: memory
+    asserts:
+      - hasDocuments:
+          count: 0
+
   # Metadata tests
   - it: should have correct metadata name and labels
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     asserts:
       - equal:
           path: metadata.name
@@ -48,6 +57,7 @@ tests:
   - it: should have correct hook annotations
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     asserts:
       - equal:
           path: metadata.annotations["helm.sh/hook"]
@@ -63,6 +73,7 @@ tests:
   - it: should have correct job spec configuration
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     asserts:
       - equal:
           path: spec.backoffLimit
@@ -78,6 +89,7 @@ tests:
   - it: should have correct pod template labels
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     asserts:
       - equal:
           path: spec.template.metadata.name
@@ -90,6 +102,7 @@ tests:
   - it: should use default image repository and tag
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     asserts:
       - matchRegex:
           path: spec.template.spec.containers[0].image
@@ -101,6 +114,7 @@ tests:
   - it: should use custom image repository and tag
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
       image.repository: custom/spicedb
       image.tag: custom-tag
       image.pullPolicy: Always
@@ -116,6 +130,7 @@ tests:
   - it: should not set imagePullSecrets by default
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     asserts:
       - isNull:
           path: spec.template.spec.imagePullSecrets
@@ -123,6 +138,7 @@ tests:
   - it: should set imagePullSecrets when provided
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
       imagePullSecrets:
         - name: my-registry-secret
     asserts:
@@ -135,6 +151,7 @@ tests:
   - it: should use default migrate head command
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     asserts:
       - equal:
           path: spec.template.spec.containers[0].command
@@ -147,6 +164,7 @@ tests:
   - it: should use targetMigration in command when set
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
       migrations.targetMigration: "2024-01-15T10:00:00Z"
     asserts:
       - equal:
@@ -159,6 +177,7 @@ tests:
   - it: should use targetMigration with targetPhase when both set
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
       migrations.targetMigration: "2024-01-15T10:00:00Z"
       migrations.targetPhase: write
     asserts:
@@ -174,6 +193,7 @@ tests:
   - it: should use head with targetPhase when only targetPhase set
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
       migrations.targetPhase: complete
     asserts:
       - equal:
@@ -185,17 +205,6 @@ tests:
             - --phase=complete
 
   # Environment variables tests - datastore engine
-  - it: should set datastore engine environment variable for memory
-    set:
-      migrations.enabled: true
-      config.datastoreEngine: memory
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: SPICEDB_DATASTORE_ENGINE
-            value: memory
-
   - it: should set datastore engine environment variable for postgres
     set:
       migrations.enabled: true
@@ -228,6 +237,7 @@ tests:
   - it: should set log level from migrations.logLevel
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
       migrations.logLevel: debug
     asserts:
       - contains:
@@ -239,6 +249,7 @@ tests:
   - it: should use default info log level when not specified
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -313,6 +324,7 @@ tests:
   - it: should not set resources by default
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     asserts:
       - isNull:
           path: spec.template.spec.containers[0].resources
@@ -320,6 +332,7 @@ tests:
   - it: should set resource limits when migrations.resources provided
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
       migrations.resources:
         limits:
           cpu: 500m
@@ -345,6 +358,7 @@ tests:
   - it: should have correct container name
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     asserts:
       - equal:
           path: spec.template.spec.containers[0].name
@@ -354,6 +368,7 @@ tests:
   - it: should handle all migration features together
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
       migrations.targetMigration: "2024-02-01T00:00:00Z"
       migrations.targetPhase: write
       migrations.logLevel: debug
@@ -364,7 +379,6 @@ tests:
         requests:
           cpu: 200m
           memory: 256Mi
-      config.datastoreEngine: postgres
       config.existingSecret: custom-secret
       config.datastore.hostname: postgres.example.com
       config.datastore.username: testuser

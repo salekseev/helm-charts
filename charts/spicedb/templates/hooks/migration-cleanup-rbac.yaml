@@ -1,4 +1,4 @@
-{{- if .Values.migrations.enabled -}}
+{{- if and .Values.migrations.enabled (ne .Values.config.datastoreEngine "memory") -}}
 {{- if ((.Values.migrations.cleanup).enabled | default true) -}}
 ---
 # ServiceAccount for migration cleanup job

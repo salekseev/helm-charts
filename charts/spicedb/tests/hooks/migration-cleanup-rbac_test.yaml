@@ -6,6 +6,7 @@ tests:
   - it: should create RBAC resources when migrations and cleanup enabled
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
       migrations.cleanup.enabled: true
     asserts:
       - hasDocuments:
@@ -14,6 +15,7 @@ tests:
   - it: should create RBAC resources when migrations enabled and cleanup not explicitly disabled
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     asserts:
       - hasDocuments:
           count: 3
@@ -25,10 +27,19 @@ tests:
       - hasDocuments:
           count: 0
 
+  - it: should NOT create RBAC resources when using memory datastore
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: memory
+    asserts:
+      - hasDocuments:
+          count: 0
+
   # ServiceAccount tests
   - it: should create ServiceAccount with correct metadata
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     documentIndex: 0
     asserts:
       - isKind:
@@ -52,6 +63,7 @@ tests:
   - it: should have correct ServiceAccount hook annotations
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     documentIndex: 0
     asserts:
       - equal:
@@ -67,6 +79,7 @@ tests:
   - it: should enable automountServiceAccountToken
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     documentIndex: 0
     asserts:
       - equal:
@@ -77,6 +90,7 @@ tests:
   - it: should create Role with correct metadata
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     documentIndex: 1
     asserts:
       - isKind:
@@ -97,6 +111,7 @@ tests:
   - it: should have correct Role hook annotations
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     documentIndex: 1
     asserts:
       - equal:
@@ -112,6 +127,7 @@ tests:
   - it: should grant list permission for jobs
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     documentIndex: 1
     asserts:
       - contains:
@@ -124,6 +140,7 @@ tests:
   - it: should grant delete permission for jobs
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     documentIndex: 1
     asserts:
       - contains:
@@ -137,6 +154,7 @@ tests:
   - it: should create RoleBinding with correct metadata
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     documentIndex: 2
     asserts:
       - isKind:
@@ -157,6 +175,7 @@ tests:
   - it: should have correct RoleBinding hook annotations
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     documentIndex: 2
     asserts:
       - equal:
@@ -172,6 +191,7 @@ tests:
   - it: should bind to correct Role
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     documentIndex: 2
     asserts:
       - equal:
@@ -187,6 +207,7 @@ tests:
   - it: should bind to correct ServiceAccount
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
     release:
       namespace: test-namespace
     documentIndex: 2
@@ -202,6 +223,7 @@ tests:
   - it: should work with custom fullname override for ServiceAccount
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
       fullnameOverride: custom-spicedb
     release:
       namespace: custom-ns
@@ -214,6 +236,7 @@ tests:
   - it: should work with custom fullname override for Role
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
       fullnameOverride: custom-spicedb
     documentIndex: 1
     asserts:
@@ -224,6 +247,7 @@ tests:
   - it: should work with custom fullname override for RoleBinding
     set:
       migrations.enabled: true
+      config.datastoreEngine: postgres
       fullnameOverride: custom-spicedb
     release:
       namespace: custom-ns

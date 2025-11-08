@@ -192,10 +192,20 @@ tests:
             name: SPICEDB_DATASTORE_CONN_URI
 
   # Resource configuration tests
-  - it: should not set resources by default
+  - it: should set default resources
     asserts:
-      - isNull:
-          path: spec.template.spec.containers[0].resources
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 1Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2000m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
 
   - it: should set resource limits when provided
     set:
@@ -218,10 +228,20 @@ tests:
           value: 1Gi
 
   # Security context tests
-  - it: should not set security context by default
+  - it: should set default security context
     asserts:
-      - isNull:
-          path: spec.template.spec.containers[0].securityContext
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
+          value: ALL
 
   - it: should set security context when provided
     set:
