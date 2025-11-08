@@ -1,0 +1,30 @@
+# GitGuardian configuration
+# Exclude test files and examples from secret detection
+# These files contain intentionally fake credentials for testing purposes
+
+version: 2
+
+# Paths to exclude from scanning
+paths-ignore:
+  - charts/*/tests/**/*
+  - charts/*/examples/**/*
+  - .taskmaster/**/*
+  - "**/*_test.yaml"
+  - "**/*_test.yml"
+  - "**/test_*.yaml"
+  - "**/test_*.yml"
+
+# Exclude specific patterns that are test credentials
+matches-ignore:
+  - name: Test credentials in unit tests
+    match: secretpass|testpass|testpassword|example-password
+  - name: Test database URIs
+    match: postgresql://.*:.*@.*(test|example|localhost)
+  - name: Example secrets
+    match: spicedb-.*-secret
+
+# Allow test/example strings
+allow-patterns:
+  - "password: secretpass"
+  - "password: testpass"
+  - "custom:uri@custom.host"
