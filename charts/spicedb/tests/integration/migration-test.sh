@@ -141,6 +141,16 @@ EOF
 deploy_postgres() {
     log_section "Deploying PostgreSQL"
 
+    # Clean up any existing Helm releases in the namespace before deploying PostgreSQL
+    if kubectl get namespace "$NAMESPACE" > /dev/null 2>&1; then
+        log_info "Namespace $NAMESPACE exists, checking for existing releases..."
+        if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "^${RELEASE_NAME}[[:space:]]"; then
+            log_warn "Cleaning up existing Helm release..."
+            helm uninstall "$RELEASE_NAME" -n "$NAMESPACE" --wait || true
+            sleep 5
+        fi
+    fi
+
     log_info "Applying PostgreSQL manifests..."
     kubectl apply -f "$SCRIPT_DIR/postgres-deployment.yaml"
 
@@ -174,6 +184,14 @@ deploy_postgres() {
 # Function to install SpiceDB chart
 install_chart() {
     log_section "Installing SpiceDB chart"
+
+    # Clean up any existing release first
+    if helm list -n "$NAMESPACE" | grep -q "^${RELEASE_NAME}[[:space:]]"; then
+        log_warn "Existing Helm release found, uninstalling..."
+        helm uninstall "$RELEASE_NAME" -n "$NAMESPACE" --wait || true
+        # Wait a bit for resources to be cleaned up
+        sleep 5
+    fi
 
     log_info "Installing Helm chart: $RELEASE_NAME"
     helm install "$RELEASE_NAME" "$CHART_PATH" \
