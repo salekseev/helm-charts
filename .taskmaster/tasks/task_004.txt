@@ -1,0 +1,61 @@
+# Task ID: 4
+# Title: Implement Automated Database Migration System
+# Status: done
+# Dependencies: 3
+# Priority: high
+# Description: Create Helm hooks for pre-install/pre-upgrade migrations with job templates, cleanup hooks, and phased migration support
+# Details:
+Create templates/hooks/migration-job.yaml with annotations: helm.sh/hook: pre-install,pre-upgrade, helm.sh/hook-weight: "0", helm.sh/hook-delete-policy: before-hook-creation. Migration job spec: restartPolicy: OnFailure, backoffLimit: 3, activeDeadlineSeconds: 600. Container: same image as deployment, command: [spicedb, migrate, head], environment variables from deployment (datastore connection). Add values.yaml fields: migrations.enabled (default true), migrations.logLevel, migrations.targetMigration, migrations.targetPhase. Implement target migration support: override command to [spicedb, migrate, <target>] when targetMigration set. Implement phased migration: command [spicedb, migrate, --phase=<phase>] when targetPhase set. Create templates/hooks/migration-cleanup.yaml with annotations: helm.sh/hook: post-install,post-upgrade, hook-delete-policy: hook-succeeded. Cleanup job uses kubectl delete jobs with label selectors. Add migration hash tracking via deployment annotations (checksum/migration-config) to trigger restarts. Document migration troubleshooting: view logs, manual rollback, dry-run support.
+
+# Test Strategy:
+Migration job creation tests verify correct annotations and hook weights. Hook annotation tests verify pre-install and pre-upgrade hooks present. Environment variable tests verify migration jobs receive datastore configuration. PostgreSQL migration test: install chart, verify migration job runs to completion, verify deployment starts after migration. CockroachDB migration test: same as PostgreSQL. Target migration tests: set targetMigration, verify job command includes target version. Phased migration tests: set targetPhase, verify job command includes phase flag. Cleanup hook tests: verify cleanup job created, verify old migration jobs deleted. Upgrade test: helm upgrade with new version, verify migration runs before deployment update. Failure handling test: break migration job, verify deployment doesn't start, verify helm install fails.
+
+# Subtasks:
+## 1. Create migration-job.yaml template with Helm hook annotations [done]
+### Dependencies: None
+### Description: Create templates/hooks/migration-job.yaml with proper Helm hook annotations for pre-install and pre-upgrade lifecycle phases, including hook weights and delete policies
+### Details:
+Create templates/hooks/migration-job.yaml with annotations: helm.sh/hook: pre-install,pre-upgrade, helm.sh/hook-weight: "0", helm.sh/hook-delete-policy: before-hook-creation. Add conditional rendering based on migrations.enabled value. Include proper metadata labels matching the chart. Ensure hook weight is set to run before other hooks if needed.
+
+## 2. Implement migration job spec with retry logic and timeouts [done]
+### Dependencies: 4.1
+### Description: Define the Job spec with restartPolicy, backoffLimit, activeDeadlineSeconds, container configuration, and environment variable inheritance from deployment
+### Details:
+Implement job spec with restartPolicy: OnFailure, backoffLimit: 3, activeDeadlineSeconds: 600. Container uses same image as deployment with command: [spicedb, migrate, head]. Inherit environment variables from deployment for datastore connection (SPICEDB_DATASTORE_ENGINE, connection strings, credentials). Add support for migrations.logLevel configuration. Include resource requests/limits if specified in values.
+
+## 3. Add target migration and phased migration configuration support [done]
+### Dependencies: 4.2
+### Description: Extend values.yaml with migration configuration fields and implement command overrides for target migration and phased migration scenarios
+### Details:
+Add values.yaml fields: migrations.enabled (default true), migrations.logLevel, migrations.targetMigration, migrations.targetPhase. Override command to [spicedb, migrate, <target>] when targetMigration is set. Override command to [spicedb, migrate, --phase=<phase>] when targetPhase is set. Ensure proper precedence when both are specified. Document valid phase values (write, read, complete).
+
+## 4. Create migration-cleanup.yaml hook for post-migration cleanup [done]
+### Dependencies: 4.2
+### Description: Implement post-install and post-upgrade cleanup hook to remove completed migration jobs using kubectl delete with label selectors
+### Details:
+Create templates/hooks/migration-cleanup.yaml with annotations: helm.sh/hook: post-install,post-upgrade, helm.sh/hook-delete-policy: hook-succeeded. Cleanup job uses kubectl image with command to delete jobs using label selectors (app.kubernetes.io/name, app.kubernetes.io/instance). Include proper RBAC permissions for job deletion in cleanup ServiceAccount. Set activeDeadlineSeconds for cleanup job to prevent hanging.
+
+## 5. Implement migration hash tracking via deployment annotations [done]
+### Dependencies: 4.3
+### Description: Add checksum annotation to deployment template that tracks migration configuration changes to trigger pod restarts when migrations change
+### Details:
+Add annotation to templates/deployment.yaml: checksum/migration-config: {{ include (print $.Template.BasePath "/hooks/migration-job.yaml") . | sha256sum }}. This ensures deployment pods restart when migration configuration changes. Include migrations.targetMigration, migrations.targetPhase, and other migration-related values in the checksum calculation. Document behavior in NOTES.txt.
+<info added on 2025-11-08T04:55:52.049Z>
+I'll analyze the codebase to understand the implementation before generating the update.Successfully implemented in charts/spicedb/templates/deployment.yaml at line 17 using pattern {{ .Values.migrations | toJson | sha256sum }}. The annotation is correctly placed in the pod template metadata (spec.template.metadata.annotations), not the Deployment metadata, ensuring proper rolling update triggers. All migrations configuration fields from values.yaml lines 109-150 are included in the checksum: enabled, logLevel, targetMigration, targetPhase, resources, and cleanup. Verified through testing that changes to any migration configuration value produce unique checksums, confirming the implementation correctly triggers pod restarts when migration settings change. The annotation merges properly with user-defined podAnnotations via the template logic at lines 18-20.
+</info added on 2025-11-08T04:55:52.049Z>
+
+## 6. Write comprehensive tests for migration scenarios [done]
+### Dependencies: 4.1, 4.2, 4.3, 4.4, 4.5
+### Description: Create helm-unittest test suite covering success, failure, upgrade, rollback, and various configuration scenarios for the migration system
+### Details:
+Create tests/hooks/migration-job_test.yaml with test cases: migration job creation with correct annotations, hook weights, environment variables, retry configuration, target migration override, phased migration override. Create tests for cleanup hook. Test migration with PostgreSQL and CockroachDB datastores. Test upgrade scenarios where migration changes. Test failure scenarios with backoffLimit. Test migration disabled scenario. Test checksum annotation changes trigger restarts.
+
+## 7. Create migration troubleshooting documentation [done]
+### Dependencies: 4.6
+### Description: Document migration procedures including viewing logs, manual rollback steps, dry-run support, common issues, and debugging techniques
+### Details:
+Add documentation section covering: viewing migration job logs (kubectl logs job/spicedb-migration), checking migration job status (kubectl get jobs), manual rollback procedures (helm rollback), dry-run migration testing (helm install --dry-run), common failure scenarios (timeout, connection issues, schema conflicts), debugging techniques (describe job, check events), targetMigration and targetPhase usage examples. Include in chart NOTES.txt and README.md with examples.
+<info added on 2025-11-08T04:56:26.301Z>
+Complete implementation verified. README.md migration documentation comprehensively covers all required areas: log viewing with component label selector, job status checking with label selector, manual rollback with schema downgrade warnings, dry-run testing approaches, all common failure scenarios (timeout with activeDeadlineSeconds extension example, connection issues with secret verification steps, job stuck with deletion/retry procedure), debugging techniques with kubectl logs/describe/get events examples, phased migration workflow with complete 4-step process including kubectl wait verification commands, targetMigration and targetPhase parameter usage in all relevant examples. Documentation structure: overview section explaining automatic behavior, configuration table with all migrations.* parameters, common operations section with standard and manual migration procedures, dedicated phased migration section with zero-downtime workflow, troubleshooting section with diagnosis and resolution steps for each failure scenario, examples section with 5 real-world use cases. All kubectl/helm commands tested and copy-paste ready. Documentation integrated into existing README.md following established formatting patterns. Subtask completed successfully.
+</info added on 2025-11-08T04:56:26.301Z>
+

@@ -1,0 +1,55 @@
+# Task ID: 3
+# Title: Implement PostgreSQL and CockroachDB Datastore Support
+# Status: done
+# Dependencies: 2
+# Priority: high
+# Description: Add datastore configuration logic, connection string generation, and external secret support for PostgreSQL and CockroachDB
+# Details:
+Extend values.yaml with config.datastoreEngine enum (postgres, cockroachdb, memory), config.datastoreURI for explicit URI, existingSecret for external secret reference. Update templates/secret.yaml to conditionally create secret only when existingSecret is empty. Add datastore-specific environment variables to templates/deployment.yaml: SPICEDB_DATASTORE_ENGINE, SPICEDB_DATASTORE_CONN_URI (from secret). Implement connection string generation logic in _helpers.tpl: postgres format (postgresql://user:pass@host:port/db?sslmode=disable), cockroachdb format (postgresql://user:pass@host:port/db?sslmode=verify-full). Add values.yaml fields for datastore configuration: hostname, port, username, password, database, sslMode, sslRootCert, sslCert, sslKey. Create examples/production-postgres.yaml with PostgreSQL configuration. Create examples/production-cockroachdb.yaml with CockroachDB configuration. Create examples/postgres-external-secrets.yaml demonstrating External Secrets Operator pattern (ExternalSecret creates Secret, chart references via existingSecret). Document External Secrets Operator integration pattern.
+
+# Test Strategy:
+Deployment tests verify correct environment variables for PostgreSQL engine. Deployment tests verify correct environment variables for CockroachDB engine. Connection string generation tests verify correct format for each datastore. Secret mounting tests verify both inline secrets and existingSecret pattern. Snapshot tests for PostgreSQL configuration. Snapshot tests for CockroachDB configuration. Integration tests: deploy to Minikube with PostgreSQL container, verify SpiceDB connects successfully. Integration tests: deploy with CockroachDB container, verify connection. External Secrets Operator compatibility test: verify values structure works with ESO.
+
+# Subtasks:
+## 1. Extend values.yaml with datastore configuration fields and validation [done]
+### Dependencies: None
+### Description: Add all necessary datastore configuration fields to values.yaml including datastoreEngine enum, connection parameters, SSL/TLS settings, and existingSecret reference with appropriate defaults and documentation
+### Details:
+Add config.datastoreEngine with enum values (postgres, cockroachdb, memory) defaulting to memory. Add config.datastoreURI for explicit connection string override. Add config.existingSecret for external secret reference. Add datastore connection fields: hostname (default: localhost), port (postgres: 5432, cockroachdb: 26257), username (default: spicedb), password, database (default: spicedb), sslMode (postgres: disable, cockroachdb: verify-full), sslRootCert, sslCert, sslKey. Include inline comments documenting each field's purpose and valid values. Group related fields logically under config.datastore section.
+
+## 2. Implement connection string generation logic in _helpers.tpl for PostgreSQL and CockroachDB [done]
+### Dependencies: 3.1
+### Description: Create helper template functions to generate properly formatted connection strings for PostgreSQL and CockroachDB datastores with SSL/TLS parameter handling and credential interpolation
+### Details:
+Implement {{- define "spicedb.datastoreConnectionString" -}} helper in templates/_helpers.tpl. Generate PostgreSQL format: postgresql://{{username}}:{{password}}@{{hostname}}:{{port}}/{{database}}?sslmode={{sslMode}} with conditional SSL cert parameters (sslrootcert, sslcert, sslkey) when provided. Generate CockroachDB format with same structure but default sslmode=verify-full. Support config.datastoreURI override to bypass generation. Handle URL encoding of special characters in credentials. Add conditional logic to only generate when datastoreEngine is not memory.
+
+## 3. Update templates/secret.yaml for conditional creation and existingSecret support [done]
+### Dependencies: 3.2
+### Description: Modify secret template to conditionally create Secret resource only when existingSecret is not specified, storing generated connection string and credentials
+### Details:
+Wrap entire templates/secret.yaml in {{- if not .Values.config.existingSecret }} conditional. Store base64-encoded datastore connection string under key datastore-uri using helper function. Include individual credential fields (username, password) for potential separate access. Add SSL certificate data (sslRootCert, sslCert, sslKey) when provided. Set secret type to Opaque. Include standard labels and annotations from _helpers.tpl. Add documentation comment explaining existingSecret usage pattern.
+
+## 4. Update templates/deployment.yaml with datastore environment variables [done]
+### Dependencies: 3.3
+### Description: Add datastore-specific environment variables to the SpiceDB deployment container, sourcing connection string from either generated or existing Secret
+### Details:
+Add SPICEDB_DATASTORE_ENGINE environment variable with value from .Values.config.datastoreEngine. Add SPICEDB_DATASTORE_CONN_URI environment variable sourced from secret key datastore-uri, using either generated secret name or .Values.config.existingSecret. Use valueFrom.secretKeyRef with name: {{ .Values.config.existingSecret | default (include "spicedb.fullname" .) }}-secret and key: datastore-uri. Ensure environment variables are set only when datastoreEngine is not memory. Position after existing environment variables in deployment spec.
+
+## 5. Create examples/production-postgres.yaml with comprehensive configuration and tests [done]
+### Dependencies: 3.4
+### Description: Create example values file demonstrating production PostgreSQL deployment with connection pooling, SSL/TLS, resource limits, and high availability settings
+### Details:
+Create examples/production-postgres.yaml with config.datastoreEngine: postgres. Configure connection parameters: hostname: postgres.database.svc.cluster.local, port: 5432, username: spicedb, database: spicedb_production, sslMode: require, sslRootCert path. Set replicas: 3 for HA. Configure resources.requests (cpu: 500m, memory: 512Mi) and limits (cpu: 2, memory: 2Gi). Enable podDisruptionBudget and autoscaling. Add monitoring.enabled: true and serviceMonitor.enabled: true. Include inline comments explaining production considerations.
+
+## 6. Create examples/production-cockroachdb.yaml with configuration and tests [done]
+### Dependencies: 3.4
+### Description: Create example values file demonstrating production CockroachDB deployment with SSL certificate authentication and distributed deployment settings
+### Details:
+Create examples/production-cockroachdb.yaml with config.datastoreEngine: cockroachdb. Configure connection parameters: hostname: cockroachdb-public.database.svc.cluster.local, port: 26257, username: spicedb, database: spicedb, sslMode: verify-full. Configure SSL certificates: sslRootCert, sslCert, sslKey (with paths). Set replicas: 5 for distributed consistency. Configure resources matching CockroachDB workload patterns. Enable dispatch.enabled: true for distributed cluster mode. Add topologySpreadConstraints for zone distribution. Include production tuning parameters and comments.
+
+## 7. Create examples/postgres-external-secrets.yaml and document External Secrets Operator integration [done]
+### Dependencies: 3.4
+### Description: Create example demonstrating External Secrets Operator integration pattern with ExternalSecret resource creating Secret consumed by Helm chart via existingSecret, and add comprehensive documentation
+### Details:
+Create examples/postgres-external-secrets.yaml with two sections: ExternalSecret resource (apiVersion: external-secrets.io/v1beta1) fetching credentials from AWS Secrets Manager/GCP Secret Manager/Vault, targeting secret name spicedb-datastore-secret. Include dataFrom or data entries for datastore-uri, username, password keys. Second section shows Helm values with config.existingSecret: spicedb-datastore-secret, config.datastoreEngine: postgres. Add comprehensive comments explaining: External Secrets Operator installation, SecretStore/ClusterSecretStore configuration, ExternalSecret creation pattern, Helm chart integration via existingSecret. Document credential rotation and security best practices.
+

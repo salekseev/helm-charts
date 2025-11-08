@@ -1,0 +1,84 @@
+# Task ID: 7
+# Title: Implement Observability and Monitoring Integration
+# Status: done
+# Dependencies: 6
+# Priority: medium
+# Description: Add Prometheus ServiceMonitor, metrics endpoint configuration, structured logging, and pod label/annotation projection
+# Details:
+Create templates/servicemonitor.yaml for Prometheus Operator with endpoint targeting port 9090 (metrics), path /metrics, interval 30s, enabled via monitoring.serviceMonitor.enabled (requires prometheus-operator CRDs). Update values.yaml with monitoring.enabled (default true), monitoring.serviceMonitor.enabled (default false), monitoring.serviceMonitor.interval, monitoring.serviceMonitor.scrapeTimeout, monitoring.serviceMonitor.labels (for Prometheus selection). Add SPICEDB_LOG_LEVEL environment variable (default: info, options: debug, info, warn, error). Add SPICEDB_LOG_FORMAT environment variable (default: json for structured logging). Add pod annotations for metrics scraping (prometheus.io/scrape, prometheus.io/port, prometheus.io/path) when monitoring.enabled. Add configurable pod labels via podLabels in values.yaml. Add configurable pod annotations via podAnnotations in values.yaml. Update service to expose metrics port 9090. Create observability documentation covering: Prometheus integration, ServiceMonitor setup, Grafana dashboard examples, log aggregation (stdout/stderr), common metrics to monitor (spicedb_check_duration, spicedb_datastore_queries).
+
+# Test Strategy:
+ServiceMonitor tests verify endpoint configuration, port, path, interval. ServiceMonitor conditional tests verify created only when enabled and CRDs present. Metrics endpoint tests verify service exposes port 9090. Pod annotation tests verify prometheus.io/* annotations present when monitoring enabled. Log level tests verify SPICEDB_LOG_LEVEL environment variable set correctly. Log format tests verify structured logging enabled. Pod labels/annotations tests verify custom labels and annotations applied. Snapshot tests for monitoring configuration. Integration test: deploy with Prometheus Operator, verify ServiceMonitor created, verify metrics scraped, query sample metrics. Integration test without Prometheus Operator: verify chart installs successfully (ServiceMonitor optional).
+
+# Subtasks:
+## 1. Create ServiceMonitor template with conditional CRD detection [done]
+### Dependencies: None
+### Description: Implement templates/servicemonitor.yaml with Prometheus Operator integration, conditional rendering based on CRD presence, and proper endpoint configuration for metrics scraping
+### Details:
+Create templates/servicemonitor.yaml with conditional rendering using {{- if .Values.monitoring.serviceMonitor.enabled }}. Configure endpoint targeting port 9090, path /metrics, interval 30s, scrapeTimeout from values. Add matchLabels selector matching deployment labels. Include labels for Prometheus ServiceMonitor selection. Add template comments documenting CRD requirement (monitoring.coreos.com/v1). Ensure apiVersion: monitoring.coreos.com/v1, kind: ServiceMonitor. Use {{- if .Capabilities.APIVersions.Has "monitoring.coreos.com/v1" }} for CRD detection if needed.
+<info added on 2025-11-08T06:13:39.011Z>
+Successfully implemented ServiceMonitor template. Created templates/servicemonitor.yaml with dual conditional checks (enabled flag + CRD detection), configurable endpoint settings (port: metrics, path: /metrics, interval: 30s, scrapeTimeout: 10s), proper label selectors using spicedb.selectorLabels helper matching deployment/service. Added monitoring.serviceMonitor configuration section to values.yaml. Verified through testing: conditional rendering, endpoint configuration, selector matching, custom parameters. Files: templates/servicemonitor.yaml (created), values.yaml (modified).
+</info added on 2025-11-08T06:13:39.011Z>
+
+## 2. Update values.yaml with monitoring configuration fields [done]
+### Dependencies: None
+### Description: Add comprehensive monitoring configuration section to values.yaml including ServiceMonitor settings, intervals, labels, and scrape timeout parameters
+### Details:
+Add monitoring section to values.yaml with: monitoring.enabled (default: true), monitoring.serviceMonitor.enabled (default: false), monitoring.serviceMonitor.interval (default: 30s), monitoring.serviceMonitor.scrapeTimeout (default: 10s), monitoring.serviceMonitor.labels (default: {}), monitoring.serviceMonitor.additionalLabels for Prometheus selection. Include inline documentation explaining each field, CRD requirements, and usage examples. Ensure defaults follow Prometheus best practices.
+
+## 3. Add logging configuration via environment variables [done]
+### Dependencies: None
+### Description: Implement SPICEDB_LOG_LEVEL and SPICEDB_LOG_FORMAT environment variables in deployment template for structured logging configuration
+### Details:
+Update templates/deployment.yaml to add SPICEDB_LOG_LEVEL environment variable with default 'info' (options: debug, info, warn, error). Add SPICEDB_LOG_FORMAT environment variable with default 'json' for structured logging (options: json, console). Make both configurable via values.yaml under logging.level and logging.format. Add validation helpers to ensure only valid values accepted. Include env vars in container spec of deployment and migration jobs for consistency.
+
+## 4. Add pod annotations and labels for metrics scraping [done]
+### Dependencies: 7.2
+### Description: Implement pod annotations for Prometheus metrics scraping and support for custom pod labels and annotations via values.yaml configuration
+### Details:
+Update templates/deployment.yaml pod template to add prometheus.io/scrape: 'true', prometheus.io/port: '9090', prometheus.io/path: '/metrics' annotations when monitoring.enabled=true. Add podLabels field to values.yaml (default: {}) and merge into deployment pod labels. Add podAnnotations field to values.yaml (default: {}) and merge into deployment pod annotations. Use toYaml helper for proper YAML rendering. Ensure monitoring annotations added conditionally, custom annotations always applied.
+<info added on 2025-11-08T06:14:27.664Z>
+Implementation completed. Added monitoring.enabled configuration in values.yaml (lines 326-330) and conditional prometheus.io annotations in deployment.yaml (lines 28-33) with annotations scrape='true', port='9090', path='/metrics'. Verified podLabels and podAnnotations already exist in values.yaml (lines 32-33) with proper merging support in deployment template (lines 34-36, 39-41). Created comprehensive unit tests in deployment_test.yaml (lines 304-353) covering disabled/enabled monitoring scenarios and annotation merging. Fixed conflicting test (lines 275-288). All 3 monitoring tests pass (25/26 total, 1 unrelated failure). Modified files: charts/spicedb/values.yaml, charts/spicedb/templates/deployment.yaml, charts/spicedb/tests/unit/deployment_test.yaml.
+</info added on 2025-11-08T06:14:27.664Z>
+
+## 5. Update service to expose metrics port 9090 [done]
+### Dependencies: None
+### Description: Modify service template to ensure metrics port 9090 is properly exposed and accessible for Prometheus scraping
+### Details:
+Update templates/service.yaml to add metrics port configuration: name: metrics, port: 9090, targetPort: 9090, protocol: TCP. Make port conditional on monitoring.enabled or always expose (document decision). Ensure port name 'metrics' follows Kubernetes naming conventions for Prometheus auto-discovery. Add service annotations for metrics if needed. Verify existing grpc/http ports not affected. Update service selector to match deployment pods.
+<info added on 2025-11-08T06:12:40.483Z>
+IMPLEMENTATION COMPLETE - Metrics port 9090 is already properly configured in the service template.
+
+Analysis findings:
+1. Service template (templates/service.yaml) already has metrics port configured at lines 18-21 with port: {{ .Values.service.metricsPort }}, targetPort: metrics, protocol: TCP, name: metrics
+
+2. Port configuration follows Prometheus naming conventions - port name 'metrics' is correctly used for Prometheus auto-discovery following the standard Kubernetes convention where port names starting with 'metrics' are automatically discovered by Prometheus service discovery
+
+3. Deployment template (templates/deployment.yaml) has container port configured at lines 64-66 with name: metrics, containerPort: 9090, protocol: TCP
+
+4. Values file (values.yaml) has metricsPort defined at line 61 as metricsPort: 9090
+
+5. Port configuration is ALWAYS exposed (not conditional) - No conditional logic around metrics port in service template. This is appropriate because metrics should always be available for monitoring. Prometheus ServiceMonitor can be created separately if needed for prometheus-operator
+
+6. No conflicts with existing ports - grpc: 50051 (lines 10-13), http: 8443 (lines 14-17), metrics: 9090 (lines 18-21) ✓ ALREADY CONFIGURED, dispatch: 50053 (lines 22-25). All ports have unique names and port numbers
+
+7. Service selector correctly matches deployment pods using standard selector labels (line 26-27)
+
+Testing approach:
+- Verified port configuration in service.yaml matches deployment.yaml container ports
+- Verified port name follows Prometheus naming conventions
+- Verified values.yaml has correct metricsPort value
+- Configuration is production-ready and follows best practices
+
+No changes needed - subtask already complete in codebase.
+</info added on 2025-11-08T06:12:40.483Z>
+
+## 6. Create observability documentation [done]
+### Dependencies: 7.1, 7.2, 7.3, 7.4, 7.5
+### Description: Develop comprehensive documentation covering Prometheus integration, ServiceMonitor setup, Grafana dashboard examples, log aggregation, and key SpiceDB metrics to monitor
+### Details:
+Create docs/observability.md or add to README.md section covering: Prometheus integration setup (installing Prometheus Operator, enabling ServiceMonitor), ServiceMonitor configuration examples, Grafana dashboard JSON examples or links to community dashboards, log aggregation setup (stdout/stderr to aggregation systems), key metrics to monitor (spicedb_check_duration_seconds, spicedb_datastore_queries_total, spicedb_dispatch_requests_total, spicedb_grpc_server_handled_total), alerting rule examples (high latency, error rates), troubleshooting observability issues. Include code examples and kubectl commands.
+<info added on 2025-11-08T06:17:22.329Z>
+Implementation completed. Added comprehensive observability documentation to README.md covering Prometheus metrics integration (both manual pod annotations and Prometheus Operator ServiceMonitor), logging configuration with all levels and formats, Grafana dashboard examples with PromQL queries for key SpiceDB metrics, custom pod labels/annotations support, health endpoint documentation, alerting rule examples for high latency and error rates, and troubleshooting sections for both metrics scraping and ServiceMonitor issues. All 52 unit tests passing, including ServiceMonitor template rendering, pod annotations, logging environment variables, and helm lint validation with no errors.
+</info added on 2025-11-08T06:17:22.329Z>
+

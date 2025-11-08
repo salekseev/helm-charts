@@ -1,0 +1,49 @@
+# Task ID: 1
+# Title: Establish Test Infrastructure and TDD Foundation
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Set up helm-unittest, OPA/Conftest, CI/CD pipeline, and test directory structure before any template development
+# Details:
+Install helm-unittest plugin (v3.14.0+). Create test directory structure: tests/unit/, tests/integration/, tests/values/. Install Conftest (v0.45.0+) and create policies/ directory with base security policies (deny privileged containers, deny latest tags, deny missing resource limits, warn on missing labels/probes). Create .github/workflows/ci.yaml with jobs for: helm lint, helm unittest, conftest verify. Create values.schema.json skeleton following JSON Schema Draft 7. Write example test files demonstrating: template rendering tests, snapshot tests, assertion patterns. Create CONTRIBUTING.md documenting TDD workflow: write test first, implement template, verify test passes, commit both. Set up pre-commit hooks to run tests locally.
+
+# Test Strategy:
+Verify helm unittest runs successfully with zero templates. Verify CI pipeline executes and passes. Verify Conftest policies validate sample manifests. Verify values.schema.json validates against sample values. Test that CI fails when lint/test/policy checks fail.
+
+# Subtasks:
+## 1. Install helm-unittest and create test directory structure [done]
+### Dependencies: None
+### Description: Install the helm-unittest plugin (v3.14.0+) and establish the foundational test directory hierarchy for unit, integration, and values tests
+### Details:
+Install helm-unittest plugin using 'helm plugin install https://github.com/helm-unittest/helm-unittest.git'. Create directory structure: tests/unit/ for template rendering tests, tests/integration/ for end-to-end scenario tests, tests/values/ for values file validation tests. Verify plugin installation with 'helm unittest --help'. Create a basic .helmignore file to exclude test directories from packaged charts.
+
+## 2. Set up Conftest/OPA with base security policies [done]
+### Dependencies: None
+### Description: Install Conftest (v0.45.0+) and create a policies/ directory with foundational OPA security policies for container security best practices
+### Details:
+Install Conftest v0.45.0+ via package manager or GitHub releases. Create policies/ directory in chart root. Implement base OPA policies in policies/security.rego: deny privileged containers (deny[msg] when input.kind == 'Deployment' and container.securityContext.privileged == true), deny latest image tags (deny when image endsWith ':latest'), deny missing resource limits (deny when missing resources.limits), warn on missing health probes (warn when missing livenessProbe or readinessProbe), warn on missing recommended labels (warn when missing app.kubernetes.io/name, app.kubernetes.io/version). Create policies/policy-metadata.yaml documenting each policy's purpose and severity.
+
+## 3. Create CI/CD pipeline with GitHub Actions [done]
+### Dependencies: 1.1, 1.2
+### Description: Implement .github/workflows/ci.yaml with automated jobs for helm lint, helm unittest, and conftest policy verification
+### Details:
+Create .github/workflows/ci.yaml with trigger on push/pull_request to main branch. Define three jobs: 'lint' job running 'helm lint .' on ubuntu-latest with Helm 3.14+ installed, 'unittest' job installing helm-unittest plugin and running 'helm unittest --color --update-snapshot .', 'policy' job installing Conftest and running 'conftest test <(helm template . --values values.yaml)' to verify rendered manifests against OPA policies. Use helm/chart-testing-action@v2 for standardized Helm CI. Configure job dependencies so unittest runs after lint passes, policy runs after unittest passes. Add status badge to README.md linking to workflow.
+
+## 4. Create values.schema.json skeleton and validation setup [done]
+### Dependencies: None
+### Description: Implement JSON Schema Draft 7 schema file for values.yaml validation with core field definitions and CI validation integration
+### Details:
+Create values.schema.json following JSON Schema Draft 7 specification. Define root schema with $schema property set to 'http://json-schema.org/draft-07/schema#'. Implement schema structure mirroring values.yaml hierarchy: replicaCount (type: integer, minimum: 1), image (object with repository, tag, pullPolicy properties), config (object with datastoreEngine enum, logLevel enum), resources (object following Kubernetes resource spec), securityContext (object following Kubernetes SecurityContext spec). Set required fields and provide property descriptions. Add schema validation to CI pipeline using 'helm lint --strict' which automatically validates against values.schema.json if present. Create values-examples/ directory with valid and invalid values files for schema testing.
+
+## 5. Write example test files demonstrating test patterns [done]
+### Dependencies: 1.1
+### Description: Create comprehensive example test files in tests/unit/ showcasing template rendering tests, snapshot tests, and assertion patterns for helm-unittest
+### Details:
+Create tests/unit/deployment_test.yaml demonstrating: basic template rendering test (set values, assert manifest renders without error), snapshot test (capture rendered output, detect unexpected changes), assertion patterns (assertEqual for specific values, assertMatchRegex for patterns, assertExists/assertNotExists for conditional resources). Create tests/unit/service_test.yaml showing: port configuration tests, selector label tests, service type tests (ClusterIP, LoadBalancer, NodePort). Create tests/unit/helpers_test.yaml testing _helpers.tpl functions: spicedb.fullname, spicedb.labels, spicedb.selectorLabels. Include comments explaining each test pattern. Demonstrate testing conditional logic (if .Values.ingress.enabled) and template functions (include, toYaml). Add tests/README.md explaining test structure and how to run specific test suites.
+
+## 6. Create CONTRIBUTING.md and configure pre-commit hooks [done]
+### Dependencies: 1.1, 1.2, 1.3, 1.4, 1.5
+### Description: Document TDD workflow in CONTRIBUTING.md and set up pre-commit hooks to enforce local test execution before commits
+### Details:
+Create CONTRIBUTING.md documenting TDD workflow: 1) Write test first - create test file in tests/unit/ defining expected behavior, 2) Implement template - create/modify template to satisfy test, 3) Run tests locally - execute 'helm unittest .' to verify test passes, 4) Run lint and policy checks - execute 'helm lint --strict' and 'conftest test <(helm template .)', 5) Commit both test and template together. Include sections on: development environment setup, running test suites, writing new tests, debugging test failures, CI/CD expectations. Create .pre-commit-config.yaml with hooks: trailing-whitespace, end-of-file-fixer, check-yaml, helm-unittest (custom hook running 'helm unittest .'), helm-lint (running 'helm lint --strict'). Install pre-commit framework and hooks with 'pre-commit install'. Add pre-commit installation instructions to CONTRIBUTING.md.
+

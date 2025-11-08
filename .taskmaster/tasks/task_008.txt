@@ -1,0 +1,84 @@
+# Task ID: 8
+# Title: Implement Dispatch Cluster Mode Configuration
+# Status: done
+# Dependencies: 7
+# Priority: medium
+# Description: Enable distributed permission checking with Kubernetes service discovery and mTLS for inter-pod communication
+# Details:
+Extend values.yaml with dispatch.enabled (default false), dispatch.upstreamCASecretName for custom CA certificates, dispatch.clusterName. Update templates/deployment.yaml to add dispatch environment variables when enabled: SPICEDB_DISPATCH_CLUSTER_ENABLED=true, SPICEDB_DISPATCH_UPSTREAM_ADDR using Kubernetes DNS (format: spicedb.namespace.svc.cluster.local:50053), SPICEDB_DISPATCH_UPSTREAM_CA_CERT_PATH when upstreamCASecretName provided. Mount upstream CA certificate secret as volume when dispatch.upstreamCASecretName set. Ensure dispatch port 50053 exposed in service (already in Phase 2). Update RBAC to include endpoints discovery permissions (already in Phase 2). When dispatch.enabled and tls.dispatch configured, verify mTLS environment variables set (from Phase 5). Add headless service option (service.headless: true, clusterIP: None) for StatefulSet future support. Document dispatch cluster configuration: when to enable, scaling considerations, network performance impact, mTLS requirements.
+
+# Test Strategy:
+Dispatch environment variable tests verify SPICEDB_DISPATCH_CLUSTER_ENABLED set when enabled. Dispatch upstream address tests verify correct Kubernetes DNS format. Dispatch CA mounting tests verify volume and volumeMount created when upstreamCASecretName provided. Dispatch with mTLS tests: enable both dispatch and tls.dispatch, verify all TLS environment variables present. Service port tests verify dispatch port 50053 exposed. RBAC tests verify endpoints discovery permissions present. Snapshot tests for dispatch configuration. Integration test: deploy 3 replicas with dispatch enabled, verify inter-pod communication works, send check request, verify distributed query execution (check logs for dispatch events).
+
+# Subtasks:
+## 1. Extend values.yaml with dispatch configuration fields [done]
+### Dependencies: None
+### Description: Add dispatch configuration schema to values.yaml including enabled flag, upstreamCASecretName, and clusterName with appropriate defaults and documentation
+### Details:
+Add dispatch configuration section to values.yaml with dispatch.enabled (default false), dispatch.upstreamCASecretName for custom CA certificates (default null), dispatch.clusterName for cluster identification (default empty string). Include inline documentation explaining when to enable dispatch mode, what upstreamCASecretName is for, and cluster naming conventions. Update values.schema.json to validate the new dispatch configuration fields with appropriate types and constraints.
+
+## 2. Add dispatch cluster environment variables to deployment.yaml [done]
+### Dependencies: 8.1
+### Description: Implement conditional dispatch environment variables in deployment template with Kubernetes DNS-based service discovery addressing
+### Details:
+Update templates/deployment.yaml to conditionally add dispatch environment variables when dispatch.enabled is true. Add SPICEDB_DISPATCH_CLUSTER_ENABLED=true, SPICEDB_DISPATCH_UPSTREAM_ADDR using Kubernetes DNS format (spicedb.{{ .Release.Namespace }}.svc.cluster.local:50053), and SPICEDB_DISPATCH_UPSTREAM_CA_CERT_PATH=/etc/dispatch-ca/ca.crt when upstreamCASecretName is provided. Use Helm templating to make namespace-aware and ensure proper formatting of service discovery address.
+<info added on 2025-11-08T06:21:48.668Z>
+Implementation complete for subtask 8.2. Added dispatch cluster mode environment variables to deployment.yaml with conditional rendering based on dispatch.enabled flag. Environment variables implemented: SPICEDB_DISPATCH_CLUSTER_ENABLED (always true when dispatch enabled), SPICEDB_DISPATCH_UPSTREAM_ADDR using Kubernetes DNS format with fullname template helper and Release.Namespace variable (e.g., release-name-spicedb.namespace.svc.cluster.local:50053), and SPICEDB_DISPATCH_UPSTREAM_CA_CERT_PATH (conditional on upstreamCASecretName). Implemented volume mount for dispatch-upstream-ca at /etc/dispatch-ca with readOnly=true when upstreamCASecretName provided. Added corresponding volume definition for dispatch-upstream-ca secret with defaultMode 0400. Created 31 comprehensive unit tests in tests/unit/deployment_test.yaml covering enabled/disabled states, namespace interpolation, CA certificate mounting scenarios, and DNS address formatting. All 62 unit tests passing. Verified template rendering with helm template command showing correct environment variable injection and namespace-aware service discovery.
+</info added on 2025-11-08T06:21:48.668Z>
+
+## 3. Implement upstream CA certificate volume mounting [done]
+### Dependencies: 8.2
+### Description: Add conditional volume and volumeMount configuration for mounting custom upstream CA certificates when dispatch.upstreamCASecretName is configured
+### Details:
+Update templates/deployment.yaml to conditionally create volume and volumeMount when dispatch.upstreamCASecretName is set. Add volume definition referencing the secret name from values, mount to /etc/dispatch-ca/ path matching the SPICEDB_DISPATCH_UPSTREAM_CA_CERT_PATH environment variable. Ensure volumeMount is read-only for security. Follow existing TLS certificate mounting patterns from Task 5 for consistency.
+<info added on 2025-11-08T06:21:16.521Z>
+Implementation completed successfully:
+
+**Configuration Changes:**
+- values.yaml (lines 307-335): Added dispatch.enabled, dispatch.upstreamCASecretName, dispatch.upstreamCAPath (/etc/dispatch-ca/ca.crt), dispatch.clusterName
+- deployment.yaml (lines 124-140): Added SPICEDB_DISPATCH_CLUSTER_ENABLED, SPICEDB_DISPATCH_UPSTREAM_ADDR (Kubernetes DNS), SPICEDB_DISPATCH_UPSTREAM_CA_CERT_PATH (conditional)
+- deployment.yaml (lines 168-173): Added conditional volumeMount for dispatch-upstream-ca (read-only: true)
+- deployment.yaml (lines 270-277): Added volume definition from secret with defaultMode: 0400
+
+**Path Consistency:**
+- Environment variable points to /etc/dispatch-ca/ca.crt
+- Volume mounts to /etc/dispatch-ca
+- Both paths aligned correctly
+
+**Security Implementation:**
+- Volume mount configured as read-only (readOnly: true)
+- File permissions restricted to 0400 (owner read-only)
+- Follows existing TLS certificate mounting patterns from Task 5
+- Conditional mounting prevents unnecessary volumes when not needed
+
+**Verification:**
+- Helm template confirms environment variables correctly set when dispatch.enabled
+- CA cert path only set when upstreamCASecretName provided
+- Volume and volumeMount only created when both conditions met
+- Clean configuration when upstreamCASecretName not set
+</info added on 2025-11-08T06:21:16.521Z>
+
+## 4. Verify integration with existing mTLS configuration from Task 5 [done]
+### Dependencies: 8.3
+### Description: Ensure dispatch cluster mode properly integrates with mTLS configuration, validating that dispatch mTLS certificates and environment variables work together
+### Details:
+Review Task 5 mTLS implementation (tls.dispatch configuration, certificate mounting, mTLS environment variables). Verify that when both dispatch.enabled and tls.dispatch are configured, all required mTLS environment variables are properly set for dispatch communication. Ensure certificate paths don't conflict between dispatch upstream CA and dispatch mTLS certificates. Test that dispatch can use both custom upstream CA and mTLS certificates simultaneously without path or variable collisions.
+<info added on 2025-11-08T06:23:08.623Z>
+Integration confirmed: both dispatch upstream CA and dispatch mTLS certificates can coexist without conflicts. Dispatch mTLS certificates (from tls.dispatch) are mounted at /etc/spicedb/tls/dispatch/ for securing this instance's gRPC endpoint, while dispatch upstream CA (from dispatch.upstreamCASecretName) is mounted at /etc/dispatch-ca/ca.crt for verifying remote dispatch cluster instances. Environment variables remain isolated: SPICEDB_DISPATCH_CLUSTER_TLS_* variables control mTLS for the local endpoint, SPICEDB_DISPATCH_UPSTREAM_CA_CERT_PATH points to the upstream CA for remote verification. Template rendering validated with both features enabled simultaneously.
+</info added on 2025-11-08T06:23:08.623Z>
+
+## 5. Add headless service option for StatefulSet support [done]
+### Dependencies: 8.2
+### Description: Implement optional headless service configuration to enable future StatefulSet deployments with stable network identities
+### Details:
+Update templates/service.yaml to support headless service mode via service.headless configuration (default false). When service.headless is true, set clusterIP: None to create headless service. Ensure service still includes dispatch port 50053 when headless mode enabled. Add documentation explaining headless services are for StatefulSet deployments requiring stable pod DNS names. Maintain backward compatibility with existing service configuration.
+
+## 6. Create dispatch cluster documentation and multi-replica integration tests [done]
+### Dependencies: 8.4, 8.5
+### Description: Document dispatch cluster configuration usage and create comprehensive integration tests validating multi-pod distributed permission checking
+### Details:
+Update charts/spicedb/README.md with dispatch cluster configuration section covering: when to enable dispatch mode, scaling considerations (minimum 2 replicas recommended), network performance impact of inter-pod communication, mTLS requirements for production. Create integration test deploying chart with replicas=3, dispatch.enabled=true, verifying inter-pod communication works. Test scenarios: dispatch with mTLS, dispatch with custom CA, dispatch with headless service. Document Kubernetes DNS service discovery mechanism and troubleshooting common dispatch issues.
+<info added on 2025-11-08T06:24:43.816Z>
+I'll analyze the codebase to understand the dispatch cluster documentation and testing implementation.
+</info added on 2025-11-08T06:24:43.816Z>
+

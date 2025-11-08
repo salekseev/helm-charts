@@ -1,0 +1,61 @@
+# Task ID: 2
+# Title: Implement Core Kubernetes Resources with Memory Datastore
+# Status: done
+# Dependencies: 1
+# Priority: high
+# Description: Create helper templates, ServiceAccount, RBAC, Secret, Service, and basic Deployment for memory-mode SpiceDB
+# Details:
+Create templates/_helpers.tpl with functions: spicedb.name, spicedb.fullname, spicedb.chart, spicedb.labels, spicedb.selectorLabels, spicedb.serviceAccountName. Create templates/serviceaccount.yaml with configurable name, labels, annotations. Create templates/rbac.yaml with Role (get/list endpoints) and RoleBinding. Create templates/secret.yaml to generate preshared key (uses lookup + randAlphaNum 32 for idempotency). Create templates/service.yaml with ports: 50051 (grpc), 8443 (http), 9090 (metrics), 50053 (dispatch). Create templates/deployment.yaml with: image configuration, env vars for memory datastore, liveness probe (grpc:50051), readiness probe (grpc:50051), security context (runAsNonRoot: true, runAsUser: 1000, readOnlyRootFilesystem: true), volume mounts for secret. Create templates/NOTES.txt with connection instructions. Write comprehensive unit tests for each template (90%+ coverage). Create examples/dev-memory.yaml.
+
+# Test Strategy:
+Unit tests for all helper functions verify correct output. ServiceAccount tests verify labels, annotations, naming. RBAC tests verify correct permissions and bindings. Service tests verify all ports configured with correct selectors. Deployment tests verify environment variables, probes, security context, image configuration. Integration test: helm template with default values renders valid manifests. Integration test: helm install on Minikube, pod reaches Ready state, grpc health check passes on port 50051. Snapshot tests for each resource capture expected output.
+
+# Subtasks:
+## 1. Create _helpers.tpl with all helper functions and comprehensive tests [done]
+### Dependencies: None
+### Description: Implement templates/_helpers.tpl with all required helper functions: spicedb.name, spicedb.fullname, spicedb.chart, spicedb.labels, spicedb.selectorLabels, spicedb.serviceAccountName. Write comprehensive unit tests achieving 90%+ coverage.
+### Details:
+Create templates/_helpers.tpl following Helm best practices. Implement spicedb.name (truncated to 63 chars), spicedb.fullname (release.name-chart.name truncated), spicedb.chart (chart.name-chart.version with + replaced by _), spicedb.labels (including helm.sh/chart, app.kubernetes.io/name, app.kubernetes.io/instance, app.kubernetes.io/version, app.kubernetes.io/managed-by), spicedb.selectorLabels (app.kubernetes.io/name and app.kubernetes.io/instance), spicedb.serviceAccountName (using values.serviceAccount.name or generated name). Write unit tests in tests/helpers_test.yaml using helm-unittest covering: name truncation edge cases, fullname override behavior, chart version formatting, label generation with various inputs, serviceAccountName logic (create vs. name), and edge cases for all functions.
+
+## 2. Implement ServiceAccount template with tests [done]
+### Dependencies: 2.1
+### Description: Create templates/serviceaccount.yaml with configurable name, labels, annotations, and conditional creation. Write comprehensive unit tests for all configuration scenarios.
+### Details:
+Create templates/serviceaccount.yaml using serviceAccount.create conditional. Use spicedb.serviceAccountName helper for metadata.name. Apply spicedb.labels for metadata.labels. Support custom annotations via serviceAccount.annotations. Add values.yaml fields: serviceAccount.create (default true), serviceAccount.annotations (default {}), serviceAccount.name (default empty string, auto-generated if empty). Write unit tests in tests/serviceaccount_test.yaml covering: conditional creation based on serviceAccount.create, correct name generation from helper, label application, custom annotation handling, and interaction with serviceAccount.name override.
+
+## 3. Implement RBAC (Role/RoleBinding) with permission tests [done]
+### Dependencies: 2.2
+### Description: Create templates/rbac.yaml with Role granting get/list permissions on endpoints and RoleBinding connecting to ServiceAccount. Write tests verifying correct permissions and bindings.
+### Details:
+Create templates/rbac.yaml with conditional based on rbac.create. Define Role with apiGroups: [''], resources: ['endpoints'], verbs: ['get', 'list'] for service discovery. Create RoleBinding referencing the Role and ServiceAccount. Use spicedb.fullname for resource names and spicedb.labels for metadata. Add values.yaml: rbac.create (default true). Write unit tests in tests/rbac_test.yaml covering: conditional creation, correct API groups and resources, verb permissions (get/list only), RoleBinding subject references correct ServiceAccount, roleRef points to correct Role, and labels are properly applied.
+
+## 4. Implement Secret template with preshared key generation and idempotency tests [done]
+### Dependencies: 2.1
+### Description: Create templates/secret.yaml to generate SpiceDB preshared key using lookup function with randAlphaNum for idempotent secret generation. Write tests verifying idempotency and key format.
+### Details:
+Create templates/secret.yaml for SpiceDB preshared key. Use lookup function to check for existing secret, if not found generate using randAlphaNum 32. Encode key using b64enc. Secret data key: preshared-key. Support secret.name override via values.yaml. Add annotations for Helm management. Implement idempotency pattern: {{- $secret := lookup "v1" "Secret" .Release.Namespace (include "spicedb.fullname" .) -}}{{- if $secret -}}use existing{{- else -}}generate new{{- end -}}. Write unit tests in tests/secret_test.yaml covering: secret creation with correct name, data field contains preshared-key, base64 encoding verification, and integration test for upgrade scenario (requires helm unittest with --with-subchart flag or manual verification).
+
+## 5. Implement Service template with multi-port configuration and tests [done]
+### Dependencies: 2.1
+### Description: Create templates/service.yaml exposing four ports (grpc, http, metrics, dispatch) with proper naming, selectors, and annotations. Write comprehensive port configuration tests.
+### Details:
+Create templates/service.yaml with type ClusterIP (configurable via service.type). Define four ports: grpc (50051, name: grpc, targetPort: grpc), http (8443, name: http, targetPort: http), metrics (9090, name: metrics, targetPort: metrics), dispatch (50053, name: dispatch, targetPort: dispatch). Use spicedb.selectorLabels for selector. Apply spicedb.labels to metadata. Support service.annotations, service.clusterIP. Add values.yaml: service.type (default ClusterIP), service.ports with overrides for each port, service.annotations. Write unit tests in tests/service_test.yaml covering: all four ports defined correctly, port names and numbers match specification, targetPort configuration, selector matches deployment labels, service type configuration, and custom annotations.
+
+## 6. Implement Deployment template with probes, security context, and environment variables [done]
+### Dependencies: 2.4, 2.5
+### Description: Create templates/deployment.yaml with SpiceDB container configuration including memory datastore environment variables, liveness/readiness probes, security hardening, and volume mounts for secrets.
+### Details:
+Create templates/deployment.yaml with replicas from values (default 1). Container spec: image from values.image.repository, tag from values.image.tag (default Chart.appVersion), pullPolicy from values.image.pullPolicy. Environment variables: SPICEDB_DATASTORE_ENGINE=memory, SPICEDB_GRPC_PRESHARED_KEY from secret, SPICEDB_HTTP_ENABLED=true. Liveness probe: grpc port 50051, initialDelaySeconds: 5, periodSeconds: 10. Readiness probe: grpc port 50051, initialDelaySeconds: 3, periodSeconds: 5. Security context: runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000, readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities.drop: [ALL]. Volume mount secret at /etc/spicedb/secrets. Define container ports: grpc (50051), http (8443), metrics (9090), dispatch (50053). Add resource requests/limits from values. Write unit tests in tests/deployment_test.yaml covering: image configuration, all environment variables, probe configuration, security context fields, volume mounts, port definitions, and resource specifications.
+
+## 7. Create NOTES.txt template [done]
+### Dependencies: 2.5
+### Description: Implement templates/NOTES.txt providing connection instructions and usage guidance for accessing SpiceDB after installation.
+### Details:
+Create templates/NOTES.txt displaying post-installation instructions. Include: success message, how to get preshared key from secret (kubectl get secret command), instructions for port-forwarding to access SpiceDB (kubectl port-forward for grpc 50051 and http 8443), example connection commands using zed CLI or grpcurl, link to SpiceDB documentation, and notes about current configuration (memory datastore, replica count). Use Helm template functions to display actual release name, namespace, and service name. Format output for readability in terminal. Write basic test in tests/notes_test.yaml verifying NOTES.txt renders without errors.
+
+## 8. Create examples/dev-memory.yaml and integration tests [done]
+### Dependencies: 2.6, 2.7
+### Description: Create example values file for development deployment using memory datastore and write comprehensive integration tests verifying all components work together.
+### Details:
+Create examples/dev-memory.yaml with minimal development configuration: 1 replica, memory datastore, resource limits for development (cpu: 100m, memory: 128Mi requests), enabled monitoring annotations, development-friendly settings. Document all configurable options with comments. Write integration test suite in tests/integration_test.yaml using helm unittest covering: full chart rendering with dev-memory values, verify all resources created (ServiceAccount, RBAC, Secret, Service, Deployment), cross-resource references correct (Service selector matches Deployment labels, RoleBinding references ServiceAccount, Deployment mounts Secret), label consistency across all resources, and end-to-end scenario test. Create tests/test-values directory with additional test value files for edge cases.
+
