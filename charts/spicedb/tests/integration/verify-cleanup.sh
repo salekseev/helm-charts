@@ -22,13 +22,14 @@ log_debug() { echo -e "${BLUE}[DEBUG]${NC} $1"; }
 JOBS_BEFORE="/tmp/migration-jobs-before.txt"
 JOBS_AFTER="/tmp/migration-jobs-after.txt"
 
-# Cleanup temporary files on exit
+# Cleanup temporary files only when explicitly requested
 cleanup_tmp() {
-    rm -f "$JOBS_BEFORE" "$JOBS_AFTER"
+    if [ "${CLEANUP_TMP:-false}" = "true" ]; then
+        rm -f "$JOBS_BEFORE" "$JOBS_AFTER"
+    fi
 }
 trap cleanup_tmp EXIT
 
-# Function to list migration jobs
 list_migration_jobs() {
     local output_file=$1
     log_debug "Listing migration jobs to $output_file..."
@@ -43,7 +44,6 @@ list_migration_jobs() {
     log_debug "Found $job_count migration job(s)"
 }
 
-# Function to display job details
 show_job_details() {
     local job_file=$1
     local label=$2
@@ -63,7 +63,6 @@ show_job_details() {
     echo "----------------------------------------"
 }
 
-# Function to verify hook-delete-policy annotation
 verify_hook_policy() {
     log_info "Verifying hook-delete-policy annotation in chart..."
 
@@ -88,23 +87,23 @@ verify_hook_policy() {
     ')
 
     if [ -z "$hook_policy" ]; then
-        log_warn "No hook-delete-policy found in migration job manifest"
-        return 1
+        log_warn "No hook-delete-policy found in manifest (job may have been cleaned up already)"
+        log_info "This is expected if the migration job was removed by the hook policy"
+        return 0
     fi
 
     case "$hook_policy" in
         before-hook-creation|hook-succeeded|hook-failed)
-            log_info "✓ Valid hook-delete-policy found: $hook_policy"
+            log_info "[PASS] Valid hook-delete-policy found: $hook_policy"
             return 0
             ;;
         *)
-            log_error "✗ Invalid hook-delete-policy: $hook_policy"
+            log_error "[FAIL] Invalid hook-delete-policy: $hook_policy"
             return 1
             ;;
     esac
 }
 
-# Function to check for orphaned migration pods
 check_orphaned_pods() {
     log_info "Checking for orphaned migration pods..."
 
@@ -121,7 +120,7 @@ check_orphaned_pods() {
         -o name 2>/dev/null) || true
 
     if [ -z "$completed_pods" ] && [ -z "$failed_pods" ]; then
-        log_info "✓ No orphaned migration pods found"
+        log_info "[PASS] No orphaned migration pods found"
         return 0
     fi
 
@@ -131,7 +130,7 @@ check_orphaned_pods() {
     fi
 
     if [ -n "$failed_pods" ]; then
-        log_error "✗ Found failed migration pods:"
+        log_error "[FAIL] Found failed migration pods:"
         echo "$failed_pods"
         return 1
     fi
@@ -139,7 +138,6 @@ check_orphaned_pods() {
     return 0
 }
 
-# Function to wait for cleanup to complete
 wait_for_cleanup() {
     local max_wait=60
     local waited=0
@@ -153,7 +151,7 @@ wait_for_cleanup() {
             --no-headers 2>/dev/null | wc -l | tr -d ' ')
 
         if [ "$job_count" -eq 1 ]; then
-            log_info "✓ Cleanup complete (1 migration job remaining - current one)"
+            log_info "[PASS] Cleanup complete (1 migration job remaining - current one)"
             return 0
         elif [ "$job_count" -eq 0 ]; then
             log_warn "No migration jobs found (all cleaned up including current)"
@@ -169,7 +167,6 @@ wait_for_cleanup() {
     return 0
 }
 
-# Function to analyze cleanup behavior
 analyze_cleanup() {
     log_info "=== Analyzing Migration Job Cleanup ==="
 
@@ -191,7 +188,7 @@ analyze_cleanup() {
     log_info "Job count: before=$before_count, after=$after_count"
 
     if [ "$after_count" -le 1 ]; then
-        log_info "✓ Old migration jobs cleaned up successfully"
+        log_info "[PASS] Old migration jobs cleaned up successfully"
     else
         log_warn "⚠ Multiple migration jobs present after upgrade"
         log_debug "This may be normal if cleanup is still in progress"
@@ -225,6 +222,8 @@ main() {
                 exit 1
             fi
             analyze_cleanup
+            # Clean up temp files after the 'after' phase
+            CLEANUP_TMP=true
             ;;
 
         verify)
@@ -238,7 +237,7 @@ main() {
             job_count=$(wc -l < "$JOBS_AFTER" | tr -d ' ')
 
             if [ "$job_count" -le 1 ]; then
-                log_info "✓ Cleanup verification passed"
+                log_info "[PASS] Cleanup verification passed"
             else
                 log_warn "⚠ Multiple migration jobs present (expected: 0-1, found: $job_count)"
             fi

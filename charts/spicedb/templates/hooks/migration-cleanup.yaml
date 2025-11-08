@@ -17,17 +17,17 @@ metadata:
     # Set hook weight to run after migration job (weight 0) completes
     # Higher weights run later in the lifecycle
     helm.sh/hook-weight: "5"
-    # Delete this cleanup job itself after it succeeds
-    # This prevents accumulation of cleanup jobs
-    helm.sh/hook-delete-policy: hook-succeeded
+    # Delete this cleanup job after it completes (success or failure)
+    # This prevents accumulation of cleanup jobs and ensures install/upgrade isn't blocked
+    helm.sh/hook-delete-policy: hook-succeeded,hook-failed
 spec:
   # Retry failed cleanup attempts up to 2 times
   # Failures might occur if RBAC permissions aren't ready yet
   backoffLimit: 2
 
-  # Give the cleanup job 2 minutes to complete
-  # This is generous for a simple kubectl delete operation
-  activeDeadlineSeconds: 120
+  # Give the cleanup job 5 minutes to complete
+  # This allows time for image pull and kubectl operations
+  activeDeadlineSeconds: 300
 
   template:
     metadata:
@@ -57,7 +57,8 @@ spec:
         # Use Bitnami kubectl image which includes full shell support
         # Bitnami images are well-maintained, security-scanned, and production-ready
         # registry.k8s.io/kubectl uses distroless base with no shell support
-        image: bitnami/kubectl:1.31.0
+        # Using specific Debian-based tag for reliability
+        image: alpine/kubectl:1.34.1
         imagePullPolicy: IfNotPresent
 
         command:

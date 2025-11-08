@@ -3,6 +3,8 @@
 # Variables
 KIND_CLUSTER_NAME ?= spicedb-test
 HELM_RELEASE_NAME ?= spicedb
+SPICEDB_INITIAL_VERSION ?= v1.44.4
+SPICEDB_UPGRADE_VERSION ?= v1.46.2
 
 help:  ## Display this help message
 	@echo "SpiceDB Helm Chart - Available targets:"
@@ -12,6 +14,8 @@ help:  ## Display this help message
 	@echo "Variables:"
 	@echo "  KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME)"
 	@echo "  HELM_RELEASE_NAME=$(HELM_RELEASE_NAME)"
+	@echo "  SPICEDB_INITIAL_VERSION=$(SPICEDB_INITIAL_VERSION)"
+	@echo "  SPICEDB_UPGRADE_VERSION=$(SPICEDB_UPGRADE_VERSION)"
 
 test-unit:  ## Run Helm unit tests with helm-unittest
 	@echo "Running Helm unit tests..."
@@ -21,6 +25,8 @@ test-integration:  ## Run integration tests with Kind cluster
 	@echo "Running integration tests..."
 	@export KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) && \
 	export HELM_RELEASE_NAME=$(HELM_RELEASE_NAME) && \
+	export SPICEDB_INITIAL_VERSION=$(SPICEDB_INITIAL_VERSION) && \
+	export SPICEDB_UPGRADE_VERSION=$(SPICEDB_UPGRADE_VERSION) && \
 	./tests/integration/migration-test.sh
 
 test-local: test-unit  ## Run local tests (unit tests only)

@@ -5,6 +5,8 @@ set -euo pipefail
 # Configuration
 NAMESPACE="${NAMESPACE:-spicedb-test}"
 RELEASE_NAME="${RELEASE_NAME:-spicedb}"
+# Use just the release name as the service name matches the release name
+SERVICE_NAME="${RELEASE_NAME}"
 ENDPOINT="${ENDPOINT:-localhost:50051}"
 TOKEN="${TOKEN:-insecure-default-key-change-in-production}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,16 +35,14 @@ cleanup_tmp() {
 }
 trap cleanup_tmp EXIT
 
-# Function to connect to SpiceDB using port-forward
 setup_port_forward() {
     log_info "Setting up port-forward to SpiceDB..."
-    kubectl port-forward -n "$NAMESPACE" "svc/$RELEASE_NAME-spicedb" 50051:50051 &
+    kubectl port-forward -n "$NAMESPACE" "svc/$SERVICE_NAME" 50051:50051 &
     PORT_FORWARD_PID=$!
     sleep 3  # Wait for port-forward to establish
     log_debug "Port-forward PID: $PORT_FORWARD_PID"
 }
 
-# Function to stop port-forward
 stop_port_forward() {
     if [ -n "${PORT_FORWARD_PID:-}" ]; then
         log_debug "Stopping port-forward (PID: $PORT_FORWARD_PID)"
@@ -52,7 +52,6 @@ stop_port_forward() {
 }
 trap stop_port_forward EXIT
 
-# Function to wait for SpiceDB to be ready
 wait_for_spicedb() {
     log_info "Waiting for SpiceDB to be ready..."
     kubectl wait --for=condition=ready pod \
@@ -62,7 +61,6 @@ wait_for_spicedb() {
     log_info "SpiceDB pods are ready"
 }
 
-# Function to load schema
 load_schema() {
     log_info "Loading test schema..."
     if [ ! -f "$SCRIPT_DIR/test-schema.zed" ]; then
@@ -70,11 +68,13 @@ load_schema() {
         return 1
     fi
 
+    # Use stdin to provide schema to zed command
     kubectl run -n "$NAMESPACE" zed-schema-load --rm -i --restart=Never \
         --image=authzed/zed:latest \
-        --command -- sh -c "cat <<'EOFSCHEMA' | zed schema write --endpoint $RELEASE_NAME-spicedb:50051 --insecure --token $TOKEN
-$(cat "$SCRIPT_DIR/test-schema.zed")
-EOFSCHEMA" || {
+        -- schema write \
+        --endpoint "$SERVICE_NAME:50051" \
+        --insecure \
+        --token "$TOKEN" < "$SCRIPT_DIR/test-schema.zed" || {
         log_error "Failed to load schema"
         return 1
     }
@@ -82,28 +82,32 @@ EOFSCHEMA" || {
     log_info "Schema loaded successfully"
 }
 
-# Function to write test relationships
 write_test_relationships() {
     log_info "Writing test relationships..."
 
-    kubectl run -n "$NAMESPACE" zed-relationships-write --rm -i --restart=Never \
-        --image=authzed/zed:latest \
-        --command -- sh -c "
-set -e
-zed relationship create document:doc1 owner user:alice --endpoint $RELEASE_NAME-spicedb:50051 --insecure --token $TOKEN
-zed relationship create document:doc1 editor user:bob --endpoint $RELEASE_NAME-spicedb:50051 --insecure --token $TOKEN
-zed relationship create document:doc1 viewer user:charlie --endpoint $RELEASE_NAME-spicedb:50051 --insecure --token $TOKEN
-zed relationship create document:doc2 owner user:alice --endpoint $RELEASE_NAME-spicedb:50051 --insecure --token $TOKEN
-echo 'All relationships created successfully'
-" || {
-        log_error "Failed to write relationships"
-        return 1
-    }
+    # Write each relationship separately since zed doesn't have shell
+    local relationships=(
+        "document:doc1 owner user:alice"
+        "document:doc1 editor user:bob"
+        "document:doc1 viewer user:charlie"
+        "document:doc2 owner user:alice"
+    )
+
+    for rel in "${relationships[@]}"; do
+        kubectl run -n "$NAMESPACE" "zed-rel-write-$RANDOM" --rm --attach --restart=Never \
+            --image=authzed/zed:latest \
+            -- relationship create $rel \
+            --endpoint "$SERVICE_NAME:50051" \
+            --insecure \
+            --token "$TOKEN" || {
+            log_error "Failed to write relationship: $rel"
+            return 1
+        }
+    done
 
     log_info "Test relationships written successfully"
 }
 
-# Function to check permissions
 check_permission() {
     local resource=$1
     local permission=$2
@@ -112,35 +116,48 @@ check_permission() {
 
     log_debug "Checking: $subject can $permission on $resource (expect: $expected)"
 
+    local pod_name="zed-check-$RANDOM"
     local result
-    result=$(kubectl run -n "$NAMESPACE" zed-check-$RANDOM --rm -i --restart=Never \
+
+    # Run pod without --attach, then get logs
+    kubectl run -n "$NAMESPACE" "$pod_name" --restart=Never \
         --image=authzed/zed:latest \
-        --command -- sh -c "
-        zed permission check $resource $permission $subject \
-            --endpoint $RELEASE_NAME-spicedb:50051 \
-            --insecure \
-            --token $TOKEN" 2>&1) || true
+        -- permission check "$resource" "$permission" "$subject" \
+        --endpoint "$SERVICE_NAME:50051" \
+        --insecure \
+        --token "$TOKEN" > /dev/null 2>&1
+
+    # Wait for pod to complete
+    kubectl wait --for=condition=Ready pod/"$pod_name" -n "$NAMESPACE" --timeout=10s > /dev/null 2>&1 || true
+    sleep 1
+
+    # Get the logs (actual zed output)
+    result=$(kubectl logs "$pod_name" -n "$NAMESPACE" 2>/dev/null || true)
+
+    # Clean up pod
+    kubectl delete pod "$pod_name" -n "$NAMESPACE" --wait=false > /dev/null 2>&1 || true
+
+    log_debug "Raw result: '$result'"
 
     if echo "$result" | grep -q "true"; then
         if [ "$expected" = "true" ]; then
-            log_info "✓ $subject can $permission $resource"
+            log_info "checkmark $subject can $permission $resource"
             return 0
         else
-            log_error "✗ $subject should NOT be able to $permission $resource"
+            log_error "xmark $subject should NOT be able to $permission $resource"
             return 1
         fi
     else
         if [ "$expected" = "false" ]; then
-            log_info "✓ $subject cannot $permission $resource (expected)"
+            log_info "checkmark $subject cannot $permission $resource (expected)"
             return 0
         else
-            log_error "✗ $subject should be able to $permission $resource"
+            log_error "xmark $subject should be able to $permission $resource"
             return 1
         fi
     fi
 }
 
-# Function to run all permission checks
 run_permission_checks() {
     log_info "Running permission checks..."
     local failed=0
@@ -173,57 +190,83 @@ run_permission_checks() {
     return 0
 }
 
-# Function to export schema
 export_schema() {
     local output_file=$1
     log_info "Exporting schema to $output_file..."
 
-    kubectl run -n "$NAMESPACE" zed-schema-export-$RANDOM --rm -i --restart=Never \
+    local pod_name="zed-schema-export-$RANDOM"
+
+    # Run pod without --attach, then get logs
+    kubectl run -n "$NAMESPACE" "$pod_name" --restart=Never \
         --image=authzed/zed:latest \
-        --command -- sh -c "
-        zed schema read \
-            --endpoint $RELEASE_NAME-spicedb:50051 \
-            --insecure \
-            --token $TOKEN" > "$output_file" 2>/dev/null || {
+        -- schema read \
+        --endpoint "$SERVICE_NAME:50051" \
+        --insecure \
+        --token "$TOKEN" > /dev/null 2>&1
+
+    # Wait for pod to complete
+    kubectl wait --for=condition=Ready pod/"$pod_name" -n "$NAMESPACE" --timeout=10s > /dev/null 2>&1 || true
+    sleep 1
+
+    # Get the logs and filter out warning messages
+    kubectl logs "$pod_name" -n "$NAMESPACE" 2>/dev/null | \
+        grep -v "^{\"level\":\"warn\"" > "$output_file" || {
         log_error "Failed to export schema"
+        kubectl delete pod "$pod_name" -n "$NAMESPACE" --wait=false > /dev/null 2>&1 || true
         return 1
     }
+
+    # Clean up pod
+    kubectl delete pod "$pod_name" -n "$NAMESPACE" --wait=false > /dev/null 2>&1 || true
 
     log_debug "Schema exported to $output_file"
 }
 
-# Function to export relationships
 export_relationships() {
     local output_file=$1
     log_info "Exporting relationships to $output_file..."
 
-    kubectl run -n "$NAMESPACE" zed-rel-export-$RANDOM --rm -i --restart=Never \
+    local pod_name="zed-rel-export-$RANDOM"
+
+    # Run pod without --attach, then get logs
+    kubectl run -n "$NAMESPACE" "$pod_name" --restart=Never \
         --image=authzed/zed:latest \
-        --command -- sh -c "
-        zed relationship read document --endpoint $RELEASE_NAME-spicedb:50051 --insecure --token $TOKEN" \
-        > "$output_file" 2>/dev/null || {
+        -- relationship read document \
+        --endpoint "$SERVICE_NAME:50051" \
+        --insecure \
+        --token "$TOKEN" > /dev/null 2>&1
+
+    # Wait for pod to complete
+    kubectl wait --for=condition=Ready pod/"$pod_name" -n "$NAMESPACE" --timeout=10s > /dev/null 2>&1 || true
+    sleep 1
+
+    # Get the logs and filter out warning messages
+    kubectl logs "$pod_name" -n "$NAMESPACE" 2>/dev/null | \
+        grep -v "^{\"level\":\"warn\"" > "$output_file" || {
         log_error "Failed to export relationships"
+        kubectl delete pod "$pod_name" -n "$NAMESPACE" --wait=false > /dev/null 2>&1 || true
         return 1
     }
+
+    # Clean up pod
+    kubectl delete pod "$pod_name" -n "$NAMESPACE" --wait=false > /dev/null 2>&1 || true
 
     log_debug "Relationships exported to $output_file"
 }
 
-# Function to compare schemas
 compare_schemas() {
     log_info "Comparing schemas before and after upgrade..."
 
     if diff -u "$SCHEMA_BEFORE" "$SCHEMA_AFTER" > /dev/null; then
-        log_info "✓ Schema unchanged after upgrade"
+        log_info "[PASS] Schema unchanged after upgrade"
         return 0
     else
-        log_error "✗ Schema changed after upgrade:"
+        log_error "[FAIL] Schema changed after upgrade:"
         diff -u "$SCHEMA_BEFORE" "$SCHEMA_AFTER" || true
         return 1
     fi
 }
 
-# Function to compare relationships
 compare_relationships() {
     log_info "Comparing relationships before and after upgrade..."
 
@@ -232,10 +275,10 @@ compare_relationships() {
     sort "$RELATIONSHIPS_AFTER" > "${RELATIONSHIPS_AFTER}.sorted"
 
     if diff -u "${RELATIONSHIPS_BEFORE}.sorted" "${RELATIONSHIPS_AFTER}.sorted" > /dev/null; then
-        log_info "✓ Relationships unchanged after upgrade"
+        log_info "[PASS] Relationships unchanged after upgrade"
         return 0
     else
-        log_error "✗ Relationships changed after upgrade:"
+        log_error "[FAIL] Relationships changed after upgrade:"
         diff -u "${RELATIONSHIPS_BEFORE}.sorted" "${RELATIONSHIPS_AFTER}.sorted" || true
         return 1
     fi
