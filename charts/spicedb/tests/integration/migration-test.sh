@@ -127,8 +127,9 @@ nodes:
     protocol: TCP
 EOF
 
-    # Set kubeconfig
-    export KUBECONFIG="$(kind get kubeconfig --name="$CLUSTER_NAME")"
+    # Kind automatically sets the kubeconfig context, no need to export KUBECONFIG
+    # Just verify we're using the right context
+    kubectl config use-context "kind-${CLUSTER_NAME}"
 
     log_info "Waiting for cluster to be ready..."
     kubectl wait --for=condition=Ready nodes --all --timeout=120s
