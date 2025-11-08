@@ -38,11 +38,16 @@ cleanup() {
     fi
 
     if [ "${SKIP_CLEANUP:-false}" != "true" ]; then
-        log_info "Cleaning up Kind cluster: $CLUSTER_NAME"
-        kind delete cluster --name "$CLUSTER_NAME" 2>/dev/null || true
+        # Only delete cluster if we created it (not if GitHub Actions created it)
+        if [ -z "${CI:-}" ] && kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
+            log_info "Cleaning up Kind cluster: $CLUSTER_NAME"
+            kind delete cluster --name "$CLUSTER_NAME" 2>/dev/null || true
+        else
+            log_info "Skipping cluster cleanup (managed externally)"
+        fi
     else
         log_warn "Skipping cleanup (SKIP_CLEANUP=true)"
-        log_info "To access cluster: export KUBECONFIG=$(kind get kubeconfig --name="$CLUSTER_NAME")"
+        log_info "To access cluster: export KUBECONFIG=$(kind get kubeconfig --name="$CLUSTER_NAME" 2>/dev/null || echo 'managed-by-ci')"
     fi
 
     if [ $exit_code -ne 0 ] || [ $FAILURES -gt 0 ]; then
@@ -87,6 +92,18 @@ capture_logs() {
 # Function to setup Kind cluster
 setup_kind_cluster() {
     log_section "Setting up Kind cluster"
+
+    # Check if cluster already exists (e.g., created by GitHub Actions)
+    if kubectl cluster-info > /dev/null 2>&1; then
+        log_info "Kubernetes cluster already available, skipping Kind setup"
+        log_info "Using existing cluster context: $(kubectl config current-context)"
+
+        # Verify cluster is responsive
+        log_info "Waiting for cluster to be ready..."
+        kubectl wait --for=condition=Ready nodes --all --timeout=120s
+        log_info "✓ Cluster ready"
+        return 0
+    fi
 
     if kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
         log_warn "Cluster $CLUSTER_NAME already exists, deleting..."
