@@ -68,6 +68,8 @@ spec:
           containerPort: 50053
           protocol: TCP
         env:
+        - name: SPICEDB_GRPC_PRESHARED_KEY
+          value: {{ .Values.config.presharedKey | quote }}
         - name: SPICEDB_DATASTORE_ENGINE
           value: {{ .Values.config.datastoreEngine }}
         - name: SPICEDB_LOG_LEVEL

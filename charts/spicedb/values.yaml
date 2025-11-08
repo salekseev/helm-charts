@@ -113,6 +113,11 @@ config:
   datastoreEngine: memory
   logLevel: info
 
+  # gRPC preshared key for authentication
+  # This is required for SpiceDB to start
+  # In production, this should be set via an existing secret
+  presharedKey: "insecure-default-key-change-in-production"
+
   # Reference to an existing secret containing datastore credentials
   # If set, the chart will not create a secret and will use this instead
   # The secret must contain a 'datastore-uri' key with the connection string
