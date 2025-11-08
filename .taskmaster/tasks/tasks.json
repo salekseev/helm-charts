@@ -911,14 +911,80 @@
         "description": "Implement end-to-end integration tests that deploy SpiceDB to Kind cluster with PostgreSQL, validate migrations during upgrades, verify data persistence, and test cleanup hooks using helm unittest and custom verification scripts.",
         "details": "Create tests/integration/ directory structure with the following components:\n\n1. tests/integration/postgres-deployment.yaml: PostgreSQL StatefulSet using postgres:16 image with PersistentVolumeClaim (1Gi storage), Service exposing port 5432, Secret containing POSTGRES_PASSWORD, ConfigMap with init scripts to create spicedb database. Include resource limits (memory: 512Mi, cpu: 500m) and liveness/readiness probes.\n\n2. tests/integration/test-schema.zed: Sample SpiceDB schema defining 'user' and 'document' types with relationships (owner, editor, viewer) and permissions (view, edit, delete). Include example relationships for testing persistence: user:alice#owner@document:doc1, user:bob#editor@document:doc1.\n\n3. tests/integration/verify-persistence.sh: Bash script that uses 'zed' CLI to connect to SpiceDB (--endpoint localhost:50051 --insecure --token from secret), loads test-schema.zed, writes test relationships, performs permission checks (zed permission check document:doc1 view user:alice), exports current schema/relationships, then verifies they persist after helm upgrade by re-checking permissions and comparing schema exports.\n\n4. tests/integration/verify-cleanup.sh: Script that lists Kubernetes Jobs before/after upgrade, verifies migration jobs are removed due to helm.sh/hook-delete-policy: before-hook-creation annotation, checks no orphaned migration jobs remain using kubectl get jobs --selector='app.kubernetes.io/component=migration'.\n\n5. tests/integration/migration-test.sh: Main orchestration script with functions: setup_kind_cluster() creates cluster with extraPortMappings for NodePort access, deploy_postgres() applies postgres-deployment.yaml and waits for ready, install_chart() runs helm install with PostgreSQL datastore URI, load_test_data() uses zed to import schema and relationships, upgrade_chart() performs helm upgrade with modified values, verify_all() calls verify-persistence.sh and verify-cleanup.sh, cleanup() deletes Kind cluster. Script exports KUBECONFIG, implements retry logic for pod readiness, captures logs on failure to tests/integration/logs/ directory.\n\n6. Update Makefile: Add test-integration target that executes migration-test.sh, add test-local target for running helm unittest on template tests, add test-all target combining unittest and integration tests. Include KIND_CLUSTER_NAME variable (default: spicedb-test) and HELM_RELEASE_NAME variable (default: spicedb-test).\n\n7. Update .github/workflows/ci.yaml: Add integration-test job that runs after lint-test job, uses setup-kind action, installs helm and kubectl, runs make test-integration, uploads test logs as artifacts on failure. Add conditional if: github.event_name != 'act' to skip integration tests when using act for local testing (resource constraints). Matrix strategy for Kubernetes versions: [v1.28.0, v1.29.0, v1.30.0].\n\n8. Create tests/integration/README.md documenting: prerequisites (Kind, kubectl, helm, zed CLI), local testing instructions, CI/CD integration, troubleshooting common issues (port conflicts, resource limits, image pull failures), example output showing successful test run.\n\nImplementation should follow existing chart patterns from templates/ directory, use consistent naming conventions (app.kubernetes.io labels), reference config.datastoreEngine and migrations.enabled values. Integration tests validate: migration job execution order (pre-install, pre-upgrade hooks), schema versioning across upgrades, data integrity with concurrent connections, cleanup hook policies, idempotent migrations on repeated upgrades, permission checking against persisted schema.",
         "testStrategy": "Verify integration test infrastructure: 1) Run make test-integration locally with Kind cluster, confirm PostgreSQL deploys successfully, SpiceDB chart installs with migration jobs executing, test schema loads without errors, helm upgrade triggers pre-upgrade migration, verify-persistence.sh confirms data persists, verify-cleanup.sh confirms old migration jobs removed. 2) Test failure scenarios: inject schema error in test-schema.zed, verify migration-test.sh exits with non-zero code and exports logs. 3) Validate CI workflow: push to feature branch, confirm GitHub Actions runs integration-test job, verify artifacts uploaded on failure. 4) Test with act locally: run act -j integration-test, confirm job skipped due to conditional. 5) Verify idempotency: run make test-integration twice consecutively, confirm second run succeeds and reports no drift. 6) Manual verification: inspect tests/integration/logs/ for migration job output, kubectl logs for SpiceDB pods, verify PVC cleanup after Kind cluster deletion. 7) Cross-version testing: modify CI matrix to test against Kubernetes v1.27-v1.30, confirm migrations work across versions. 8) Validate documentation: follow tests/integration/README.md instructions on clean system, confirm all prerequisites documented and steps reproducible.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           4,
           5,
           9
         ],
         "priority": "medium",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create tests/integration directory structure with PostgreSQL deployment manifests",
+            "description": "Set up the integration test directory structure and create PostgreSQL StatefulSet, Service, Secret, and ConfigMap manifests for test database deployment",
+            "dependencies": [],
+            "details": "Create tests/integration/ directory. Create postgres-deployment.yaml containing: PostgreSQL StatefulSet using postgres:16 image with PersistentVolumeClaim (1Gi storage, ReadWriteOnce), resource limits (memory: 512Mi, cpu: 500m), liveness probe (pg_isready), readiness probe (psql -U postgres -c 'SELECT 1'). Create Service exposing port 5432 with selector matching StatefulSet. Create Secret with POSTGRES_PASSWORD key. Create ConfigMap with init.sql script to CREATE DATABASE spicedb. Follow Kubernetes manifest patterns from existing templates/ directory using consistent labeling (app.kubernetes.io/name, app.kubernetes.io/instance).",
+            "status": "done",
+            "testStrategy": "Deploy postgres-deployment.yaml to Kind cluster using kubectl apply, verify StatefulSet reaches Ready state (1/1), verify PVC is bound, verify Service endpoints are available, verify database 'spicedb' exists by connecting with psql, verify resource limits are applied correctly"
+          },
+          {
+            "id": 2,
+            "title": "Create SpiceDB test schema and sample relationships",
+            "description": "Create test-schema.zed file with SpiceDB schema definitions for integration testing data persistence and permission checks",
+            "dependencies": [
+              1
+            ],
+            "details": "Create tests/integration/test-schema.zed with schema definitions: define 'user' type, define 'document' type with relations (owner: user, editor: user, viewer: user) and permissions (view = viewer + editor + owner, edit = editor + owner, delete = owner). Add example relationships for testing: user:alice#owner@document:doc1, user:bob#editor@document:doc1, user:charlie#viewer@document:doc1. Schema should be valid for zed CLI import and cover common permission checking scenarios.",
+            "status": "done",
+            "testStrategy": "Validate test-schema.zed syntax using zed validate command, verify schema can be loaded into SpiceDB using zed schema write, verify relationships can be written using zed relationship write, verify permission checks return expected results (alice can delete, bob can edit but not delete, charlie can only view)"
+          },
+          {
+            "id": 3,
+            "title": "Implement verify-persistence.sh script for data integrity testing",
+            "description": "Create bash script to verify SpiceDB schema and relationship data persists correctly across helm upgrades",
+            "dependencies": [
+              2
+            ],
+            "details": "Create tests/integration/verify-persistence.sh with functions: connect_to_spicedb() using zed CLI with --endpoint localhost:50051 --insecure --token from Kubernetes secret, load_schema() imports test-schema.zed, write_test_relationships() creates sample relationships, check_permissions() verifies permission checks (zed permission check document:doc1 view user:alice returns true), export_schema() saves current schema to /tmp/schema-before.zed, export_relationships() saves to /tmp/relationships-before.json, verify_after_upgrade() re-runs permission checks and compares schema/relationship exports. Include error handling, logging to stdout, exit codes (0=success, 1=failure). Use kubectl port-forward for SpiceDB access if needed.",
+            "status": "done",
+            "testStrategy": "Run verify-persistence.sh after initial chart installation, verify all permission checks pass, run helm upgrade with modified values (e.g., change replicas), re-run verify-persistence.sh, confirm schema and relationships unchanged, verify permission checks still pass, check script exits with code 0"
+          },
+          {
+            "id": 4,
+            "title": "Implement verify-cleanup.sh script for migration job cleanup validation",
+            "description": "Create bash script to verify Kubernetes Jobs created by migration hooks are properly cleaned up according to hook-delete-policy annotations",
+            "dependencies": [],
+            "details": "Create tests/integration/verify-cleanup.sh with functions: list_migration_jobs_before() captures kubectl get jobs --selector='app.kubernetes.io/component=migration' output before upgrade, perform_upgrade() runs helm upgrade, list_migration_jobs_after() captures jobs after upgrade, verify_cleanup() checks that old migration jobs are removed due to helm.sh/hook-delete-policy: before-hook-creation annotation, verify_no_orphans() ensures no jobs with migration label remain in failed/completed state. Script should output comparison of before/after job lists, log job details (name, status, creationTimestamp), exit with code 0 if cleanup successful, code 1 if orphaned jobs found. Include 30-second wait after upgrade for cleanup to complete.",
+            "status": "done",
+            "testStrategy": "Run verify-cleanup.sh during helm upgrade cycle, verify script correctly identifies migration jobs before upgrade, verify old migration jobs are deleted after upgrade completes, verify new migration job is created for upgrade, verify no orphaned jobs remain, check script exits with code 0 when cleanup succeeds"
+          },
+          {
+            "id": 5,
+            "title": "Create migration-test.sh orchestration script",
+            "description": "Implement main integration test orchestration script that manages Kind cluster lifecycle, deploys PostgreSQL and SpiceDB, runs upgrade tests, and verifies all components",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "details": "Create tests/integration/migration-test.sh with functions: setup_kind_cluster() creates cluster using kind create cluster --name ${KIND_CLUSTER_NAME:-spicedb-test} --config with extraPortMappings for NodePort access (containerPort: 30051, hostPort: 50051), sets KUBECONFIG, deploy_postgres() applies postgres-deployment.yaml and waits for StatefulSet ready with timeout, install_chart() runs helm install ${HELM_RELEASE_NAME:-spicedb-test} with values pointing to PostgreSQL (datastore.engine=postgres, datastore.uri from secret), load_test_data() sources verify-persistence.sh to load schema/relationships, upgrade_chart() performs helm upgrade with modified values (e.g., image.tag), verify_all() calls verify-persistence.sh and verify-cleanup.sh, cleanup() runs kind delete cluster, capture_logs() saves kubectl logs and describe output to tests/integration/logs/ on failure. Main execution: trap cleanup on EXIT, implement retry logic for pod readiness (max 10 attempts, 30s interval).",
+            "status": "done",
+            "testStrategy": "Run migration-test.sh locally, verify Kind cluster created successfully, verify PostgreSQL deploys and becomes ready, verify SpiceDB chart installs successfully, verify migration jobs execute, verify test data loads, verify helm upgrade completes, verify persistence and cleanup scripts pass, verify logs captured on any failure, verify cleanup runs even on script failure"
+          },
+          {
+            "id": 6,
+            "title": "Update Makefile, CI workflow, and create integration test documentation",
+            "description": "Add Makefile targets for integration testing, update GitHub Actions workflow with integration test job, and create comprehensive README documentation",
+            "dependencies": [
+              5
+            ],
+            "details": "Update Makefile: add test-integration target running tests/integration/migration-test.sh with proper exit code handling, add test-local target for helm unittest tests/unit/, add test-all target depending on test-local and test-integration, add variables KIND_CLUSTER_NAME?=spicedb-test and HELM_RELEASE_NAME?=spicedb-test. Update .github/workflows/ci.yaml: add integration-test job after lint-test with strategy matrix for Kubernetes versions [v1.28.0, v1.29.0, v1.30.0], add if: github.event_name != 'act' condition, use engineerd/setup-kind action, install kubectl and helm, run make test-integration, upload tests/integration/logs/ as artifacts on failure (if: failure()). Create tests/integration/README.md documenting: prerequisites (Kind v0.20+, kubectl v1.28+, helm v3.12+, zed CLI installation), local testing steps (make test-integration), CI/CD integration details, troubleshooting section (port conflicts: change extraPortMappings, resource limits: increase Kind cluster resources, image pull failures: use kind load docker-image), example successful output showing all test phases passing.",
+            "status": "done",
+            "testStrategy": "Run make test-integration and verify it executes migration-test.sh successfully, run make test-local and verify helm unittest runs, run make test-all and verify both test suites execute, verify CI workflow triggers on push, verify integration-test job runs for each Kubernetes version in matrix, verify logs uploaded on failure, verify integration tests skip when using act locally"
+          }
+        ]
       }
     ],
     "metadata": {
@@ -931,7 +997,7 @@
       ],
       "created": "2025-11-08T14:58:57.206Z",
       "description": "Tasks for master context",
-      "updated": "2025-11-08T15:11:19.737Z"
+      "updated": "2025-11-08T15:19:52.369Z"
     }
   }
 }

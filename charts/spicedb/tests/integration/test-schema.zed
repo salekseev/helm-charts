@@ -1,0 +1,37 @@
+// SpiceDB Test Schema for Integration Testing
+// This schema defines a simple document permission system
+// used to test data persistence across helm upgrades
+
+// User definition - represents a person in the system
+definition user {}
+
+// Document definition - represents a document with permissions
+definition document {
+    // Relations define who has what relationship to the document
+    relation owner: user
+    relation editor: user
+    relation viewer: user
+
+    // Permissions define what actions can be performed
+    // view: viewers, editors, and owners can view
+    permission view = viewer + editor + owner
+
+    // edit: only editors and owners can edit
+    permission edit = editor + owner
+
+    // delete: only owners can delete
+    permission delete = owner
+}
+
+// Example test relationships (to be created via zed CLI):
+// - user:alice is owner of document:doc1
+// - user:bob is editor of document:doc1
+// - user:charlie is viewer of document:doc1
+// - user:alice is owner of document:doc2
+//
+// Expected permission checks:
+// ✓ alice can view, edit, delete doc1
+// ✓ bob can view, edit doc1 (but not delete)
+// ✓ charlie can view doc1 (but not edit or delete)
+// ✗ bob cannot view, edit, or delete doc2
+// ✗ charlie cannot view, edit, or delete doc2
