@@ -1,0 +1,65 @@
+{{- if .Values.migrations.enabled -}}
+{{- if ((.Values.migrations.cleanup).enabled | default true) -}}
+---
+# ServiceAccount for migration cleanup job
+# This account is used by the cleanup job to delete completed migration jobs
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "spicedb.fullname" . }}-migration-cleanup
+  labels:
+    {{- include "spicedb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration-cleanup
+  annotations:
+    helm.sh/hook: post-upgrade,post-install
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+automountServiceAccountToken: true
+---
+# Role for migration cleanup job
+# Grants minimal permissions needed to list and delete batch jobs
+# This follows the principle of least privilege
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "spicedb.fullname" . }}-migration-cleanup
+  labels:
+    {{- include "spicedb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration-cleanup
+  annotations:
+    helm.sh/hook: post-upgrade,post-install
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+rules:
+  # Permission to list jobs - needed to find completed migration jobs
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["list"]
+  # Permission to delete jobs - needed to remove completed migration jobs
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["delete"]
+---
+# RoleBinding for migration cleanup job
+# Links the ServiceAccount to the Role, granting the necessary permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "spicedb.fullname" . }}-migration-cleanup
+  labels:
+    {{- include "spicedb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration-cleanup
+  annotations:
+    helm.sh/hook: post-upgrade,post-install
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "spicedb.fullname" . }}-migration-cleanup
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "spicedb.fullname" . }}-migration-cleanup
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- end }}

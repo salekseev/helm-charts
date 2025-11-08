@@ -1,0 +1,621 @@
+# Production High Availability (HA) Configuration for SpiceDB
+# This example demonstrates a complete production-ready HA deployment showcasing all
+# high availability features available in the SpiceDB Helm chart
+#
+# HA Features Demonstrated:
+# - Multiple replicas for redundancy (3+)
+# - Pod Disruption Budget (PDB) to maintain availability during voluntary disruptions
+# - Horizontal Pod Autoscaler (HPA) for automatic scaling based on load
+# - Anti-affinity rules to spread pods across nodes
+# - Topology spread constraints to distribute across availability zones
+# - Rolling update strategy for zero-downtime deployments
+# - Production-grade resource requests and limits
+# - PostgreSQL/CockroachDB datastore (required for HA - memory is not HA)
+# - Optional: Monitoring integration with Prometheus
+# - Optional: TLS for production security
+#
+# Prerequisites:
+# - Kubernetes cluster with multiple nodes (preferably across multiple zones)
+# - PostgreSQL or CockroachDB database accessible from the cluster
+# - metrics-server installed for HPA (kubectl get apiservice v1beta1.metrics.k8s.io)
+# - Prometheus for monitoring (optional)
+# - cert-manager for TLS (optional, see examples/cert-manager-integration.yaml)
+#
+# Cluster Size Recommendations:
+# - Small (1-10 nodes): replicaCount: 3, minReplicas: 2, maxReplicas: 5
+# - Medium (10-50 nodes): replicaCount: 3, minReplicas: 3, maxReplicas: 10
+# - Large (50+ nodes): replicaCount: 5, minReplicas: 5, maxReplicas: 20
+#
+# Usage:
+#   helm install spicedb ./charts/spicedb -f examples/production-ha.yaml
+#
+# Verify HA features are working:
+#   kubectl get deployment spicedb -o wide
+#   kubectl get hpa spicedb
+#   kubectl get pdb spicedb
+#   kubectl get pods -l app.kubernetes.io/name=spicedb -o wide
+
+---
+# =============================================================================
+# REPLICA CONFIGURATION
+# =============================================================================
+# Replica count sets the baseline number of SpiceDB pods
+# HA Minimum: 3 replicas (allows one node failure and one pod disruption)
+#
+# Important: When HPA is enabled, it takes control of replica count
+# - HPA ignores replicaCount and uses minReplicas/maxReplicas instead
+# - Without HPA, replicaCount is the fixed number of pods
+# - For production HA without HPA, use replicaCount: 3 or higher
+#
+# Why 3 replicas?
+# - Provides redundancy during node failures
+# - Allows rolling updates with maxUnavailable: 1
+# - Maintains quorum for distributed operations
+# - Balances cost vs. availability
+replicaCount: 3
+
+# =============================================================================
+# IMAGE CONFIGURATION
+# =============================================================================
+image:
+  repository: authzed/spicedb
+  pullPolicy: IfNotPresent
+  # Always pin to specific version in production for reproducibility
+  # Avoid "latest" tag to prevent unexpected updates
+  tag: "v1.39.0"
+
+# =============================================================================
+# DATASTORE CONFIGURATION
+# =============================================================================
+# SpiceDB requires a persistent datastore for HA deployments
+# Memory datastore is NOT suitable for production HA (data loss on pod restart)
+#
+# Choose one:
+# - postgres: Easier to operate, good for most use cases
+# - cockroachdb: Better for multi-region, higher write throughput
+#
+# This example uses PostgreSQL - for CockroachDB see production-cockroachdb.yaml
+config:
+  # Use postgres or cockroachdb (never "memory" for production)
+  datastoreEngine: postgres
+
+  # Production log level (use "debug" for troubleshooting)
+  logLevel: info
+
+  # SECURITY BEST PRACTICE: Use existingSecret to avoid storing credentials in values
+  # Create secret: kubectl create secret generic spicedb-db-credentials \
+  #   --from-literal=datastore-uri='postgresql://user:password@host:5432/db?sslmode=require'
+  # Then uncomment:
+  # existingSecret: "spicedb-db-credentials"
+
+  # Datastore connection configuration (used if existingSecret not set)
+  datastore:
+    # Use service name for in-cluster database or external hostname
+    hostname: "postgres.database.svc.cluster.local"
+    port: 5432
+    username: "spicedb"
+    # CHANGE THIS: Never use default passwords in production
+    password: "CHANGE_ME_INSECURE"
+    database: "spicedb_production"
+
+    # SECURITY: Enable SSL for production
+    # Options: disable (dev only), require (encrypted), verify-full (encrypted + verify)
+    sslMode: "require"
+
+    # Optional: SSL certificate paths (for verify-full mode)
+    # Mount certificates via volumes (see TLS section below)
+    # sslRootCert: "/etc/spicedb/datastore-certs/ca.crt"
+    # sslCert: "/etc/spicedb/datastore-certs/client.crt"
+    # sslKey: "/etc/spicedb/datastore-certs/client.key"
+
+# =============================================================================
+# RESOURCE MANAGEMENT
+# =============================================================================
+# Production resource limits and requests
+# These values are critical for:
+# - HPA scaling decisions (based on CPU/memory utilization)
+# - QoS class (Guaranteed with requests == limits)
+# - Preventing resource starvation and OOMKills
+#
+# Sizing Guidelines:
+# - Light workload (< 100 req/s): cpu: 500m-1000m, memory: 512Mi-1Gi
+# - Medium workload (100-1000 req/s): cpu: 1000m-2000m, memory: 1Gi-2Gi
+# - Heavy workload (> 1000 req/s): cpu: 2000m-4000m, memory: 2Gi-4Gi
+#
+# Tune based on:
+# - kubectl top pods (actual usage)
+# - Prometheus metrics (CPU/memory utilization)
+# - Load testing results
+resources:
+  requests:
+    # Guaranteed CPU allocation
+    # HPA uses this as baseline for targetCPUUtilizationPercentage
+    cpu: 1000m
+    # Guaranteed memory allocation
+    # HPA uses this as baseline for targetMemoryUtilizationPercentage
+    memory: 1Gi
+  limits:
+    # Maximum CPU (can burst to this)
+    # Set 2-4x requests for bursty workloads
+    cpu: 2000m
+    # Maximum memory (hard limit, pod killed if exceeded)
+    # Set 1.5-2x requests with buffer for peaks
+    memory: 2Gi
+
+# =============================================================================
+# HIGH AVAILABILITY: POD DISRUPTION BUDGET
+# =============================================================================
+# PDB ensures minimum availability during voluntary disruptions:
+# - Node drains (kubectl drain)
+# - Cluster upgrades
+# - Cluster autoscaler scale-downs
+# - Manual pod deletions
+#
+# PDB does NOT protect against:
+# - Node failures (use multiple replicas and anti-affinity)
+# - Pod crashes (use liveness/readiness probes)
+# - Involuntary disruptions (hardware failures)
+#
+# Auto-enabled when replicaCount > 1, but explicit configuration recommended
+#
+# Strategy Options:
+# 1. maxUnavailable: Maximum pods that can be down (recommended for most cases)
+#    - maxUnavailable: 1 with 3 replicas = always 2+ pods running
+#    - Faster updates, slightly lower availability
+#
+# 2. minAvailable: Minimum pods that must be up (more conservative)
+#    - minAvailable: 2 with 3 replicas = same as maxUnavailable: 1
+#    - Slower updates, guaranteed availability
+#
+# Choose maxUnavailable for faster updates or minAvailable for stricter guarantees
+podDisruptionBudget:
+  enabled: true
+  # With 3 replicas and maxUnavailable: 1, at least 2 pods always available
+  # This allows one pod to be updated/drained at a time
+  maxUnavailable: 1
+  # Alternative: Use minAvailable for absolute minimum
+  # minAvailable: 2
+
+# =============================================================================
+# HIGH AVAILABILITY: HORIZONTAL POD AUTOSCALER
+# =============================================================================
+# HPA automatically scales pods based on observed metrics
+# Requires metrics-server: kubectl get apiservice v1beta1.metrics.k8s.io
+#
+# How it works:
+# 1. metrics-server collects CPU/memory usage from kubelet
+# 2. HPA compares current usage vs target utilization
+# 3. HPA calculates desired replicas: ceil(current * (current_util / target_util))
+# 4. HPA updates Deployment replica count (within min/max bounds)
+# 5. Process repeats every 15 seconds (default)
+#
+# Trade-offs: HPA vs Static Replicas
+#
+# HPA Advantages:
+# - Automatic scaling for traffic spikes
+# - Cost optimization during low traffic
+# - Handles gradual load increases
+#
+# HPA Disadvantages:
+# - Adds complexity and dependencies (metrics-server)
+# - Scaling delay (cold start time)
+# - Can thrash with incorrect thresholds
+# - Requires tuning for your workload
+#
+# Static Replicas Advantages:
+# - Simple, predictable
+# - No cold start delay
+# - No dependency on metrics-server
+#
+# Static Replicas Disadvantages:
+# - Manual scaling required
+# - Either over-provisioned (waste) or under-provisioned (risk)
+#
+# Recommendation: Use HPA for variable workloads, static for predictable workloads
+autoscaling:
+  enabled: true
+
+  # Minimum replicas (HPA will never scale below this)
+  # Should be >= 2 for HA (preferably 3)
+  # This is your baseline capacity for minimum load
+  minReplicas: 2
+
+  # Maximum replicas (HPA will never scale above this)
+  # Set based on:
+  # - Database connection limits
+  # - Network bandwidth
+  # - Budget constraints
+  # - Expected maximum load
+  maxReplicas: 10
+
+  # Scale up when average CPU usage across all pods exceeds 80% of requests
+  # Lower value (60-70%) = more aggressive scaling, higher cost
+  # Higher value (80-90%) = less aggressive scaling, lower cost but higher risk
+  # 80% is a good balance for most workloads
+  targetCPUUtilizationPercentage: 80
+
+  # Scale up when average memory usage across all pods exceeds 80% of requests
+  # Memory scaling is slower than CPU (memory is not easily released)
+  # Consider 70-80% to account for memory not being freed immediately
+  targetMemoryUtilizationPercentage: 80
+
+  # Advanced: Custom metrics (requires Prometheus adapter)
+  # Uncomment to scale based on custom metrics like request rate, queue depth, etc.
+  # metrics:
+  # - type: Pods
+  #   pods:
+  #     metric:
+  #       name: grpc_requests_per_second
+  #     target:
+  #       type: AverageValue
+  #       averageValue: "1000"
+
+# =============================================================================
+# HIGH AVAILABILITY: ROLLING UPDATE STRATEGY
+# =============================================================================
+# Controls how pods are replaced during updates (helm upgrade, image updates)
+# Zero-downtime updates require careful configuration
+#
+# How rolling updates work:
+# 1. Create maxSurge new pods with updated version
+# 2. Wait for new pods to become ready (readiness probe)
+# 3. Terminate maxUnavailable old pods
+# 4. Repeat until all pods updated
+#
+# Trade-offs:
+#
+# maxUnavailable: 0, maxSurge: 1 (safest, recommended for production)
+# - Pro: Zero unavailable pods during update
+# - Pro: Always maintains full capacity
+# - Con: Temporarily uses +1 extra pod (resource cost)
+# - Con: Slower updates (one pod at a time)
+#
+# maxUnavailable: 1, maxSurge: 1 (balanced)
+# - Pro: Faster updates
+# - Con: Temporarily reduced capacity during update
+# - Use if: You can tolerate brief capacity reduction
+#
+# maxUnavailable: 1, maxSurge: 0 (resource constrained)
+# - Pro: No extra resources needed
+# - Con: Reduced capacity during update
+# - Use if: Cluster resources are tight
+#
+# With PDB maxUnavailable: 1, update strategy maxUnavailable must be <= PDB
+updateStrategy:
+  rollingUpdate:
+    # Never allow pods to be unavailable during update
+    # Ensures continuous availability throughout rollout
+    maxUnavailable: 0
+    # Allow one extra pod during updates
+    # Kubernetes will create new pod before terminating old one
+    maxSurge: 1
+
+# =============================================================================
+# HIGH AVAILABILITY: ANTI-AFFINITY AND TOPOLOGY SPREAD
+# =============================================================================
+# Anti-affinity prevents multiple SpiceDB pods on the same node
+# Topology spread distributes pods across availability zones
+#
+# These work together to provide:
+# - Node failure resilience (different nodes)
+# - Zone failure resilience (different zones)
+# - Better resource distribution
+# - Reduced blast radius
+#
+# How they work:
+#
+# podAntiAffinity types:
+# 1. requiredDuringSchedulingIgnoredDuringExecution (hard requirement)
+#    - Kubernetes will NOT schedule if constraint violated
+#    - Use for: Critical workloads that must be separated
+#    - Risk: Pods may be unschedulable if not enough nodes
+#
+# 2. preferredDuringSchedulingIgnoredDuringExecution (soft preference)
+#    - Kubernetes will TRY to honor, but may violate if necessary
+#    - Use for: Best-effort separation, guaranteed scheduling
+#    - Safer for smaller clusters
+#
+# topologySpreadConstraints:
+# - maxSkew: Maximum difference in pod count between any two zones
+#   - maxSkew: 1 = pods evenly distributed (differ by at most 1)
+#   - maxSkew: 2 = allows more imbalance
+# - whenUnsatisfiable: What to do if constraint can't be met
+#   - DoNotSchedule: Hard requirement (pod stays pending)
+#   - ScheduleAnyway: Soft requirement (best effort)
+#
+# Example configurations for different cluster sizes:
+#
+# Small cluster (3 nodes, 1 zone):
+# - Use preferred anti-affinity (nodes may share pods if needed)
+# - Skip topology spread (single zone)
+#
+# Medium cluster (9 nodes, 3 zones):
+# - Use required anti-affinity (force different nodes)
+# - Use topology spread with DoNotSchedule (force zone distribution)
+#
+# Large cluster (20+ nodes, 3+ zones):
+# - Use required anti-affinity
+# - Use topology spread with maxSkew: 1
+#
+# This example uses PREFERRED anti-affinity for maximum compatibility
+# Adjust to "required" for stricter guarantees in larger clusters
+affinity:
+  podAntiAffinity:
+    # Soft preference: Try to avoid scheduling on same node
+    # Pods will still schedule if no other nodes available
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100  # Priority (1-100, higher = more important)
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - spicedb
+        # Spread across nodes
+        topologyKey: kubernetes.io/hostname
+
+    # For stricter guarantees (larger clusters), use this instead:
+    # requiredDuringSchedulingIgnoredDuringExecution:
+    # - labelSelector:
+    #     matchExpressions:
+    #     - key: app.kubernetes.io/name
+    #       operator: In
+    #       values:
+    #       - spicedb
+    #   topologyKey: kubernetes.io/hostname
+
+# Topology spread constraints for multi-zone distribution
+# Ensures pods are balanced across availability zones
+# Uncomment for multi-zone clusters:
+# topologySpreadConstraints:
+# - maxSkew: 1
+#   topologyKey: topology.kubernetes.io/zone
+#   whenUnsatisfiable: ScheduleAnyway  # Use DoNotSchedule for hard requirement
+#   labelSelector:
+#     matchLabels:
+#       app.kubernetes.io/name: spicedb
+
+# =============================================================================
+# OPTIONAL: TLS CONFIGURATION
+# =============================================================================
+# TLS encrypts communication to/from SpiceDB
+# See examples/cert-manager-integration.yaml for automated certificate management
+#
+# SpiceDB supports TLS for four endpoints:
+# 1. gRPC (client API) - Client-to-SpiceDB encryption
+# 2. HTTP (dashboard/metrics) - Browser/metrics scraper encryption
+# 3. Dispatch (cluster) - Pod-to-pod encryption (mTLS recommended)
+# 4. Datastore (database) - SpiceDB-to-database encryption
+#
+# Uncomment to enable TLS (requires certificates):
+# tls:
+#   enabled: true
+#
+#   # gRPC endpoint TLS (client API)
+#   grpc:
+#     secretName: "spicedb-grpc-tls"
+#     certPath: /etc/spicedb/tls/grpc/tls.crt
+#     keyPath: /etc/spicedb/tls/grpc/tls.key
+#     # Optional: CA for client certificate verification (mTLS)
+#     # caPath: /etc/spicedb/tls/grpc/ca.crt
+#
+#   # HTTP endpoint TLS (dashboard/metrics)
+#   http:
+#     secretName: "spicedb-http-tls"
+#     certPath: /etc/spicedb/tls/http/tls.crt
+#     keyPath: /etc/spicedb/tls/http/tls.key
+#
+#   # Dispatch cluster TLS (pod-to-pod mTLS)
+#   # HIGHLY RECOMMENDED for production to prevent rogue pods joining cluster
+#   dispatch:
+#     secretName: "spicedb-dispatch-tls"
+#     certPath: /etc/spicedb/tls/dispatch/tls.crt
+#     keyPath: /etc/spicedb/tls/dispatch/tls.key
+#     caPath: /etc/spicedb/tls/dispatch/ca.crt
+#
+#   # Datastore TLS (database connection)
+#   # Alternative to config.datastore.ssl* settings
+#   # datastore:
+#   #   secretName: "spicedb-datastore-tls"
+#   #   caPath: /etc/spicedb/tls/datastore/ca.crt
+
+# =============================================================================
+# OPTIONAL: MONITORING INTEGRATION
+# =============================================================================
+# Prometheus monitoring for metrics collection
+# SpiceDB exposes metrics on port 9090 by default
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+# Labels for better organization and monitoring
+podLabels:
+  environment: production
+  team: platform
+  tier: authorization
+  ha-enabled: "true"
+
+# =============================================================================
+# SERVICE CONFIGURATION
+# =============================================================================
+service:
+  type: ClusterIP
+  grpcPort: 50051    # Primary client API
+  httpPort: 8443     # Dashboard and metrics
+  metricsPort: 9090  # Prometheus metrics
+  dispatchPort: 50053 # Internal cluster communication
+
+# =============================================================================
+# SECURITY CONTEXTS
+# =============================================================================
+# Pod-level security context (applies to all containers)
+# Implements Kubernetes Pod Security Standards restricted profile
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container-level security context
+# Additional restrictions for defense in depth
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+
+# =============================================================================
+# RBAC AND SERVICE ACCOUNT
+# =============================================================================
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  # Uncomment for AWS IAM roles for service accounts (IRSA)
+  # annotations:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/spicedb-role
+
+rbac:
+  create: true
+
+# =============================================================================
+# DATABASE MIGRATIONS
+# =============================================================================
+# Automatically run database migrations on install/upgrade
+# Uses Helm hooks to run before main deployment
+migrations:
+  enabled: true
+  logLevel: info
+  # Optional: Target specific migration version
+  # targetMigration: ""
+  # targetPhase: ""
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  cleanup:
+    # Clean up completed migration jobs
+    enabled: false
+
+# =============================================================================
+# ADVANCED: NODE SELECTION
+# =============================================================================
+# Node selector for scheduling pods on specific nodes
+# Useful for:
+# - Dedicated node pools
+# - SSD storage requirements
+# - Regional/zonal constraints
+#
+# Uncomment to use:
+# nodeSelector:
+#   workload-type: spicedb
+#   # For better performance, prefer nodes with SSD
+#   # disk-type: ssd
+
+# =============================================================================
+# ADVANCED: TOLERATIONS
+# =============================================================================
+# Tolerations allow pods to schedule on nodes with matching taints
+# Use with dedicated node pools
+#
+# Uncomment to use:
+# tolerations:
+# - key: "dedicated"
+#   operator: "Equal"
+#   value: "spicedb"
+#   effect: "NoSchedule"
+
+# =============================================================================
+# VALIDATION CHECKLIST
+# =============================================================================
+# After deployment, verify HA features are working:
+#
+# 1. Check replica count:
+#    kubectl get deployment spicedb
+#    kubectl get pods -l app.kubernetes.io/name=spicedb -o wide
+#
+# 2. Verify HPA is active:
+#    kubectl get hpa spicedb
+#    kubectl describe hpa spicedb
+#
+# 3. Verify PDB is configured:
+#    kubectl get pdb spicedb
+#    kubectl describe pdb spicedb
+#
+# 4. Check pod distribution across nodes:
+#    kubectl get pods -l app.kubernetes.io/name=spicedb -o wide
+#    # Should see pods on different nodes
+#
+# 5. Check pod distribution across zones (if multi-zone):
+#    kubectl get pods -l app.kubernetes.io/name=spicedb \
+#      -o custom-columns=NAME:.metadata.name,NODE:.spec.nodeName,ZONE:.metadata.labels.topology\\.kubernetes\\.io/zone
+#
+# 6. Test rolling update (zero downtime):
+#    kubectl set image deployment/spicedb spicedb=authzed/spicedb:v1.39.0
+#    # Watch rollout: kubectl rollout status deployment/spicedb
+#    # Should see pods updated one at a time, no downtime
+#
+# 7. Test node drain (voluntary disruption):
+#    kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data
+#    # Should respect PDB, at least 2 pods remain running
+#
+# 8. Monitor metrics:
+#    kubectl port-forward svc/spicedb 9090:9090
+#    curl http://localhost:9090/metrics
+#
+# 9. Load test to trigger HPA:
+#    # Run load test tool against SpiceDB
+#    # Watch HPA scale: kubectl get hpa spicedb --watch
+#
+# 10. Check database connectivity:
+#     kubectl logs -l app.kubernetes.io/name=spicedb | grep -i "datastore"
+#
+# =============================================================================
+# TROUBLESHOOTING
+# =============================================================================
+# Common issues and solutions:
+#
+# Pods not scheduling:
+# - Check node resources: kubectl describe nodes
+# - Check anti-affinity constraints: kubectl describe pod <pod-name>
+# - Relax anti-affinity from "required" to "preferred"
+#
+# HPA not scaling:
+# - Verify metrics-server: kubectl get apiservice v1beta1.metrics.k8s.io
+# - Check metrics availability: kubectl top pods
+# - Check HPA status: kubectl describe hpa spicedb
+# - Ensure resource requests are set (HPA requires them)
+#
+# PDB blocking drains:
+# - Check PDB status: kubectl get pdb spicedb -o yaml
+# - Increase replica count to allow more disruptions
+# - Temporarily disable PDB for emergency maintenance
+#
+# Database connection failures:
+# - Verify database accessibility: kubectl run -it --rm debug --image=postgres:latest -- psql <connection-string>
+# - Check datastore credentials secret
+# - Verify SSL configuration
+#
+# TLS certificate issues:
+# - Check certificate secrets exist: kubectl get secret <secret-name>
+# - Verify certificate paths match mounted volumes
+# - Check certificate expiration: kubectl get certificate
+#
+# Memory OOMKills:
+# - Increase memory limits in resources section
+# - Check actual usage: kubectl top pods
+# - Review memory leaks in application logs
+#
+# CPU throttling:
+# - Increase CPU limits
+# - Check throttling metrics: container_cpu_cfs_throttled_seconds_total
+# - Consider lowering targetCPUUtilizationPercentage for HPA

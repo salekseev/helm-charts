@@ -1,0 +1,403 @@
+# cert-manager Integration for SpiceDB TLS Certificates
+# This example demonstrates how to use cert-manager to automatically provision
+# and manage TLS certificates for all SpiceDB endpoints
+#
+# Prerequisites:
+# - cert-manager installed in the cluster (https://cert-manager.io/docs/installation/)
+#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
+#
+# - A Certificate Issuer configured (shown below as example)
+#
+# What this provides:
+# - Automated certificate creation and renewal
+# - Certificate rotation without manual intervention
+# - Consistent certificate management across all endpoints
+#
+# Usage:
+#   # Apply this file to create all certificates
+#   kubectl apply -f examples/cert-manager-integration.yaml
+#
+#   # Wait for certificates to be ready
+#   kubectl wait --for=condition=Ready certificate --all --timeout=300s
+#
+#   # Verify certificates were created
+#   kubectl get certificate
+#   kubectl get secret spicedb-grpc-tls spicedb-http-tls spicedb-dispatch-tls spicedb-datastore-tls
+#
+#   # Install SpiceDB with TLS enabled
+#   helm install spicedb ./charts/spicedb -f examples/production-cockroachdb-tls.yaml
+
+---
+# ClusterIssuer: Production-ready Let's Encrypt issuer
+# This is a cluster-wide issuer that can be used by any namespace
+# Alternatively, use an Issuer for namespace-scoped certificate management
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    # Let's Encrypt production server
+    # Use letsencrypt-staging for testing to avoid rate limits
+    server: https://acme-v02.api.letsencrypt.org/directory
+
+    # Email address for ACME registration and certificate expiration notifications
+    email: admin@example.com
+
+    # Private key secret name for ACME account
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+
+    # ACME challenge solver configuration
+    solvers:
+    # HTTP-01 challenge for public-facing services
+    - http01:
+        ingress:
+          class: nginx
+      selector:
+        dnsNames:
+        - "spicedb.example.com"
+        - "spicedb-api.example.com"
+
+    # DNS-01 challenge for internal services and wildcard certificates
+    # Uncomment and configure for your DNS provider
+    # - dns01:
+    #     cloudflare:
+    #       email: admin@example.com
+    #       apiTokenSecretRef:
+    #         name: cloudflare-api-token
+    #         key: api-token
+    #   selector:
+    #     dnsNames:
+    #     - "*.spicedb.internal"
+
+---
+# Alternative: Self-signed Issuer for testing/development
+# Uncomment this section if you don't have a public domain or prefer self-signed certs
+# apiVersion: cert-manager.io/v1
+# kind: Issuer
+# metadata:
+#   name: selfsigned-issuer
+#   namespace: default
+# spec:
+#   selfSigned: {}
+
+---
+# Alternative: Private CA Issuer for internal infrastructure
+# This creates a CA certificate that signs all SpiceDB certificates
+# Recommended for internal/private deployments
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: spicedb-ca-issuer
+  namespace: default
+spec:
+  ca:
+    secretName: spicedb-ca-key-pair
+
+---
+# CA Certificate: Root certificate for internal SpiceDB CA
+# This certificate will be used to sign all other SpiceDB certificates
+# Useful for internal deployments where you control both client and server
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: spicedb-ca
+  namespace: default
+spec:
+  # This is a CA certificate
+  isCA: true
+
+  # Common name for the CA
+  commonName: spicedb-ca
+
+  # Secret where the CA certificate and key will be stored
+  secretName: spicedb-ca-key-pair
+
+  # Private key configuration
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+
+  # Self-signed issuer to bootstrap the CA
+  issuerRef:
+    name: selfsigned-issuer
+    kind: Issuer
+
+  # CA certificate validity (10 years)
+  duration: 87600h  # 10 years
+  renewBefore: 8760h  # Renew 1 year before expiry
+
+---
+# gRPC Endpoint Certificate
+# This certificate secures the primary SpiceDB API used by client applications
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: spicedb-grpc-tls
+  namespace: default
+spec:
+  # Common name for the certificate
+  # Should match the hostname used by clients
+  commonName: spicedb-grpc
+
+  # Secret name where the certificate will be stored
+  # This name must match tls.grpc.secretName in Helm values
+  secretName: spicedb-grpc-tls
+
+  # DNS names for the certificate (Subject Alternative Names)
+  # Add all DNS names that clients will use to connect
+  dnsNames:
+  - spicedb
+  - spicedb.default
+  - spicedb.default.svc
+  - spicedb.default.svc.cluster.local
+  - spicedb-grpc.example.com  # Public DNS name if exposed via Ingress
+
+  # Optional: IP addresses for the certificate
+  # ipAddresses:
+  # - 192.168.1.100
+
+  # Certificate usages
+  usages:
+  - server auth  # Server-side TLS
+  - digital signature
+  - key encipherment
+
+  # Private key configuration
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    encoding: PKCS8
+
+  # Certificate validity period
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # Renew 30 days before expiry
+
+  # Issuer reference
+  # Use ClusterIssuer for Let's Encrypt or Issuer for private CA
+  issuerRef:
+    name: spicedb-ca-issuer
+    kind: Issuer
+    # For Let's Encrypt:
+    # name: letsencrypt-prod
+    # kind: ClusterIssuer
+
+---
+# HTTP Endpoint Certificate
+# This certificate secures the SpiceDB dashboard and metrics endpoint
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: spicedb-http-tls
+  namespace: default
+spec:
+  commonName: spicedb-http
+
+  # Secret name must match tls.http.secretName in Helm values
+  secretName: spicedb-http-tls
+
+  # DNS names for HTTP endpoint
+  dnsNames:
+  - spicedb
+  - spicedb.default
+  - spicedb.default.svc
+  - spicedb.default.svc.cluster.local
+  - spicedb-dashboard.example.com  # Public DNS name if exposed
+
+  usages:
+  - server auth
+  - digital signature
+  - key encipherment
+
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    encoding: PKCS8
+
+  duration: 2160h
+  renewBefore: 720h
+
+  issuerRef:
+    name: spicedb-ca-issuer
+    kind: Issuer
+
+---
+# Dispatch Cluster Certificate (mTLS)
+# This certificate secures internal pod-to-pod communication
+# Uses mutual TLS (mTLS) - requires both server auth and client auth
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: spicedb-dispatch-tls
+  namespace: default
+spec:
+  commonName: spicedb-dispatch
+
+  # Secret name must match tls.dispatch.secretName in Helm values
+  secretName: spicedb-dispatch-tls
+
+  # DNS names for internal dispatch communication
+  # Use headless service for pod-to-pod communication
+  dnsNames:
+  - spicedb-headless
+  - spicedb-headless.default
+  - spicedb-headless.default.svc
+  - spicedb-headless.default.svc.cluster.local
+  - "*.spicedb-headless.default.svc.cluster.local"  # Wildcard for all pods
+
+  # Certificate usages for mTLS
+  # Both server and client authentication required
+  usages:
+  - server auth   # Acts as server when receiving dispatch requests
+  - client auth   # Acts as client when making dispatch requests
+  - digital signature
+  - key encipherment
+
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    encoding: PKCS8
+
+  duration: 2160h
+  renewBefore: 720h
+
+  # Must use same CA as all other dispatch certificates
+  # All SpiceDB pods must trust this CA
+  issuerRef:
+    name: spicedb-ca-issuer
+    kind: Issuer
+
+---
+# Datastore Certificate (Client mTLS for CockroachDB)
+# This certificate authenticates SpiceDB to CockroachDB
+# CockroachDB requires client certificates for secure connections
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: spicedb-datastore-tls
+  namespace: default
+spec:
+  # Common name must match CockroachDB user if using cert-based auth
+  # Format: "client.<username>" for CockroachDB
+  commonName: client.spicedb
+
+  # Secret name must match tls.datastore.secretName in Helm values
+  secretName: spicedb-datastore-tls
+
+  # DNS names not typically required for client certificates
+  # but can be included if the certificate also acts as a server
+  # dnsNames:
+  # - spicedb-client
+
+  # Certificate usages for client authentication
+  usages:
+  - client auth
+  - digital signature
+  - key encipherment
+
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    encoding: PKCS8
+
+  duration: 2160h
+  renewBefore: 720h
+
+  # Important: Must use the same CA that signed the CockroachDB server certificate
+  # If CockroachDB uses its own CA, you need to:
+  # 1. Import CockroachDB CA into cert-manager as an Issuer
+  # 2. Reference that Issuer here
+  # 3. Ensure SpiceDB has the CockroachDB CA certificate to verify the server
+  issuerRef:
+    name: spicedb-ca-issuer
+    kind: Issuer
+
+---
+# Optional: CockroachDB CA Certificate Secret
+# If CockroachDB uses a different CA than SpiceDB, create a secret with the CA cert
+# This allows SpiceDB to verify the CockroachDB server certificate
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: cockroachdb-ca
+#   namespace: default
+# type: Opaque
+# data:
+#   ca.crt: <base64-encoded-cockroachdb-ca-certificate>
+
+---
+# Verification Steps (run after applying this file):
+#
+# 1. Check certificate status:
+#    kubectl get certificate
+#    kubectl describe certificate spicedb-grpc-tls
+#
+# 2. Verify secrets were created:
+#    kubectl get secret spicedb-grpc-tls -o yaml
+#    kubectl get secret spicedb-http-tls -o yaml
+#    kubectl get secret spicedb-dispatch-tls -o yaml
+#    kubectl get secret spicedb-datastore-tls -o yaml
+#
+# 3. Inspect certificate details:
+#    kubectl get secret spicedb-grpc-tls -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -text -noout
+#
+# 4. Check certificate expiration:
+#    kubectl get certificate -o custom-columns=NAME:.metadata.name,READY:.status.conditions[0].status,EXPIRY:.status.notAfter
+#
+# 5. Test certificate renewal (force renewal):
+#    kubectl delete secret spicedb-grpc-tls
+#    # cert-manager will automatically recreate it
+#
+# Common Issues and Solutions:
+#
+# 1. Certificate stuck in "Pending" state:
+#    - Check cert-manager logs: kubectl logs -n cert-manager deploy/cert-manager
+#    - Verify issuer is ready: kubectl describe issuer spicedb-ca-issuer
+#    - Check DNS resolution for ACME challenges
+#
+# 2. Certificate not trusted by clients:
+#    - Ensure clients have the CA certificate installed
+#    - For private CA: kubectl get secret spicedb-ca-key-pair -o jsonpath='{.data.ca\.crt}' | base64 -d > ca.crt
+#    - Distribute ca.crt to all clients
+#
+# 3. CockroachDB connection fails:
+#    - Verify client certificate CN matches CockroachDB user: "client.spicedb"
+#    - Ensure CockroachDB CA is available to SpiceDB
+#    - Check CockroachDB server certificate CN matches hostname
+#
+# 4. Dispatch mTLS fails:
+#    - All SpiceDB pods must use certificates from the same CA
+#    - Verify ca.crt is included in the secret: kubectl get secret spicedb-dispatch-tls -o yaml
+#    - Check pod logs for certificate verification errors
+#
+# cert-manager Workflow:
+#
+# 1. Certificate CRD is created (this file)
+# 2. cert-manager detects the Certificate resource
+# 3. cert-manager requests certificate from the specified Issuer
+# 4. Issuer validates the request (ACME challenge, private CA signing, etc.)
+# 5. Certificate is issued and stored in the specified secret
+# 6. cert-manager monitors certificate expiration
+# 7. Before expiration (renewBefore), cert-manager automatically renews the certificate
+# 8. New certificate is updated in the secret
+# 9. Kubernetes automatically mounts the updated certificate to pods
+# 10. SpiceDB picks up the new certificate without restart (if watching for changes)
+#
+# Certificate Renewal:
+#
+# - cert-manager automatically renews certificates based on renewBefore setting
+# - Default: Renew 30 days before expiry (for 90-day certificates)
+# - No manual intervention required
+# - Monitor renewal status: kubectl get certificaterequest
+#
+# Best Practices:
+#
+# 1. Use a private CA for internal infrastructure
+# 2. Use Let's Encrypt for public-facing endpoints
+# 3. Set renewBefore to at least 1/3 of duration
+# 4. Monitor certificate expiration with Prometheus/Grafana
+# 5. Test certificate renewal in staging before production
+# 6. Keep cert-manager updated to latest stable version
+# 7. Backup CA certificates and keys securely
+# 8. Rotate CA certificates periodically (every few years)

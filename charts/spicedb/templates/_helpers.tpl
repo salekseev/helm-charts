@@ -64,6 +64,7 @@ Create the name of the service account to use
 {{/*
 Generate datastore connection string for PostgreSQL and CockroachDB
 Returns a properly formatted connection URI with SSL parameters
+Supports both legacy config.datastore.ssl* fields and new tls.datastore configuration
 */}}
 {{- define "spicedb.datastoreConnectionString" -}}
 {{- if .Values.config.datastoreURI -}}
@@ -75,15 +76,22 @@ Returns a properly formatted connection URI with SSL parameters
 {{- $port := .Values.config.datastore.port -}}
 {{- $database := .Values.config.datastore.database -}}
 {{- $sslMode := .Values.config.datastore.sslMode -}}
+{{- $sslRootCert := .Values.config.datastore.sslRootCert -}}
+{{- $sslCert := .Values.config.datastore.sslCert -}}
+{{- $sslKey := .Values.config.datastore.sslKey -}}
+{{- if and .Values.tls.enabled .Values.tls.datastore.secretName -}}
+{{- $sslMode = "verify-full" -}}
+{{- $sslRootCert = .Values.tls.datastore.caPath -}}
+{{- end -}}
 {{- printf "postgresql://%s:%s@%s:%v/%s?sslmode=%s" $username $password $hostname $port $database $sslMode -}}
-{{- if .Values.config.datastore.sslRootCert -}}
-{{- printf "&sslrootcert=%s" (.Values.config.datastore.sslRootCert | urlquery) -}}
+{{- if $sslRootCert -}}
+{{- printf "&sslrootcert=%s" ($sslRootCert | urlquery) -}}
 {{- end -}}
-{{- if .Values.config.datastore.sslCert -}}
-{{- printf "&sslcert=%s" (.Values.config.datastore.sslCert | urlquery) -}}
+{{- if $sslCert -}}
+{{- printf "&sslcert=%s" ($sslCert | urlquery) -}}
 {{- end -}}
-{{- if .Values.config.datastore.sslKey -}}
-{{- printf "&sslkey=%s" (.Values.config.datastore.sslKey | urlquery) -}}
+{{- if $sslKey -}}
+{{- printf "&sslkey=%s" ($sslKey | urlquery) -}}
 {{- end -}}
 {{- end -}}
 {{- end }}

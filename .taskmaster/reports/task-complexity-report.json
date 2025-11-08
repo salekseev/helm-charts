@@ -1,0 +1,93 @@
+{
+	"meta": {
+		"generatedAt": "2025-11-07T22:20:09.779Z",
+		"tasksAnalyzed": 10,
+		"totalTasks": 10,
+		"analysisCount": 10,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": false
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "Establish Test Infrastructure and TDD Foundation",
+			"complexityScore": 4,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break down the test infrastructure setup into: 1) helm-unittest installation and test directory structure creation, 2) Conftest/OPA setup with base security policies, 3) CI/CD pipeline configuration with GitHub Actions, 4) values.schema.json creation and validation setup, 5) example test file creation demonstrating different test patterns, 6) CONTRIBUTING.md and pre-commit hooks setup",
+			"reasoning": "This is a foundational infrastructure task with moderate complexity. It involves multiple independent components (helm-unittest, Conftest, CI/CD, schema validation) but doesn't require deep codebase analysis since no templates exist yet. Each component is well-documented with clear setup procedures. The task is critical but relatively straightforward for someone familiar with Helm testing tools."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "Implement Core Kubernetes Resources with Memory Datastore",
+			"complexityScore": 7,
+			"recommendedSubtasks": 8,
+			"expansionPrompt": "Divide into: 1) Create _helpers.tpl with all helper functions and comprehensive tests, 2) Implement ServiceAccount template with tests, 3) Implement RBAC (Role/RoleBinding) with permission tests, 4) Implement Secret template with preshared key generation and idempotency tests, 5) Implement Service template with multi-port configuration and tests, 6) Implement Deployment template with probes, security context, and environment variables, 7) Create NOTES.txt template, 8) Create examples/dev-memory.yaml and integration tests",
+			"reasoning": "This is the first substantial implementation task requiring creating multiple interrelated Kubernetes resources from scratch. Complexity is elevated due to: proper helper template design, security context hardening, probe configuration, secret generation with idempotency using lookup function, and achieving 90%+ test coverage. The task requires deep understanding of Helm templating, Kubernetes resource specifications, and SpiceDB configuration. Integration testing adds additional complexity."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "Implement PostgreSQL and CockroachDB Datastore Support",
+			"complexityScore": 6,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Break into: 1) Extend values.yaml with datastore configuration fields and validation, 2) Implement connection string generation logic in _helpers.tpl for PostgreSQL and CockroachDB with tests, 3) Update secret.yaml for conditional creation and existingSecret support, 4) Update deployment.yaml with datastore environment variables, 5) Create examples/production-postgres.yaml with comprehensive tests, 6) Create examples/production-cockroachdb.yaml with tests, 7) Create examples/postgres-external-secrets.yaml and document External Secrets Operator integration",
+			"reasoning": "This task has significant complexity due to handling multiple datastore engines with different connection string formats, implementing conditional secret creation logic, and supporting external secret management patterns. The connection string generation requires careful handling of SSL/TLS parameters, credentials, and database-specific URL formats. External Secrets Operator integration adds an additional layer of complexity requiring understanding of third-party tooling patterns."
+		},
+		{
+			"taskId": 4,
+			"taskTitle": "Implement Automated Database Migration System",
+			"complexityScore": 8,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Divide into: 1) Create migration-job.yaml template with proper Helm hook annotations and weights, 2) Implement job spec with retry logic, timeouts, and resource constraints, 3) Add support for target migration and phased migration configurations, 4) Create migration-cleanup.yaml hook for post-migration cleanup, 5) Implement migration hash tracking via deployment annotations to trigger restarts, 6) Write comprehensive tests for all migration scenarios (success, failure, upgrade, rollback), 7) Create migration troubleshooting documentation",
+			"reasoning": "This is one of the most complex tasks due to Helm hooks lifecycle management, which requires deep understanding of hook execution ordering, failure scenarios, and cleanup policies. The task involves critical database operations where failures can prevent deployments. Testing complexity is high as it requires simulating install, upgrade, and failure scenarios. The migration hash tracking mechanism to trigger deployment restarts adds additional complexity. Proper error handling and rollback procedures are critical."
+		},
+		{
+			"taskId": 5,
+			"taskTitle": "Implement Comprehensive TLS Support for All Endpoints",
+			"complexityScore": 8,
+			"recommendedSubtasks": 8,
+			"expansionPrompt": "Break into: 1) Extend values.yaml with TLS configuration structure for all endpoints (gRPC, HTTP, dispatch, datastore), 2) Implement TLS secret mounting logic in deployment.yaml with volume and volumeMount configurations, 3) Add gRPC TLS environment variables and configuration, 4) Add HTTP gateway TLS environment variables and configuration, 5) Add dispatch cluster mTLS configuration with CA certificate support, 6) Update datastore connection strings for TLS (sslmode, certificates), 7) Update probes to use HTTPS scheme when TLS enabled and harden security context, 8) Create examples (production-cockroachdb-tls.yaml, cert-manager-integration.yaml) and cert-manager integration documentation",
+			"reasoning": "This is a highly complex task involving TLS configuration across four different endpoints (gRPC, HTTP, dispatch, datastore), each with different certificate requirements. mTLS for dispatch adds complexity requiring mutual authentication. The task requires careful certificate path management, volume mounting from multiple secrets, conditional logic based on TLS enablement, and updating connection strings and probes. cert-manager integration requires understanding of Certificate CRDs and automatic certificate lifecycle management. Security context hardening to meet Pod Security Standards restricted profile adds additional requirements. Testing requires certificate generation and validation across multiple scenarios."
+		},
+		{
+			"taskId": 6,
+			"taskTitle": "Implement High Availability Configuration",
+			"complexityScore": 7,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Divide into: 1) Create PodDisruptionBudget template with conditional enablement based on replica count, 2) Create HorizontalPodAutoscaler template with CPU and memory metrics, 3) Implement pod anti-affinity rules in deployment.yaml for zone distribution, 4) Add topology spread constraints for even distribution, 5) Configure rolling update strategy for zero-downtime deployments, 6) Add resource requests and limits with configurable values, 7) Create examples/production-ha.yaml and conduct integration tests on multi-node cluster with load testing and node drain scenarios",
+			"reasoning": "This task has high complexity due to multiple interrelated HA mechanisms that must work together correctly. PDB configuration must align with replica counts and update strategy. HPA requires proper resource limit configuration and metrics-server. Anti-affinity and topology spread constraints require understanding of Kubernetes scheduling and topology domains. Zero-downtime rolling updates with maxUnavailable: 0 require careful testing. Integration testing is complex, requiring multi-node clusters, load generation, and node failure simulation to validate true high availability."
+		},
+		{
+			"taskId": 7,
+			"taskTitle": "Implement Observability and Monitoring Integration",
+			"complexityScore": 5,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break into: 1) Create ServiceMonitor template with conditional CRD detection and Prometheus Operator integration, 2) Update values.yaml with monitoring configuration fields (intervals, labels, scrape timeout), 3) Add logging configuration (log level, log format) via environment variables, 4) Add pod annotations for metrics scraping and support custom pod labels/annotations, 5) Update service to ensure metrics port 9090 is exposed, 6) Create observability documentation covering Prometheus integration, Grafana dashboards, log aggregation, and key metrics to monitor",
+			"reasoning": "This task has moderate complexity primarily around conditional ServiceMonitor creation (only when Prometheus Operator CRDs are present) and ensuring backward compatibility when the operator is not installed. The actual metrics exposure and logging configuration are straightforward SpiceDB features. Testing requires deploying with and without Prometheus Operator to validate both scenarios. Documentation of observability patterns and key metrics adds some complexity but is well-scoped."
+		},
+		{
+			"taskId": 8,
+			"taskTitle": "Implement Dispatch Cluster Mode Configuration",
+			"complexityScore": 6,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Divide into: 1) Extend values.yaml with dispatch configuration fields (enabled, upstreamCASecretName, clusterName), 2) Add dispatch cluster environment variables to deployment.yaml with Kubernetes DNS-based service discovery, 3) Implement upstream CA certificate mounting when custom CA is provided, 4) Verify integration with existing TLS mTLS configuration from Task 5, 5) Add headless service option for future StatefulSet support, 6) Create integration tests with multi-replica deployment to verify inter-pod communication and create dispatch cluster documentation",
+			"reasoning": "This task has moderate-high complexity due to distributed system configuration requirements. The Kubernetes DNS-based service discovery must be correctly formatted with namespace awareness. Integration with mTLS from Task 5 requires careful coordination of certificate paths and environment variables. Testing requires multi-pod deployment to verify distributed permission checking actually works across pods. The task depends on understanding SpiceDB's dispatch architecture and Kubernetes service discovery mechanisms. Headless service configuration for future StatefulSet support adds minor additional complexity."
+		},
+		{
+			"taskId": 9,
+			"taskTitle": "Implement Ingress and NetworkPolicy Support",
+			"complexityScore": 6,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break into: 1) Create Ingress template supporting multiple controllers (nginx, Contour, Traefik) with networking.k8s.io/v1 API, 2) Implement multi-host and multi-path support with configurable path types, 3) Add TLS configuration for Ingress with certificate references, 4) Create NetworkPolicy template with ingress rules for controller and inter-pod traffic, 5) Add NetworkPolicy egress rules for DNS, datastore, and Kubernetes API access, 6) Create controller-specific examples (nginx, Contour) and integration tests with actual Ingress controllers and NetworkPolicy validation",
+			"reasoning": "This task has moderate-high complexity due to supporting multiple Ingress controllers with different annotation patterns and ensuring compatibility with the current networking.k8s.io/v1 API. NetworkPolicy implementation requires careful understanding of pod selectors, namespace selectors, and port rules to avoid breaking connectivity while providing security. The combination of ingress rules (from controller, between pods) and egress rules (DNS, datastore, K8s API) requires thorough testing. Integration testing is complex as it requires actual Ingress controller deployment and NetworkPolicy enforcement verification. TLS termination options (at ingress vs passthrough) add configuration complexity."
+		},
+		{
+			"taskId": 10,
+			"taskTitle": "Finalize Documentation, Examples, and Release Preparation",
+			"complexityScore": 6,
+			"recommendedSubtasks": 8,
+			"expansionPrompt": "Divide into: 1) Create comprehensive README.md with overview, features, quick start, installation, and configuration reference, 2) Create QUICKSTART.md for 5-minute memory mode deployment, 3) Create PRODUCTION_GUIDE.md with step-by-step PostgreSQL and CockroachDB deployment guides, 4) Create TROUBLESHOOTING.md with common issues and solutions, 5) Create UPGRADE_GUIDE.md and SECURITY.md documentation, 6) Validate all example files with helm template and verify rendered manifests, 7) Update Chart.yaml metadata, create CHANGELOG.md and LICENSE, create .helmignore, 8) Run final validation suite (helm lint, unittest, conftest, package) and complete release checklist",
+			"reasoning": "This task has moderate-high complexity due to the breadth of documentation required and the critical nature of release preparation. Creating comprehensive production guides requires synthesizing knowledge from all previous tasks. Example validation across all scenarios (memory, PostgreSQL, CockroachDB, TLS, HA, Ingress) is time-consuming and critical for quality. Chart.yaml metadata must be complete and accurate for Artifact Hub. The final validation suite must pass completely before release. While individual documentation pieces are straightforward, the sheer volume and need for accuracy across 7+ documentation files, 8+ example files, and complete testing matrix creates significant complexity. This task is the quality gate for the entire project."
+		}
+	]
+}

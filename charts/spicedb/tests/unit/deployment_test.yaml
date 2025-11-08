@@ -259,10 +259,13 @@ tests:
         prometheus.io/port: "9090"
     asserts:
       - equal:
-          path: spec.template.metadata.annotations
-          value:
-            prometheus.io/scrape: "true"
-            prometheus.io/port: "9090"
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+          value: "true"
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/port"]
+          value: "9090"
+      - isNotEmpty:
+          path: spec.template.metadata.annotations["checksum/migration-config"]
 
   # Node selector tests
   - it: should not set node selector by default

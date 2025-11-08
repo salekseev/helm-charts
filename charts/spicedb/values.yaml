@@ -32,16 +32,27 @@ rbac:
 podAnnotations: {}
 podLabels: {}
 
-podSecurityContext: {}
-  # fsGroup: 2000
+# Pod-level security context
+# Implements Kubernetes Pod Security Standards restricted profile
+# These settings apply to all containers in the pod
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+# Container-level security context
+# Additional security restrictions for the SpiceDB container
+# Implements least privilege and defense in depth
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
 
 service:
   type: ClusterIP
@@ -50,13 +61,51 @@ service:
   metricsPort: 9090
   dispatchPort: 50053
 
-resources: {}
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
+# Resource limits and requests for SpiceDB containers
+# Defaults are set for production workloads
+# Adjust based on your workload and cluster capacity
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+
+# Rolling update strategy for zero-downtime deployments
+# These settings ensure high availability during updates
+updateStrategy:
+  rollingUpdate:
+    # Maximum number of pods that can be unavailable during update
+    # 0 ensures at least one pod is always available
+    maxUnavailable: 0
+    # Maximum number of pods that can be created above desired replicas
+    # 1 allows one extra pod during updates to maintain availability
+    maxSurge: 1
+
+# PodDisruptionBudget ensures availability during voluntary disruptions
+# Automatically enabled when replicaCount > 1, or can be explicitly enabled
+podDisruptionBudget:
+  # Explicitly enable PDB (auto-enables when replicaCount > 1)
+  enabled: false
+  # Maximum number of unavailable pods during disruption
+  # With 3 replicas and maxUnavailable=1, at least 2 pods remain running
+  maxUnavailable: 1
+
+# HorizontalPodAutoscaler for automatic scaling based on resource utilization
+# Note: When enabled, HPA manages replica count (ignores replicaCount setting)
+# Requires metrics-server to be installed in the cluster
+autoscaling:
+  # Enable horizontal pod autoscaling
+  enabled: false
+  # Minimum number of replicas (should be >= 2 for HA)
+  minReplicas: 2
+  # Maximum number of replicas
+  maxReplicas: 10
+  # Target CPU utilization percentage for scaling
+  targetCPUUtilizationPercentage: 80
+  # Target memory utilization percentage for scaling
+  targetMemoryUtilizationPercentage: 80
 
 # Config for SpiceDB
 config:
@@ -104,6 +153,170 @@ config:
 
     # Path to SSL client key (optional)
     sslKey: ""
+
+# TLS configuration for SpiceDB endpoints
+# SpiceDB supports TLS for multiple endpoints to secure communication
+tls:
+  # Master switch to enable TLS features
+  # When disabled, all TLS configurations below are ignored
+  # Set to true to enable TLS on any endpoint
+  enabled: false
+
+  # gRPC endpoint TLS configuration
+  # The gRPC endpoint is the primary API for clients interacting with SpiceDB
+  # This configures server-side TLS for securing client-to-SpiceDB communication
+  grpc:
+    # Name of the Kubernetes secret containing TLS certificates
+    # The secret should contain the following keys:
+    #   - tls.crt: Server certificate
+    #   - tls.key: Server private key
+    #   - ca.crt: CA certificate (optional, for client certificate verification)
+    #
+    # Example using cert-manager:
+    #   apiVersion: cert-manager.io/v1
+    #   kind: Certificate
+    #   metadata:
+    #     name: spicedb-grpc-tls
+    #   spec:
+    #     secretName: spicedb-grpc-tls
+    #     dnsNames:
+    #       - spicedb.example.com
+    #     issuerRef:
+    #       name: my-issuer
+    secretName: ""
+
+    # Path where the server certificate will be mounted in the container
+    certPath: /etc/spicedb/tls/grpc/tls.crt
+
+    # Path where the server private key will be mounted in the container
+    keyPath: /etc/spicedb/tls/grpc/tls.key
+
+    # Path where the CA certificate will be mounted in the container
+    # Used for verifying client certificates if mTLS is required
+    caPath: /etc/spicedb/tls/grpc/ca.crt
+
+  # HTTP endpoint TLS configuration
+  # The HTTP endpoint provides the dashboard and metrics
+  # This configures server-side TLS for securing HTTP communication
+  http:
+    # Name of the Kubernetes secret containing TLS certificates
+    # The secret should contain the following keys:
+    #   - tls.crt: Server certificate
+    #   - tls.key: Server private key
+    #
+    # You can reuse the same secret as gRPC if the certificate is valid for both
+    # or create a separate secret for different certificate requirements
+    secretName: ""
+
+    # Path where the server certificate will be mounted in the container
+    certPath: /etc/spicedb/tls/http/tls.crt
+
+    # Path where the server private key will be mounted in the container
+    keyPath: /etc/spicedb/tls/http/tls.key
+
+  # Dispatch cluster TLS configuration (mTLS)
+  # The dispatch endpoint is used for internal cluster communication between SpiceDB nodes
+  # This configures mutual TLS (mTLS) where both client and server verify each other
+  # mTLS is strongly recommended for dispatch to prevent unauthorized nodes from joining
+  dispatch:
+    # Name of the Kubernetes secret containing TLS certificates for dispatch
+    # The secret should contain the following keys:
+    #   - tls.crt: Certificate for this SpiceDB instance (both server and client)
+    #   - tls.key: Private key for this SpiceDB instance
+    #   - ca.crt: CA certificate to verify other SpiceDB instances
+    #
+    # Important: All SpiceDB instances in the cluster must share the same CA
+    # Each instance should have its own certificate signed by that CA
+    #
+    # Example using cert-manager with a shared CA:
+    #   apiVersion: cert-manager.io/v1
+    #   kind: Certificate
+    #   metadata:
+    #     name: spicedb-dispatch-tls
+    #   spec:
+    #     secretName: spicedb-dispatch-tls
+    #     commonName: spicedb-dispatch
+    #     usages:
+    #       - server auth
+    #       - client auth
+    #     issuerRef:
+    #       name: spicedb-ca-issuer
+    secretName: ""
+
+    # Path where the dispatch certificate will be mounted in the container
+    certPath: /etc/spicedb/tls/dispatch/tls.crt
+
+    # Path where the dispatch private key will be mounted in the container
+    keyPath: /etc/spicedb/tls/dispatch/tls.key
+
+    # Path where the dispatch CA certificate will be mounted in the container
+    # Used to verify certificates from other SpiceDB instances in the cluster
+    caPath: /etc/spicedb/tls/dispatch/ca.crt
+
+  # Datastore TLS configuration
+  # Configures TLS for connections to the database backend
+  # Note: Connection URI and SSL parameters in config.datastore take precedence
+  # This section provides an alternative way to configure datastore TLS via secrets
+  datastore:
+    # Name of the Kubernetes secret containing datastore TLS certificates
+    # The secret should contain the following keys:
+    #   - ca.crt: CA certificate to verify the database server
+    #   - tls.crt: Client certificate (optional, for mTLS)
+    #   - tls.key: Client private key (optional, for mTLS)
+    #
+    # This is useful when the database requires client certificate authentication
+    # or when you want to manage certificates separately from the datastore URI
+    #
+    # For PostgreSQL, set config.datastore.sslMode to "verify-ca" or "verify-full"
+    # For CockroachDB, set config.datastore.sslMode to "verify-full"
+    secretName: ""
+
+    # Path where the datastore CA certificate will be mounted in the container
+    # This path should match config.datastore.sslRootCert if using URI configuration
+    caPath: /etc/spicedb/tls/datastore/ca.crt
+
+# Database migration configuration
+migrations:
+  # Specifies whether to run database migrations as a pre-install/pre-upgrade Job
+  # When enabled, migrations will run automatically before SpiceDB starts
+  # Disable this if you want to manage migrations separately
+  enabled: true
+
+  # Log level for migration operations
+  # Valid values: debug, info, warn, error
+  # Use 'debug' for troubleshooting migration issues
+  logLevel: info
+
+  # Target a specific migration version (optional)
+  # Leave empty to migrate to the latest version
+  # Format: migration version identifier (e.g., "add-caveats")
+  # Useful for rolling back or testing specific migration states
+  targetMigration: ""
+
+  # Target a specific migration phase (optional)
+  # Valid values: write, read, complete
+  # Phases allow for zero-downtime migrations:
+  #   - write: Make schema changes, old code still works
+  #   - read: New code can read new schema, old code deprecated
+  #   - complete: Migration fully complete, old code support removed
+  # Leave empty to run all phases
+  targetPhase: ""
+
+  # Resource limits and requests for the migration Job
+  # These are independent from the main SpiceDB deployment resources
+  # Migrations may need more resources for large schema changes
+  resources: {}
+    # limits:
+    #   cpu: 500m
+    #   memory: 512Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
+  # Cleanup configuration for migration jobs
+  cleanup:
+    # Enable automatic cleanup of completed migration jobs
+    enabled: false
 
 nodeSelector: {}
 
