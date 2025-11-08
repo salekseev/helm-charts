@@ -64,6 +64,47 @@ config:
   datastoreEngine: memory
   logLevel: info
 
+  # Reference to an existing secret containing datastore credentials
+  # If set, the chart will not create a secret and will use this instead
+  # The secret must contain a 'datastore-uri' key with the connection string
+  existingSecret: ""
+
+  # Explicit datastore connection URI (overrides generated connection string)
+  # Format for PostgreSQL: postgresql://user:password@host:port/database?sslmode=disable
+  # Format for CockroachDB: postgresql://user:password@host:port/database?sslmode=verify-full
+  datastoreURI: ""
+
+  # Datastore connection configuration (used when datastoreURI is not set)
+  datastore:
+    # Hostname of the database server
+    hostname: "localhost"
+
+    # Port number (default: 5432 for postgres, 26257 for cockroachdb)
+    port: 5432
+
+    # Database username
+    username: "spicedb"
+
+    # Database password (only used if existingSecret is not set)
+    password: ""
+
+    # Database name
+    database: "spicedb"
+
+    # SSL mode for database connections
+    # For PostgreSQL: disable, allow, prefer, require, verify-ca, verify-full
+    # For CockroachDB: require, verify-ca, verify-full (verify-full recommended)
+    sslMode: "disable"
+
+    # Path to SSL root certificate (optional)
+    sslRootCert: ""
+
+    # Path to SSL client certificate (optional)
+    sslCert: ""
+
+    # Path to SSL client key (optional)
+    sslKey: ""
+
 nodeSelector: {}
 
 tolerations: []

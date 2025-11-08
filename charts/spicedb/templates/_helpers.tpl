@@ -60,3 +60,30 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Generate datastore connection string for PostgreSQL and CockroachDB
+Returns a properly formatted connection URI with SSL parameters
+*/}}
+{{- define "spicedb.datastoreConnectionString" -}}
+{{- if .Values.config.datastoreURI -}}
+{{- .Values.config.datastoreURI -}}
+{{- else if or (eq .Values.config.datastoreEngine "postgres") (eq .Values.config.datastoreEngine "cockroachdb") -}}
+{{- $username := .Values.config.datastore.username | urlquery -}}
+{{- $password := .Values.config.datastore.password | urlquery -}}
+{{- $hostname := .Values.config.datastore.hostname -}}
+{{- $port := .Values.config.datastore.port -}}
+{{- $database := .Values.config.datastore.database -}}
+{{- $sslMode := .Values.config.datastore.sslMode -}}
+{{- printf "postgresql://%s:%s@%s:%v/%s?sslmode=%s" $username $password $hostname $port $database $sslMode -}}
+{{- if .Values.config.datastore.sslRootCert -}}
+{{- printf "&sslrootcert=%s" (.Values.config.datastore.sslRootCert | urlquery) -}}
+{{- end -}}
+{{- if .Values.config.datastore.sslCert -}}
+{{- printf "&sslcert=%s" (.Values.config.datastore.sslCert | urlquery) -}}
+{{- end -}}
+{{- if .Values.config.datastore.sslKey -}}
+{{- printf "&sslkey=%s" (.Values.config.datastore.sslKey | urlquery) -}}
+{{- end -}}
+{{- end -}}
+{{- end }}

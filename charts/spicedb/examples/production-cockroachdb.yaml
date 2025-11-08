@@ -1,0 +1,179 @@
+# Production CockroachDB Configuration for SpiceDB
+# This example demonstrates a production-ready deployment with CockroachDB as the datastore
+#
+# Prerequisites:
+# - CockroachDB cluster accessible from the Kubernetes cluster
+# - Database and user created with appropriate permissions
+# - SSL/TLS certificates for secure connections (CockroachDB requires mTLS)
+#
+# Usage:
+#   helm install spicedb ./charts/spicedb -f examples/production-cockroachdb.yaml
+
+# High availability configuration with 5 replicas for distributed consistency
+replicaCount: 5
+
+image:
+  repository: authzed/spicedb
+  pullPolicy: IfNotPresent
+  # Use a specific stable version in production
+  tag: "v1.39.0"
+
+# CockroachDB datastore configuration
+config:
+  # Set datastore engine to CockroachDB
+  datastoreEngine: cockroachdb
+
+  # Log level for production monitoring
+  logLevel: info
+
+  # If using an external secret (recommended for production), uncomment:
+  # existingSecret: "spicedb-cockroachdb-credentials"
+
+  # Datastore connection parameters
+  datastore:
+    # CockroachDB server hostname (use service name for in-cluster CockroachDB)
+    hostname: "cockroachdb-public.database.svc.cluster.local"
+
+    # CockroachDB default SQL port
+    port: 26257
+
+    # Database username
+    username: "spicedb"
+
+    # Database password (only if not using existingSecret)
+    # In production, prefer using existingSecret instead
+    password: "CHANGE_ME_INSECURE"
+
+    # Database name
+    database: "spicedb"
+
+    # SSL mode for encrypted connections
+    # CockroachDB requires verify-full for production security
+    sslMode: "verify-full"
+
+    # SSL certificate paths (required for verify-full mode)
+    # These certificates should be mounted via volumes or secrets
+    sslRootCert: "/etc/spicedb/certs/ca.crt"
+    sslCert: "/etc/spicedb/certs/client.spicedb.crt"
+    sslKey: "/etc/spicedb/certs/client.spicedb.key"
+
+# Production resource limits for CockroachDB workloads
+# CockroachDB tends to be more resource-intensive due to distributed nature
+resources:
+  limits:
+    cpu: 4000m
+    memory: 4Gi
+  requests:
+    cpu: 1000m
+    memory: 1Gi
+
+# Security context for container
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+    - ALL
+
+# Pod security context
+podSecurityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+# Pod disruption budget for high availability
+# Ensures at least 3 pods are always available during updates
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 3
+
+# Horizontal Pod Autoscaler (optional)
+# Uncomment to enable automatic scaling based on CPU/memory
+# autoscaling:
+#   enabled: true
+#   minReplicas: 5
+#   maxReplicas: 15
+#   targetCPUUtilizationPercentage: 70
+#   targetMemoryUtilizationPercentage: 75
+
+# Node selector for scheduling pods on specific nodes
+# Uncomment and adjust as needed
+# nodeSelector:
+#   workload-type: spicedb
+#   disk-type: ssd
+
+# Tolerations for pod scheduling
+# Uncomment if using dedicated nodes with taints
+# tolerations:
+# - key: "dedicated"
+#   operator: "Equal"
+#   value: "spicedb"
+#   effect: "NoSchedule"
+
+# Anti-affinity rules to spread pods across nodes and zones
+affinity:
+  podAntiAffinity:
+    # Hard requirement: don't schedule multiple pods on the same node
+    requiredDuringSchedulingIgnoredDuringExecution:
+    - labelSelector:
+        matchExpressions:
+        - key: app.kubernetes.io/name
+          operator: In
+          values:
+          - spicedb
+      topologyKey: kubernetes.io/hostname
+
+# Topology spread constraints for zone distribution
+# Ensures pods are distributed across availability zones
+topologySpreadConstraints:
+- maxSkew: 1
+  topologyKey: topology.kubernetes.io/zone
+  whenUnsatisfiable: DoNotSchedule
+  labelSelector:
+    matchLabels:
+      app.kubernetes.io/name: spicedb
+
+# Service configuration
+service:
+  type: ClusterIP
+  grpcPort: 50051
+  httpPort: 8443
+  metricsPort: 9090
+  dispatchPort: 50053
+
+# Pod annotations for monitoring integration
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+# Labels for organization
+podLabels:
+  environment: production
+  team: platform
+  datastore: cockroachdb
+
+# Volume mounts for SSL certificates
+# Uncomment and adjust based on your certificate storage method
+# volumeMounts:
+# - name: cockroachdb-certs
+#   mountPath: /etc/spicedb/certs
+#   readOnly: true
+
+# Volumes for SSL certificates
+# Uncomment and adjust based on your certificate storage method
+# volumes:
+# - name: cockroachdb-certs
+#   secret:
+#     secretName: spicedb-cockroachdb-certs
+#     defaultMode: 0400
+
+# Notes:
+# 1. CockroachDB requires client certificates for secure connections
+# 2. Ensure certificates are properly mounted and accessible
+# 3. The sslMode must be set to 'verify-full' for production security
+# 4. Consider using External Secrets Operator for certificate management
+# 5. CockroachDB works best with SSD storage for better performance
+# 6. Monitor connection pool settings and adjust based on workload

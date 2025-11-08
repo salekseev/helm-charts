@@ -117,6 +117,80 @@ tests:
             name: SPICEDB_LOG_LEVEL
             value: debug
 
+  # Datastore connection tests
+  - it: should set postgres datastore engine and connection URI from secret
+    set:
+      config.datastoreEngine: postgres
+      config.datastore.hostname: postgres.example.com
+      config.datastore.username: testuser
+      config.datastore.password: testpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_ENGINE
+            value: postgres
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_CONN_URI
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-spicedb
+                key: datastore-uri
+
+  - it: should set cockroachdb datastore engine and connection URI from secret
+    set:
+      config.datastoreEngine: cockroachdb
+      config.datastore.hostname: cockroachdb.example.com
+      config.datastore.username: spicedb
+      config.datastore.password: secretpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_ENGINE
+            value: cockroachdb
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_CONN_URI
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-spicedb
+                key: datastore-uri
+
+  - it: should use existingSecret when provided
+    set:
+      config.datastoreEngine: postgres
+      config.existingSecret: my-external-secret
+      config.datastore.hostname: postgres.example.com
+      config.datastore.username: testuser
+      config.datastore.password: testpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_CONN_URI
+            valueFrom:
+              secretKeyRef:
+                name: my-external-secret
+                key: datastore-uri
+
+  - it: should not set connection URI for memory datastore
+    set:
+      config.datastoreEngine: memory
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_ENGINE
+            value: memory
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_CONN_URI
+
   # Resource configuration tests
   - it: should not set resources by default
     asserts:
@@ -180,15 +254,15 @@ tests:
 
   - it: should add custom pod annotations
     set:
-      podAnnotations."prometheus.io/scrape": "true"
-      podAnnotations."prometheus.io/port": "9090"
+      podAnnotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
     asserts:
       - equal:
-          path: spec.template.metadata.annotations["prometheus.io/scrape"]
-          value: "true"
-      - equal:
-          path: spec.template.metadata.annotations["prometheus.io/port"]
-          value: "9090"
+          path: spec.template.metadata.annotations
+          value:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "9090"
 
   # Node selector tests
   - it: should not set node selector by default

@@ -56,6 +56,13 @@ spec:
           value: {{ .Values.config.datastoreEngine }}
         - name: SPICEDB_LOG_LEVEL
           value: {{ .Values.config.logLevel }}
+        {{- if ne .Values.config.datastoreEngine "memory" }}
+        - name: SPICEDB_DATASTORE_CONN_URI
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.config.existingSecret | default (include "spicedb.fullname" .) }}
+              key: datastore-uri
+        {{- end }}
         {{- with .Values.resources }}
         resources:
           {{- toYaml . | nindent 10 }}
