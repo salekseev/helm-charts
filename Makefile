@@ -1,41 +1,96 @@
-.PHONY: help test-unit test-integration test-local test-all clean
+.PHONY: help list-charts test-all clean
 
-# Variables
-KIND_CLUSTER_NAME ?= spicedb-test
-HELM_RELEASE_NAME ?= spicedb
-CHART_DIR := charts/spicedb
+# Discover all charts in charts/ directory
+CHARTS := $(wildcard charts/*)
+CHART_NAMES := $(notdir $(CHARTS))
 
 help:  ## Display this help message
-	@echo "SpiceDB Helm Chart - Available targets:"
+	@echo "Helm Charts Repository - Available targets:"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "Variables:"
-	@echo "  KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME)"
-	@echo "  HELM_RELEASE_NAME=$(HELM_RELEASE_NAME)"
+	@echo "Available charts:"
+	@for chart in $(CHART_NAMES); do \
+		echo "  - $$chart"; \
+	done
+	@echo ""
+	@echo "Per-chart targets:"
+	@echo "  make <chart>-test-unit         - Run unit tests for specific chart"
+	@echo "  make <chart>-test-integration  - Run integration tests for specific chart"
+	@echo "  make <chart>-test-all          - Run all tests for specific chart"
+	@echo "  make <chart>-lint              - Lint specific chart"
+	@echo "  make <chart>-clean             - Clean specific chart artifacts"
 
-test-unit:  ## Run Helm unit tests with helm-unittest
-	@echo "Running Helm unit tests..."
-	@cd $(CHART_DIR) && helm unittest .
+list-charts:  ## List all available charts
+	@echo "Available charts:"
+	@for chart in $(CHART_NAMES); do \
+		echo "  - $$chart"; \
+	done
 
-test-integration:  ## Run integration tests with Kind cluster
-	@echo "Running integration tests..."
-	@export KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) && \
-	export HELM_RELEASE_NAME=$(HELM_RELEASE_NAME) && \
-	$(CHART_DIR)/tests/integration/migration-test.sh
+test-all:  ## Run all tests for all charts
+	@for chart in $(CHART_NAMES); do \
+		echo ""; \
+		echo "==> Testing chart: $$chart"; \
+		if [ -f "charts/$$chart/Makefile" ]; then \
+			$(MAKE) -C "charts/$$chart" test-all || exit 1; \
+		else \
+			echo "No Makefile found for $$chart, skipping..."; \
+		fi; \
+	done
 
-test-local: test-unit  ## Run local tests (unit tests only)
-	@echo "Local tests complete!"
+clean:  ## Clean all chart artifacts
+	@for chart in $(CHART_NAMES); do \
+		if [ -f "charts/$$chart/Makefile" ]; then \
+			echo "Cleaning $$chart..."; \
+			$(MAKE) -C "charts/$$chart" clean; \
+		fi; \
+	done
 
-test-all: test-unit test-integration  ## Run all tests (unit + integration)
-	@echo "All tests complete!"
+# Dynamic per-chart targets
+define CHART_TARGETS
+$(1)-test-unit:
+	@echo "Running unit tests for $(1)..."
+	@if [ -f "charts/$(1)/Makefile" ]; then \
+		$(MAKE) -C "charts/$(1)" test-unit; \
+	else \
+		echo "No Makefile found for $(1)"; \
+		exit 1; \
+	fi
 
-lint:  ## Run helm lint on chart
-	@echo "Running helm lint..."
-	@helm lint $(CHART_DIR)
+$(1)-test-integration:
+	@echo "Running integration tests for $(1)..."
+	@if [ -f "charts/$(1)/Makefile" ]; then \
+		$(MAKE) -C "charts/$(1)" test-integration; \
+	else \
+		echo "No Makefile found for $(1)"; \
+		exit 1; \
+	fi
 
-clean:  ## Clean up test artifacts
-	@echo "Cleaning up test artifacts..."
-	@rm -rf $(CHART_DIR)/tests/integration/logs
-	@kind delete cluster --name $(KIND_CLUSTER_NAME) 2>/dev/null || true
-	@echo "Clean complete!"
+$(1)-test-all:
+	@echo "Running all tests for $(1)..."
+	@if [ -f "charts/$(1)/Makefile" ]; then \
+		$(MAKE) -C "charts/$(1)" test-all; \
+	else \
+		echo "No Makefile found for $(1)"; \
+		exit 1; \
+	fi
+
+$(1)-lint:
+	@echo "Linting $(1)..."
+	@if [ -f "charts/$(1)/Makefile" ]; then \
+		$(MAKE) -C "charts/$(1)" lint; \
+	else \
+		helm lint "charts/$(1)"; \
+	fi
+
+$(1)-clean:
+	@echo "Cleaning $(1)..."
+	@if [ -f "charts/$(1)/Makefile" ]; then \
+		$(MAKE) -C "charts/$(1)" clean; \
+	fi
+
+.PHONY: $(1)-test-unit $(1)-test-integration $(1)-test-all $(1)-lint $(1)-clean
+endef
+
+# Generate targets for each chart
+$(foreach chart,$(CHART_NAMES),$(eval $(call CHART_TARGETS,$(chart))))

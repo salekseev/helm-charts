@@ -43,15 +43,20 @@ Before running the integration tests, ensure you have the following tools instal
 Run the full integration test suite:
 
 ```bash
-# From repository root
+# From chart directory
+cd charts/spicedb
 make test-integration
+
+# Or from repository root
+make spicedb-test-integration
 ```
 
 Or run directly:
 
 ```bash
-# From repository root
-charts/spicedb/tests/integration/migration-test.sh
+# From chart directory
+cd charts/spicedb
+./tests/integration/migration-test.sh
 ```
 
 Expected output:
@@ -214,6 +219,8 @@ tests/integration/
 The test suite supports individual phase execution for debugging:
 
 ```bash
+# From chart directory (cd charts/spicedb)
+
 # Run only unit tests (fast)
 make test-unit
 
@@ -227,7 +234,7 @@ make test-all
 KIND_CLUSTER_NAME=my-test make test-integration
 
 # Skip cleanup (for debugging)
-SKIP_CLEANUP=true charts/spicedb/tests/integration/migration-test.sh
+SKIP_CLEANUP=true ./tests/integration/migration-test.sh
 ```
 
 ### Manual Testing Steps
@@ -239,11 +246,11 @@ For manual testing or debugging:
 kind create cluster --name spicedb-test
 
 # 2. Deploy PostgreSQL
-kubectl apply -f charts/spicedb/tests/integration/postgres-deployment.yaml
+kubectl apply -f tests/integration/postgres-deployment.yaml
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=postgres -n spicedb-test --timeout=5m
 
 # 3. Install SpiceDB chart
-helm install spicedb charts/spicedb \
+helm install spicedb . \
   --namespace spicedb-test \
   --set config.datastoreEngine=postgres \
   --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
@@ -255,16 +262,18 @@ kubectl get pods -n spicedb-test
 kubectl get jobs -n spicedb-test
 
 # 5. Load test data
-cd charts/spicedb/tests/integration
+cd tests/integration
 ./verify-persistence.sh initial
 
 # 6. Perform upgrade
-helm upgrade spicedb charts/spicedb \
+cd ../..
+helm upgrade spicedb . \
   --namespace spicedb-test \
   --set image.tag=v1.36.0 \
   --set replicaCount=2
 
 # 7. Verify persistence
+cd tests/integration
 ./verify-persistence.sh verify
 
 # 8. Verify cleanup

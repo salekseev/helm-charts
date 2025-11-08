@@ -8,7 +8,7 @@ export CLUSTER_NAME="${KIND_CLUSTER_NAME:-spicedb-test}"
 export NAMESPACE="spicedb-test"
 export RELEASE_NAME="${HELM_RELEASE_NAME:-spicedb}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CHART_PATH="$SCRIPT_DIR/../.."
+CHART_PATH="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOG_DIR="$SCRIPT_DIR/logs"
 
 # Colors for output
