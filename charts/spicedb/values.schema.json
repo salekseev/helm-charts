@@ -255,12 +255,51 @@
           "description": "Datastore engine to use",
           "enum": ["memory", "postgres", "cockroachdb"],
           "default": "memory"
-        },
-        "logLevel": {
+        }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "description": "Logging configuration for SpiceDB and migration jobs",
+      "required": ["level", "format"],
+      "properties": {
+        "level": {
           "type": "string",
-          "description": "Logging level",
+          "description": "Log verbosity level",
           "enum": ["debug", "info", "warn", "error"],
           "default": "info"
+        },
+        "format": {
+          "type": "string",
+          "description": "Log output format",
+          "enum": ["json", "console"],
+          "default": "json"
+        }
+      }
+    },
+    "dispatch": {
+      "type": "object",
+      "description": "Dispatch cluster mode configuration for distributed permission checking",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable dispatch cluster mode for distributed permission checking",
+          "default": false
+        },
+        "upstreamCASecretName": {
+          "type": "string",
+          "description": "Name of Kubernetes secret containing custom CA certificate for upstream dispatch connections",
+          "default": ""
+        },
+        "upstreamCAPath": {
+          "type": "string",
+          "description": "Path where the upstream CA certificate will be mounted in the container",
+          "default": "/etc/dispatch-ca/ca.crt"
+        },
+        "clusterName": {
+          "type": "string",
+          "description": "Cluster name for identifying this SpiceDB cluster in logs and metrics",
+          "default": ""
         }
       }
     },

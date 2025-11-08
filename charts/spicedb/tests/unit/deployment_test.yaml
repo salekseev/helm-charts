@@ -109,7 +109,7 @@ tests:
 
   - it: should set log level from values
     set:
-      config.logLevel: debug
+      logging.level: debug
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -275,15 +275,15 @@ tests:
   - it: should add custom pod annotations
     set:
       podAnnotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9090"
+        custom.annotation/key: custom-value
+        another.annotation: another-value
     asserts:
       - equal:
-          path: spec.template.metadata.annotations["prometheus.io/scrape"]
-          value: "true"
+          path: spec.template.metadata.annotations["custom.annotation/key"]
+          value: custom-value
       - equal:
-          path: spec.template.metadata.annotations["prometheus.io/port"]
-          value: "9090"
+          path: spec.template.metadata.annotations["another.annotation"]
+          value: another-value
       - isNotEmpty:
           path: spec.template.metadata.annotations["checksum/migration-config"]
 
@@ -300,3 +300,125 @@ tests:
       - equal:
           path: spec.template.spec.nodeSelector.disktype
           value: ssd
+
+  # Monitoring annotations tests
+  - it: should not add prometheus annotations when monitoring is disabled
+    set:
+      monitoring.enabled: false
+    asserts:
+      - isNull:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+      - isNull:
+          path: spec.template.metadata.annotations["prometheus.io/port"]
+      - isNull:
+          path: spec.template.metadata.annotations["prometheus.io/path"]
+
+  - it: should add prometheus annotations when monitoring is enabled
+    set:
+      monitoring.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+          value: 'true'
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/port"]
+          value: '9090'
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/path"]
+          value: '/metrics'
+
+  - it: should merge monitoring annotations with custom podAnnotations
+    set:
+      monitoring.enabled: true
+      podAnnotations:
+        custom.annotation/key: custom-value
+        another.annotation: another-value
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+          value: 'true'
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/port"]
+          value: '9090'
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/path"]
+          value: '/metrics'
+      - equal:
+          path: spec.template.metadata.annotations["custom.annotation/key"]
+          value: custom-value
+      - equal:
+          path: spec.template.metadata.annotations["another.annotation"]
+          value: another-value
+      - isNotEmpty:
+          path: spec.template.metadata.annotations["checksum/migration-config"]
+  # Dispatch cluster configuration tests
+  - it: should not set dispatch environment variables when dispatch is disabled
+    set:
+      dispatch.enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_CLUSTER_ENABLED
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_UPSTREAM_ADDR
+
+  - it: should set dispatch environment variables when dispatch is enabled
+    set:
+      dispatch.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_CLUSTER_ENABLED
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_UPSTREAM_ADDR
+            value: "RELEASE-NAME-spicedb.NAMESPACE.svc.cluster.local:50053"
+
+  - it: should set dispatch upstream CA path when upstreamCASecretName is provided
+    set:
+      dispatch.enabled: true
+      dispatch.upstreamCASecretName: dispatch-upstream-ca
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_UPSTREAM_CA_CERT_PATH
+            value: /etc/dispatch-ca/ca.crt
+
+  - it: should mount dispatch upstream CA volume when upstreamCASecretName is provided
+    set:
+      dispatch.enabled: true
+      dispatch.upstreamCASecretName: dispatch-upstream-ca
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dispatch-upstream-ca
+            mountPath: /etc/dispatch-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: dispatch-upstream-ca
+            secret:
+              secretName: dispatch-upstream-ca
+              defaultMode: 0400
+
+  - it: should not mount dispatch upstream CA volume when upstreamCASecretName is not provided
+    set:
+      dispatch.enabled: true
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_UPSTREAM_CA_CERT_PATH
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dispatch-upstream-ca

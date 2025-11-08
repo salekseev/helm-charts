@@ -109,3 +109,69 @@ tests:
       - equal:
           path: spec.selector["app.kubernetes.io/instance"]
           value: RELEASE-NAME
+
+  # Headless service tests
+  - it: should not set clusterIP by default
+    asserts:
+      - isNull:
+          path: spec.clusterIP
+
+  - it: should create headless service when enabled
+    set:
+      service.headless: true
+    asserts:
+      - equal:
+          path: spec.clusterIP
+          value: None
+
+  - it: should expose all ports including dispatch when headless is enabled
+    set:
+      service.headless: true
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: grpc
+            port: 50051
+            targetPort: grpc
+            protocol: TCP
+      - contains:
+          path: spec.ports
+          content:
+            name: dispatch
+            port: 50053
+            targetPort: dispatch
+            protocol: TCP
+      - contains:
+          path: spec.ports
+          content:
+            name: http
+            port: 8443
+            targetPort: http
+            protocol: TCP
+      - contains:
+          path: spec.ports
+          content:
+            name: metrics
+            port: 9090
+            targetPort: metrics
+            protocol: TCP
+
+  - it: should maintain service type when headless is enabled
+    set:
+      service.headless: true
+      service.type: ClusterIP
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.clusterIP
+          value: None
+
+  - it: should allow disabling headless service explicitly
+    set:
+      service.headless: false
+    asserts:
+      - isNull:
+          path: spec.clusterIP

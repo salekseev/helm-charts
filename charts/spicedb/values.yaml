@@ -56,6 +56,14 @@ securityContext:
 
 service:
   type: ClusterIP
+  # Headless service configuration for StatefulSet deployments
+  # When enabled, creates a headless service (clusterIP: None) that provides stable
+  # network identities for individual pods. This is required for StatefulSet deployments
+  # and enables direct pod-to-pod communication for features like dispatch clustering.
+  # Note: Setting this to true overrides the service type and creates a headless service
+  # regardless of the 'type' setting above.
+  # Default: false (creates standard ClusterIP service)
+  headless: false
   grpcPort: 50051
   httpPort: 8443
   metricsPort: 9090
@@ -107,11 +115,27 @@ autoscaling:
   # Target memory utilization percentage for scaling
   targetMemoryUtilizationPercentage: 80
 
+# Logging configuration
+# Controls log verbosity and format for SpiceDB and migration jobs
+logging:
+  # Log level controls verbosity of logs
+  # Valid values: debug, info, warn, error
+  # debug: Verbose logging for troubleshooting
+  # info: Standard operational logging (recommended for production)
+  # warn: Only warnings and errors
+  # error: Only errors
+  level: info
+
+  # Log format controls output structure
+  # Valid values: json, console
+  # json: Structured JSON logging (recommended for production, log aggregation)
+  # console: Human-readable console output (useful for development)
+  format: json
+
 # Config for SpiceDB
 config:
   # Datastore engine: memory, postgres, cockroachdb
   datastoreEngine: memory
-  logLevel: info
 
   # gRPC preshared key for authentication
   # This is required for SpiceDB to start
@@ -280,6 +304,36 @@ tls:
     # This path should match config.datastore.sslRootCert if using URI configuration
     caPath: /etc/spicedb/tls/datastore/ca.crt
 
+# Dispatch cluster mode configuration
+# Enables distributed permission checking across multiple SpiceDB instances
+# When enabled, SpiceDB instances can communicate with each other to distribute
+# permission checks across the cluster for improved performance
+dispatch:
+  # Enable dispatch cluster mode
+  # When true, enables distributed permission checking between SpiceDB pods
+  # Requires multiple replicas to be effective (replicaCount > 1)
+  enabled: false
+
+  # Name of the Kubernetes secret containing custom CA certificate for upstream dispatch connections
+  # The secret should contain the following key:
+  #   - ca.crt: CA certificate to verify upstream SpiceDB instances
+  #
+  # This is useful when upstream SpiceDB instances use certificates signed by a custom CA
+  # Leave empty to use system default CA certificates
+  #
+  # Note: This is different from tls.dispatch which configures mTLS for the dispatch endpoint
+  # upstreamCASecretName configures the CA used to verify connections TO other instances
+  # tls.dispatch configures the certificates used BY this instance for its dispatch endpoint
+  upstreamCASecretName: ""
+
+  # Path where the upstream CA certificate will be mounted in the container
+  # Used by SPICEDB_DISPATCH_UPSTREAM_CA_CERT_PATH environment variable
+  upstreamCAPath: /etc/dispatch-ca/ca.crt
+
+  # Cluster name for identifying this SpiceDB cluster
+  # Optional: Used for logging and metrics to distinguish between multiple clusters
+  clusterName: ""
+
 # Database migration configuration
 migrations:
   # Specifies whether to run database migrations as a pre-install/pre-upgrade Job
@@ -322,6 +376,63 @@ migrations:
   cleanup:
     # Enable automatic cleanup of completed migration jobs
     enabled: false
+
+# Monitoring configuration
+monitoring:
+  # Enable Prometheus metrics scraping annotations
+  # When enabled, adds prometheus.io/* annotations to pod template
+  enabled: true
+
+  # Prometheus Operator ServiceMonitor configuration
+  # Requires Prometheus Operator CRDs (monitoring.coreos.com/v1) to be installed in the cluster
+  # The ServiceMonitor CRD allows Prometheus to automatically discover and scrape metrics
+  serviceMonitor:
+    # Specifies whether a ServiceMonitor should be created
+    # Set to true to enable Prometheus metrics scraping via ServiceMonitor
+    enabled: false
+
+    # Scrape interval for Prometheus metrics
+    # Defines how often Prometheus scrapes the metrics endpoint
+    # Default: 30s (30 seconds)
+    interval: 30s
+
+    # Scrape timeout for Prometheus metrics
+    # Maximum time to wait for a metrics scrape to complete
+    # Must be less than the scrape interval
+    # Default: 10s (10 seconds)
+    scrapeTimeout: 10s
+
+    # Additional metadata labels for the ServiceMonitor resource
+    # These labels are added to the ServiceMonitor metadata only
+    # They do not affect Prometheus discovery or scraping
+    # Use for organizational purposes, ownership, or cost tracking
+    #
+    # Example usage:
+    #   labels:
+    #     team: security
+    #     component: authorization
+    #     environment: production
+    labels: {}
+
+    # Additional labels for Prometheus ServiceMonitor selection
+    # These labels are used by Prometheus to discover ServiceMonitors
+    # Must match the serviceMonitorSelector in your Prometheus CR
+    #
+    # Common examples:
+    #   release: prometheus-operator  # For Prometheus Operator chart
+    #   prometheus: kube-prometheus    # For kube-prometheus-stack
+    #   app.kubernetes.io/part-of: monitoring
+    #
+    # Example usage:
+    #   additionalLabels:
+    #     prometheus: kube-prometheus
+    #     team: platform
+    additionalLabels: {}
+
+    # Metrics path to scrape
+    # SpiceDB exposes metrics on the standard /metrics endpoint
+    # Default: /metrics
+    path: /metrics
 
 nodeSelector: {}
 

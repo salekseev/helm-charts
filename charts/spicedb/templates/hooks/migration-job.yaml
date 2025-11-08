@@ -69,9 +69,13 @@ spec:
         # Datastore engine - must match deployment configuration
         - name: SPICEDB_DATASTORE_ENGINE
           value: {{ .Values.config.datastoreEngine }}
-        # Log level - use migration-specific log level for better debugging
+        # Logging configuration for migrations
+        # SPICEDB_LOG_LEVEL controls verbosity: debug, info, warn, error
         - name: SPICEDB_LOG_LEVEL
           value: {{ .Values.migrations.logLevel }}
+        # SPICEDB_LOG_FORMAT controls output format: json (structured), console (human-readable)
+        - name: SPICEDB_LOG_FORMAT
+          value: {{ .Values.logging.format }}
         {{- if ne .Values.config.datastoreEngine "memory" }}
         # Datastore connection URI - inherited from deployment secret
         # Memory datastore doesn't need connection credentials

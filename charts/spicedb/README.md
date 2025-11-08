@@ -46,6 +46,7 @@ See [values.yaml](values.yaml) for all configuration options.
 | `config.datastoreEngine` | Datastore engine: memory, postgres, cockroachdb | `memory` |
 | `config.logLevel` | Log level: debug, info, warn, error | `info` |
 | `service.type` | Kubernetes service type | `ClusterIP` |
+| `service.headless` | Enable headless service for StatefulSet support | `false` |
 
 ## Database Migrations
 
@@ -131,6 +132,168 @@ helm install spicedb charts/spicedb \
 ```
 
 Then run migrations manually using `kubectl exec` or a separate job.
+
+## Headless Service for StatefulSet Deployments
+
+The chart supports creating a headless service (clusterIP: None) for StatefulSet deployments. Headless services provide stable network identities for individual pods, enabling direct pod-to-pod communication required by StatefulSets.
+
+### What is a Headless Service?
+
+A headless service in Kubernetes is a service without a cluster IP address. Instead of load balancing traffic to pods, DNS queries for a headless service return the IP addresses of all associated pods. This allows clients to connect directly to specific pods by hostname.
+
+**Key characteristics:**
+- `clusterIP: None` - No virtual IP address for load balancing
+- DNS returns individual pod IPs instead of a single service IP
+- Each pod gets a stable DNS hostname: `<pod-name>.<service-name>.<namespace>.svc.cluster.local`
+- Required for StatefulSet deployments with stable network identities
+
+### When to Use Headless Services
+
+Enable headless services when:
+
+- **StatefulSet Deployments**: Planning to migrate from Deployment to StatefulSet for stable pod identities
+- **Direct Pod Communication**: Applications need to communicate with specific pods (e.g., distributed databases, consensus systems)
+- **Dispatch Clustering**: SpiceDB's internal dispatch mechanism benefits from stable pod addressing in multi-replica setups
+- **Service Discovery**: Custom service discovery mechanisms that need to discover all pod IPs
+
+### Configuration
+
+Enable headless service by setting `service.headless` to `true`:
+
+```bash
+helm install spicedb charts/spicedb \
+  --set service.headless=true \
+  --set replicaCount=3 \
+  --set config.datastoreEngine=postgres \
+  --set config.datastore.hostname=postgres.default.svc.cluster.local
+```
+
+Or via values.yaml:
+
+```yaml
+service:
+  type: ClusterIP
+  headless: true  # Creates headless service
+  grpcPort: 50051
+  httpPort: 8443
+  metricsPort: 9090
+  dispatchPort: 50053  # Still exposed for dispatch clustering
+
+replicaCount: 3
+```
+
+### Service Behavior
+
+**Standard Service (headless: false - default):**
+```bash
+# DNS lookup returns single cluster IP
+nslookup spicedb.default.svc.cluster.local
+# Returns: 10.96.0.10 (virtual IP, load balanced)
+```
+
+**Headless Service (headless: true):**
+```bash
+# DNS lookup returns individual pod IPs
+nslookup spicedb.default.svc.cluster.local
+# Returns:
+#   10.244.0.5 (spicedb-7d8f9c-abc12)
+#   10.244.1.6 (spicedb-7d8f9c-def34)
+#   10.244.2.7 (spicedb-7d8f9c-ghi56)
+```
+
+### Port Configuration
+
+All service ports remain available with headless services, including the dispatch port (50053) required for internal cluster communication:
+
+- **gRPC API**: 50051 - Client permission checks
+- **HTTP Dashboard**: 8443 - Web UI and metrics
+- **Metrics**: 9090 - Prometheus metrics
+- **Dispatch**: 50053 - Inter-pod communication (critical for multi-replica deployments)
+
+### StatefulSet Migration
+
+The headless service configuration prepares the infrastructure for future StatefulSet deployments. While the current chart uses Deployments, enabling headless services allows for easier migration to StatefulSets when needed.
+
+**Current State:** Deployment with optional headless service
+**Future Enhancement:** StatefulSet support (planned)
+
+When StatefulSet support is added, pods will have stable identities like:
+- `spicedb-0.spicedb.default.svc.cluster.local`
+- `spicedb-1.spicedb.default.svc.cluster.local`
+- `spicedb-2.spicedb.default.svc.cluster.local`
+
+### Backward Compatibility
+
+The `service.headless` setting is:
+- **Default: false** - Maintains existing behavior with standard ClusterIP service
+- **Fully backward compatible** - Existing deployments are unaffected
+- **Optional** - Only enable when needed for specific use cases
+
+### Examples
+
+#### Standard Multi-Replica Deployment (Default)
+
+```bash
+helm install spicedb charts/spicedb \
+  --set replicaCount=3 \
+  --set config.datastoreEngine=postgres
+# Creates ClusterIP service with load balancing
+```
+
+#### Multi-Replica with Headless Service
+
+```bash
+helm install spicedb charts/spicedb \
+  --set service.headless=true \
+  --set replicaCount=3 \
+  --set config.datastoreEngine=postgres
+# Creates headless service with individual pod DNS entries
+```
+
+#### Verifying Headless Service Configuration
+
+```bash
+# Check service configuration
+kubectl get service spicedb -o yaml | grep clusterIP
+# With headless: true, should show "clusterIP: None"
+
+# Test DNS resolution
+kubectl run -it --rm debug --image=busybox --restart=Never -- \
+  nslookup spicedb.default.svc.cluster.local
+# Should return multiple pod IPs for headless service
+
+# Verify all ports are exposed
+kubectl get service spicedb -o yaml | grep -A 5 ports:
+```
+
+### Troubleshooting
+
+**Issue: Service shows "None" for CLUSTER-IP**
+
+This is expected behavior for headless services:
+```bash
+kubectl get service spicedb
+# NAME      TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)
+# spicedb   ClusterIP   None         <none>        50051/TCP,...
+```
+
+**Issue: Cannot connect to service IP**
+
+Headless services don't have a cluster IP for load balancing. Connect directly to individual pods or use pod DNS names:
+```bash
+# Get pod IPs
+kubectl get pods -l app.kubernetes.io/name=spicedb -o wide
+
+# Connect to specific pod
+kubectl exec -it <pod-name> -- grpcurl -plaintext localhost:50051 list
+```
+
+**Issue: Need load balancing with headless service**
+
+Headless services don't provide load balancing. Options:
+1. Disable headless mode: `--set service.headless=false`
+2. Implement client-side load balancing
+3. Use a separate non-headless service for load-balanced access
 
 #### Running Migrations Manually
 
@@ -822,6 +985,694 @@ kubectl logs -l app.kubernetes.io/name=spicedb | grep -i tls
 8. **Backup CA certificates and keys**
    - Store securely outside the cluster
    - Required for disaster recovery
+
+## Dispatch Cluster Mode
+
+SpiceDB supports dispatch cluster mode for distributed permission checking across multiple instances. When enabled, SpiceDB instances communicate with each other to distribute permission check workloads, improving performance for complex authorization queries.
+
+### Overview
+
+Dispatch cluster mode enables horizontal scaling of permission checks by allowing SpiceDB instances to delegate sub-problems to other instances in the cluster. This is particularly beneficial for:
+
+- **Complex permission checks** with deep relationship traversal
+- **High-throughput deployments** requiring load distribution
+- **Large permission graphs** that benefit from distributed query execution
+
+### When to Enable Dispatch Mode
+
+Enable dispatch cluster mode when:
+
+- Running **multiple replicas** (replicaCount > 1) for high availability
+- Permission checks involve **deep relationship traversal** (e.g., hierarchical organizations)
+- You need to **distribute query load** across multiple instances
+- Planning for **horizontal scalability** of authorization workloads
+
+**Note:** Dispatch mode requires at least 2 replicas to be effective. With a single replica, dispatch mode has no benefit.
+
+### Configuration
+
+```yaml
+dispatch:
+  enabled: true
+  # Optional: Custom CA certificate for upstream verification
+  upstreamCASecretName: ""
+  # Optional: Cluster name for identification in logs/metrics
+  clusterName: "production-main"
+
+replicaCount: 3  # Multiple replicas required for dispatch mode
+
+# Recommended: Enable mTLS for secure inter-pod communication
+tls:
+  enabled: true
+  dispatch:
+    secretName: spicedb-dispatch-tls
+```
+
+### Basic Dispatch Cluster Setup
+
+```bash
+helm install spicedb charts/spicedb \
+  --set dispatch.enabled=true \
+  --set replicaCount=3 \
+  --set config.datastoreEngine=postgres \
+  --set config.datastore.hostname=postgres.default.svc.cluster.local
+```
+
+This creates a 3-replica SpiceDB deployment with dispatch clustering enabled.
+
+### Dispatch with mTLS (Recommended for Production)
+
+For production deployments, enable mTLS to encrypt and authenticate inter-pod dispatch communication:
+
+```bash
+# Create dispatch mTLS certificates (see TLS Configuration section)
+kubectl apply -f examples/cert-manager-integration.yaml
+
+# Install with dispatch and mTLS
+helm install spicedb charts/spicedb \
+  --set dispatch.enabled=true \
+  --set replicaCount=3 \
+  --set tls.enabled=true \
+  --set tls.dispatch.secretName=spicedb-dispatch-tls \
+  --set config.datastoreEngine=postgres
+```
+
+### Custom Upstream CA Certificate
+
+If your dispatch cluster uses certificates signed by a custom CA (not the same CA as tls.dispatch), provide the upstream CA certificate:
+
+```bash
+# Create secret with upstream CA certificate
+kubectl create secret generic dispatch-upstream-ca \
+  --from-file=ca.crt=upstream-ca.crt
+
+# Install with custom upstream CA
+helm install spicedb charts/spicedb \
+  --set dispatch.enabled=true \
+  --set dispatch.upstreamCASecretName=dispatch-upstream-ca \
+  --set tls.enabled=true \
+  --set tls.dispatch.secretName=spicedb-dispatch-tls \
+  --set replicaCount=3
+```
+
+**Use case:** When connecting to external SpiceDB clusters or when using different CAs for different environments.
+
+### How Dispatch Works
+
+**Service Discovery:**
+- SpiceDB uses Kubernetes DNS for service discovery
+- Format: `{release-name}-spicedb.{namespace}.svc.cluster.local:50053`
+- Each pod discovers other pods via the service endpoint
+- Dispatch port: 50053 (automatically exposed by the chart)
+
+**Load Distribution:**
+- Permission checks are broken into sub-problems
+- Sub-problems are dispatched to available instances
+- Results are aggregated and returned to the client
+- Load balancing is automatic across all healthy pods
+
+**Communication Security:**
+- **Without mTLS:** Plain-text gRPC communication on port 50053 (suitable for trusted networks)
+- **With mTLS:** Encrypted and authenticated communication (recommended for production)
+
+### Scaling Considerations
+
+**Performance Impact:**
+- ✅ **Improved:** Complex permission checks with deep relationship traversal
+- ✅ **Improved:** High query throughput distributed across instances
+- ⚠️ **Increased:** Network traffic between pods (inter-pod communication overhead)
+- ⚠️ **Increased:** Latency for simple checks (due to dispatch coordination overhead)
+
+**Recommendations:**
+- Start with 3 replicas for small-to-medium workloads
+- Scale to 5-10 replicas for high-throughput production deployments
+- Monitor dispatch metrics (see Observability section) to tune replica count
+- Use mTLS in production to secure inter-pod communication
+
+### Network Performance Impact
+
+Dispatch cluster mode increases network traffic between pods:
+
+```
+Single pod (dispatch disabled):
+  Client → SpiceDB Pod → Datastore
+
+Multi-pod dispatch cluster:
+  Client → SpiceDB Pod A → SpiceDB Pod B → Datastore
+                        ↘ SpiceDB Pod C → Datastore
+```
+
+**Mitigation strategies:**
+- Deploy SpiceDB pods in the same availability zone (reduce cross-AZ latency)
+- Use high-bandwidth network infrastructure (10Gbps+ recommended)
+- Enable mTLS with efficient cipher suites
+- Monitor dispatch latency metrics and adjust replica count
+
+### mTLS Requirements for Production
+
+**Why mTLS for Dispatch:**
+- Prevents unauthorized pods from joining the cluster
+- Encrypts sensitive authorization data in transit
+- Authenticates each pod in the cluster (mutual authentication)
+
+**Setting up dispatch mTLS:**
+
+See the [TLS Configuration](#tls-configuration) section for complete setup instructions. Key points:
+
+1. Create dispatch mTLS certificates via cert-manager or manual generation
+2. Secret must contain: `tls.crt`, `tls.key`, `ca.crt`
+3. Set `tls.enabled=true` and `tls.dispatch.secretName`
+4. All pods use the same certificates signed by the same CA
+
+**Distinction between tls.dispatch and dispatch.upstreamCASecretName:**
+- `tls.dispatch`: Certificates used BY this instance to secure its own dispatch endpoint
+- `dispatch.upstreamCASecretName`: CA certificate used to verify OTHER instances (optional, for custom CAs)
+
+### Configuration Examples
+
+#### Minimal Dispatch Setup (Development)
+
+```yaml
+dispatch:
+  enabled: true
+
+replicaCount: 3
+
+config:
+  datastoreEngine: memory
+```
+
+#### Production Dispatch with mTLS
+
+```yaml
+dispatch:
+  enabled: true
+  clusterName: "production-main"
+
+replicaCount: 5
+
+tls:
+  enabled: true
+  grpc:
+    secretName: spicedb-grpc-tls
+  dispatch:
+    secretName: spicedb-dispatch-tls
+
+config:
+  datastoreEngine: postgres
+  datastore:
+    hostname: postgres.default.svc.cluster.local
+```
+
+#### Cross-Cluster Dispatch with Custom CA
+
+```yaml
+dispatch:
+  enabled: true
+  upstreamCASecretName: external-cluster-ca
+  clusterName: "staging-test"
+
+replicaCount: 3
+
+tls:
+  enabled: true
+  dispatch:
+    secretName: spicedb-dispatch-tls
+```
+
+### Verification
+
+**Check dispatch connectivity:**
+
+```bash
+# Verify service DNS resolution
+kubectl run -it --rm debug --image=busybox --restart=Never -- \
+  nslookup spicedb.default.svc.cluster.local
+
+# Check dispatch port is exposed
+kubectl get service spicedb -o yaml | grep -A 2 'name: dispatch'
+
+# View dispatch logs
+kubectl logs -l app.kubernetes.io/name=spicedb | grep -i dispatch
+
+# Check if dispatch is enabled (look for SPICEDB_DISPATCH_CLUSTER_ENABLED)
+kubectl exec deployment/spicedb -- env | grep DISPATCH
+```
+
+**Monitor dispatch metrics:**
+
+See [Observability and Monitoring](#observability-and-monitoring) section for dispatch-specific metrics:
+- `spicedb_dispatch_requests_total` - Total dispatch requests
+- `spicedb_dispatch_duration_seconds` - Dispatch request latency
+
+### Troubleshooting
+
+**Issue: Dispatch connections failing**
+
+```bash
+# Symptoms
+Error: dispatch: connection refused
+
+# Diagnosis
+# Check if dispatch port is exposed
+kubectl get service spicedb -o yaml | grep -A 2 'port: 50053'
+
+# Check pod-to-pod connectivity
+kubectl exec deployment/spicedb -- wget -qO- http://spicedb:50053
+```
+
+**Issue: mTLS authentication failures**
+
+```bash
+# Symptoms
+dispatch: certificate verification failed
+
+# Diagnosis
+# Check dispatch TLS configuration
+kubectl exec deployment/spicedb -- env | grep DISPATCH.*TLS
+
+# Verify certificates mounted correctly
+kubectl exec deployment/spicedb -- ls -la /etc/spicedb/tls/dispatch/
+
+# Check certificate validity
+kubectl get secret spicedb-dispatch-tls -o jsonpath='{.data.tls\.crt}' | \
+  base64 -d | openssl x509 -text -noout
+```
+
+**Issue: High dispatch latency**
+
+```bash
+# Check metrics for slow dispatches
+kubectl port-forward svc/spicedb 9090:9090
+# Visit http://localhost:9090/metrics and look for spicedb_dispatch_duration_seconds
+
+# Reduce replicas if dispatch overhead > benefit
+helm upgrade spicedb charts/spicedb --set replicaCount=3 --reuse-values
+```
+
+**Issue: Pods not discovering each other**
+
+```bash
+# Verify service exists and has endpoints
+kubectl get service spicedb
+kubectl get endpoints spicedb
+
+# Check DNS resolution
+kubectl run -it --rm debug --image=busybox --restart=Never -- \
+  nslookup spicedb.default.svc.cluster.local
+
+# Verify DISPATCH_UPSTREAM_ADDR is correct
+kubectl exec deployment/spicedb -- env | grep DISPATCH_UPSTREAM_ADDR
+# Should show: {release-name}-spicedb.{namespace}.svc.cluster.local:50053
+```
+
+## Observability and Monitoring
+
+SpiceDB provides comprehensive observability features including Prometheus metrics, structured logging, and health endpoints. This chart includes built-in support for Prometheus Operator integration and configurable logging.
+
+### Metrics
+
+SpiceDB exposes Prometheus-compatible metrics on port 9090 at the `/metrics` endpoint. The metrics port is always exposed via the Service, making it available for scraping by any Prometheus instance.
+
+#### Key Metrics to Monitor
+
+| Metric | Type | Description | Alerting Threshold |
+|--------|------|-------------|-------------------|
+| `spicedb_check_duration_seconds` | Histogram | Permission check latency | p99 > 100ms |
+| `spicedb_datastore_queries_total` | Counter | Total datastore queries executed | Rate increasing unexpectedly |
+| `spicedb_dispatch_requests_total` | Counter | Inter-pod dispatch requests (multi-replica) | High error rate |
+| `spicedb_grpc_server_handled_total` | Counter | gRPC requests by method and status | Error rate > 1% |
+| `spicedb_grpc_server_handling_seconds` | Histogram | gRPC request duration | p99 > 500ms |
+| `spicedb_relationships_estimate` | Gauge | Estimated relationship count | Unexpected drops |
+
+#### Prometheus Integration (Manual)
+
+For basic Prometheus scraping without Prometheus Operator:
+
+```yaml
+# prometheus-config.yaml
+scrape_configs:
+  - job_name: 'spicedb'
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        target_label: __address__
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+```
+
+Deploy SpiceDB with monitoring enabled:
+
+```bash
+helm install spicedb charts/spicedb \
+  --set monitoring.enabled=true
+```
+
+This adds the following pod annotations for Prometheus auto-discovery:
+- `prometheus.io/scrape: 'true'`
+- `prometheus.io/port: '9090'`
+- `prometheus.io/path: '/metrics'`
+
+#### Prometheus Operator Integration (ServiceMonitor)
+
+For environments using [Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator), this chart supports automatic ServiceMonitor creation.
+
+**Prerequisites:**
+- Prometheus Operator installed in your cluster
+- `monitoring.coreos.com/v1` CRD available
+
+**Installation:**
+
+```bash
+helm install spicedb charts/spicedb \
+  --set monitoring.enabled=true \
+  --set monitoring.serviceMonitor.enabled=true \
+  --set 'monitoring.serviceMonitor.additionalLabels.release=prometheus'
+```
+
+**Configuration Options:**
+
+```yaml
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s           # Scrape interval
+    scrapeTimeout: 10s      # Scrape timeout (must be < interval)
+    path: /metrics          # Metrics endpoint path
+
+    # Labels for Prometheus to discover this ServiceMonitor
+    additionalLabels:
+      release: prometheus   # For prometheus-operator
+      # OR
+      prometheus: kube-prometheus  # For kube-prometheus-stack
+
+    # Organizational metadata labels
+    labels:
+      team: platform
+      component: authorization
+```
+
+**Prometheus Configuration:**
+
+Ensure your Prometheus instance is configured to discover ServiceMonitors with matching labels:
+
+```yaml
+# For prometheus-operator
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelector:
+      matchLabels:
+        release: prometheus
+
+# For kube-prometheus-stack
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelector:
+      matchLabels:
+        prometheus: kube-prometheus
+```
+
+**Verification:**
+
+```bash
+# Check ServiceMonitor was created
+kubectl get servicemonitor
+
+# Verify Prometheus discovered the target
+kubectl port-forward svc/prometheus-operated 9090:9090
+# Visit http://localhost:9090/targets and look for spicedb
+
+# Test metrics endpoint directly
+kubectl port-forward svc/spicedb 9090:9090
+curl http://localhost:9090/metrics
+```
+
+### Logging
+
+SpiceDB supports structured JSON logging and configurable log levels for operational visibility.
+
+#### Log Configuration
+
+```yaml
+logging:
+  # Log level: debug, info, warn, error
+  level: info
+
+  # Log format: json (structured), console (human-readable)
+  format: json
+```
+
+**Log Levels:**
+- `debug`: Verbose logging for troubleshooting (use in development/testing)
+- `info`: Standard operational logging (recommended for production)
+- `warn`: Only warnings and errors
+- `error`: Only errors
+
+**Log Formats:**
+- `json`: Structured JSON logging (recommended for production, log aggregation)
+- `console`: Human-readable console output (useful for development)
+
+#### Production Logging Setup
+
+For production deployments, use structured JSON logging with log aggregation:
+
+```bash
+helm install spicedb charts/spicedb \
+  --set logging.level=info \
+  --set logging.format=json \
+  --set config.datastoreEngine=postgres \
+  --set config.datastore.hostname=postgres.default.svc.cluster.local
+```
+
+Logs are emitted to stdout/stderr and can be collected by standard Kubernetes logging infrastructure:
+- Fluentd/Fluent Bit
+- Promtail (for Grafana Loki)
+- Filebeat (for Elasticsearch)
+- CloudWatch (for EKS)
+- Stackdriver (for GKE)
+
+#### Development Logging
+
+For local development or debugging, use console format with debug level:
+
+```bash
+helm install spicedb-dev charts/spicedb \
+  --set logging.level=debug \
+  --set logging.format=console \
+  --set config.datastoreEngine=memory
+```
+
+#### Viewing Logs
+
+```bash
+# View real-time logs
+kubectl logs -f deployment/spicedb
+
+# View logs from all replicas
+kubectl logs -f -l app.kubernetes.io/name=spicedb
+
+# Search for specific log patterns
+kubectl logs -l app.kubernetes.io/name=spicedb | jq 'select(.level=="error")'
+
+# View migration job logs
+kubectl logs -l app.kubernetes.io/component=migration
+```
+
+### Grafana Dashboards
+
+While this chart doesn't include pre-built Grafana dashboards, you can create custom dashboards using the exposed metrics.
+
+#### Example Dashboard Panels
+
+**Permission Check Latency:**
+```promql
+histogram_quantile(0.99,
+  rate(spicedb_check_duration_seconds_bucket[5m])
+)
+```
+
+**Request Rate:**
+```promql
+sum(rate(spicedb_grpc_server_handled_total[5m])) by (grpc_method)
+```
+
+**Error Rate:**
+```promql
+sum(rate(spicedb_grpc_server_handled_total{grpc_code!="OK"}[5m]))
+/
+sum(rate(spicedb_grpc_server_handled_total[5m]))
+```
+
+**Datastore Query Rate:**
+```promql
+rate(spicedb_datastore_queries_total[5m])
+```
+
+**Relationship Count:**
+```promql
+spicedb_relationships_estimate
+```
+
+#### Community Dashboards
+
+Check the [SpiceDB community](https://github.com/authzed/spicedb/discussions) for shared Grafana dashboard JSON files. You can also export and share your own dashboards.
+
+### Custom Pod Labels and Annotations
+
+The chart supports adding custom labels and annotations to pods for organizational purposes or third-party integrations:
+
+```yaml
+podLabels:
+  environment: production
+  team: platform
+  cost-center: engineering
+
+podAnnotations:
+  custom.io/annotation: value
+  monitoring.example.com/enabled: "true"
+```
+
+These are merged with the default Prometheus annotations (when `monitoring.enabled=true`) and chart-managed labels.
+
+### Health Endpoints
+
+SpiceDB exposes health check endpoints on the HTTP port (default 8443):
+
+- `/healthz` - Basic health check
+- `/readyz` - Readiness check
+
+These are automatically configured as Kubernetes liveness and readiness probes.
+
+```bash
+# Check health status
+kubectl port-forward svc/spicedb 8443:8443
+curl http://localhost:8443/healthz
+```
+
+### Alerting Examples
+
+Example Prometheus alerting rules:
+
+```yaml
+groups:
+  - name: spicedb
+    rules:
+      - alert: SpiceDBHighLatency
+        expr: |
+          histogram_quantile(0.99,
+            rate(spicedb_check_duration_seconds_bucket[5m])
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpiceDB permission checks are slow"
+          description: "p99 latency is {{ $value }}s (threshold: 0.1s)"
+
+      - alert: SpiceDBHighErrorRate
+        expr: |
+          sum(rate(spicedb_grpc_server_handled_total{grpc_code!="OK"}[5m]))
+          /
+          sum(rate(spicedb_grpc_server_handled_total[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SpiceDB has high error rate"
+          description: "Error rate is {{ $value | humanizePercentage }}"
+
+      - alert: SpiceDBDown
+        expr: up{job="spicedb"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SpiceDB is down"
+          description: "SpiceDB instance {{ $labels.instance }} is down"
+```
+
+### Troubleshooting Observability
+
+#### Metrics Not Appearing in Prometheus
+
+**Diagnosis:**
+```bash
+# Check if metrics port is exposed
+kubectl get svc spicedb -o yaml | grep -A 5 'port: 9090'
+
+# Test metrics endpoint
+kubectl port-forward svc/spicedb 9090:9090
+curl http://localhost:9090/metrics
+
+# Check ServiceMonitor (if using Prometheus Operator)
+kubectl get servicemonitor
+kubectl describe servicemonitor spicedb
+```
+
+**Solution:**
+```bash
+# Verify monitoring is enabled
+helm get values spicedb | grep -A 10 monitoring
+
+# Enable monitoring if not set
+helm upgrade spicedb charts/spicedb \
+  --set monitoring.enabled=true \
+  --reuse-values
+
+# For Prometheus Operator, enable ServiceMonitor
+helm upgrade spicedb charts/spicedb \
+  --set monitoring.serviceMonitor.enabled=true \
+  --set 'monitoring.serviceMonitor.additionalLabels.release=prometheus' \
+  --reuse-values
+```
+
+#### ServiceMonitor Not Created
+
+**Diagnosis:**
+```bash
+# Check if Prometheus Operator CRD is installed
+kubectl get crd servicemonitors.monitoring.coreos.com
+
+# Verify ServiceMonitor configuration
+helm template spicedb charts/spicedb \
+  --set monitoring.serviceMonitor.enabled=true \
+  --api-versions monitoring.coreos.com/v1 | grep -A 20 'kind: ServiceMonitor'
+```
+
+**Solution:**
+```bash
+# Install Prometheus Operator if missing
+kubectl apply -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/bundle.yaml
+
+# Or install kube-prometheus-stack
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm install prometheus prometheus-community/kube-prometheus-stack
+```
+
+#### Logs Not Structured
+
+**Diagnosis:**
+```bash
+# Check log format configuration
+kubectl logs -l app.kubernetes.io/name=spicedb --tail=5
+
+# Verify logging configuration
+helm get values spicedb | grep -A 5 logging
+```
+
+**Solution:**
+```bash
+# Set structured JSON logging
+helm upgrade spicedb charts/spicedb \
+  --set logging.format=json \
+  --reuse-values
+```
 
 ## Development
 

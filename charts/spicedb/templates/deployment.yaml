@@ -25,6 +25,12 @@ spec:
         # Trigger rolling update when migration configuration changes
         # This ensures deployments restart after migrations complete with new settings
         checksum/migration-config: {{ .Values.migrations | toJson | sha256sum }}
+        {{- if .Values.monitoring.enabled }}
+        # Prometheus metrics scraping annotations
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '9090'
+        prometheus.io/path: '/metrics'
+        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -72,8 +78,13 @@ spec:
           value: {{ .Values.config.presharedKey | quote }}
         - name: SPICEDB_DATASTORE_ENGINE
           value: {{ .Values.config.datastoreEngine }}
+        # Logging configuration
+        # SPICEDB_LOG_LEVEL controls verbosity: debug, info, warn, error
         - name: SPICEDB_LOG_LEVEL
-          value: {{ .Values.config.logLevel }}
+          value: {{ .Values.logging.level }}
+        # SPICEDB_LOG_FORMAT controls output format: json (structured), console (human-readable)
+        - name: SPICEDB_LOG_FORMAT
+          value: {{ .Values.logging.format }}
         {{- if ne .Values.config.datastoreEngine "memory" }}
         - name: SPICEDB_DATASTORE_CONN_URI
           valueFrom:
@@ -110,6 +121,23 @@ spec:
         - name: SPICEDB_DISPATCH_CLUSTER_TLS_CA_PATH
           value: {{ .Values.tls.dispatch.caPath | quote }}
         {{- end }}
+        {{- if .Values.dispatch.enabled }}
+        # Dispatch cluster configuration
+        # Enables distributed dispatch across SpiceDB instances for horizontal scaling
+        - name: SPICEDB_DISPATCH_CLUSTER_ENABLED
+          value: "true"
+        # Kubernetes DNS-based service discovery for dispatch cluster
+        # Format: <service-name>.<namespace>.svc.cluster.local:<port>
+        # This allows SpiceDB instances to discover and communicate with each other
+        - name: SPICEDB_DISPATCH_UPSTREAM_ADDR
+          value: "{{ include "spicedb.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:50053"
+        {{- if .Values.dispatch.upstreamCASecretName }}
+        # CA certificate for verifying upstream dispatch connections
+        # Required when using custom CA for dispatch cluster communication
+        - name: SPICEDB_DISPATCH_UPSTREAM_CA_CERT_PATH
+          value: /etc/dispatch-ca/ca.crt
+        {{- end }}
+        {{- end }}
         volumeMounts:
         - name: tmp
           mountPath: /tmp
@@ -135,6 +163,12 @@ spec:
         # Mount datastore TLS certificates for securing database connections
         - name: tls-datastore-certs
           mountPath: /etc/spicedb/tls/datastore
+          readOnly: true
+        {{- end }}
+        {{- if and .Values.dispatch.enabled .Values.dispatch.upstreamCASecretName }}
+        # Mount dispatch upstream CA certificate for verifying cluster communication
+        - name: dispatch-upstream-ca
+          mountPath: /etc/dispatch-ca
           readOnly: true
         {{- end }}
         # Health check probes
@@ -231,6 +265,14 @@ spec:
       - name: tls-datastore-certs
         secret:
           secretName: {{ .Values.tls.datastore.secretName }}
+          defaultMode: 0400
+      {{- end }}
+      {{- if and .Values.dispatch.enabled .Values.dispatch.upstreamCASecretName }}
+      # Volume for dispatch upstream CA certificate
+      # Mounts the Kubernetes secret containing CA cert for verifying upstream connections
+      - name: dispatch-upstream-ca
+        secret:
+          secretName: {{ .Values.dispatch.upstreamCASecretName }}
           defaultMode: 0400
       {{- end }}
       {{- with .Values.nodeSelector }}

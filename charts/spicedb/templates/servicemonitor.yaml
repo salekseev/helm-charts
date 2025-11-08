@@ -1,0 +1,50 @@
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+{{- if .Capabilities.APIVersions.Has "monitoring.coreos.com/v1" }}
+---
+# ServiceMonitor for Prometheus Operator
+# Requires Prometheus Operator CRDs (monitoring.coreos.com/v1) to be installed in the cluster
+# This resource enables automatic discovery and scraping of SpiceDB metrics by Prometheus
+#
+# The ServiceMonitor CRD is part of the Prometheus Operator and allows declarative
+# configuration of Prometheus scrape targets. When this resource is created,
+# Prometheus will automatically discover the SpiceDB service and begin scraping
+# metrics from the configured endpoint.
+#
+# Prerequisites:
+# - Prometheus Operator must be installed in the cluster
+# - The Prometheus instance must have a serviceMonitorSelector that matches this ServiceMonitor's labels
+#
+# Example Prometheus selector configuration:
+#   serviceMonitorSelector:
+#     matchLabels:
+#       release: prometheus
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "spicedb.fullname" . }}
+  labels:
+    {{- include "spicedb.labels" . | nindent 4 }}
+    {{- with .Values.monitoring.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  # Selector to match the SpiceDB service
+  # This selector must match the labels on the Service resource
+  selector:
+    matchLabels:
+      {{- include "spicedb.selectorLabels" . | nindent 6 }}
+  # Endpoint configuration for metrics scraping
+  endpoints:
+  - port: metrics
+    # Metrics endpoint path
+    # SpiceDB exposes Prometheus metrics on the standard /metrics path
+    path: {{ .Values.monitoring.serviceMonitor.path }}
+    # Scrape interval
+    # How often Prometheus should scrape this endpoint
+    interval: {{ .Values.monitoring.serviceMonitor.interval }}
+    # Scrape timeout
+    # Maximum time to wait for the metrics endpoint to respond
+    # Must be less than the scrape interval
+    scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+{{- end }}
+{{- end }}
