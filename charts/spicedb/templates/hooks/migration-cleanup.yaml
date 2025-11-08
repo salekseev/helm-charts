@@ -54,9 +54,10 @@ spec:
         securityContext:
           {{- toYaml . | nindent 10 }}
         {{- end }}
-        # Use official Kubernetes kubectl image from the official registry
-        # registry.k8s.io is the official Kubernetes container registry
-        image: registry.k8s.io/kubectl:v1.31.0
+        # Use Bitnami kubectl image which includes full shell support
+        # Bitnami images are well-maintained, security-scanned, and production-ready
+        # registry.k8s.io/kubectl uses distroless base with no shell support
+        image: bitnami/kubectl:1.31.0
         imagePullPolicy: IfNotPresent
 
         command:
