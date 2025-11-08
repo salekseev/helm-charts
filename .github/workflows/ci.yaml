@@ -167,10 +167,8 @@ jobs:
 
       - name: Run integration tests
         run: |
-          export KIND_CLUSTER_NAME=spicedb-test
-          export HELM_RELEASE_NAME=spicedb
-          chmod +x charts/spicedb/tests/integration/*.sh
-          charts/spicedb/tests/integration/migration-test.sh
+          cd charts/spicedb
+          make test-integration
 
       - name: Upload logs on failure
         if: failure()
