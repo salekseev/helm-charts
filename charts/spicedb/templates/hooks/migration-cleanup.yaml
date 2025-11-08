@@ -60,7 +60,7 @@ spec:
         imagePullPolicy: IfNotPresent
 
         command:
-        - /bin/bash
+        - /bin/sh
         - -c
         - |
           # Wait briefly for migration job to fully complete and register success
