@@ -1,0 +1,12 @@
+# GitGuardian ignore file
+# Ignore test files with intentional fake credentials
+
+# Test files - these contain fake credentials for unit testing only
+charts/spicedb/tests/unit/datastore_test.yaml
+charts/*/tests/**/*
+
+# Example files - these contain example configurations
+charts/*/examples/**/*
+
+# Task management files
+.taskmaster/**/*

@@ -19,12 +19,10 @@ matches-ignore:
   - name: Test credentials in unit tests
     match: secretpass|testpass|testpassword|example-password
   - name: Test database URIs
-    match: postgresql://.*:.*@.*(test|example|localhost)
+    match: 'postgresql://.*:(secretpass|testpass|uri)@'
   - name: Example secrets
     match: spicedb-.*-secret
-
-# Allow test/example strings
-allow-patterns:
-  - "password: secretpass"
-  - "password: testpass"
-  - "custom:uri@custom.host"
+  - name: Specific test file credentials
+    match: 'config\.datastore\.password: secretpass'
+  - name: Test connection strings
+    match: 'postgresql://custom:uri@custom\.host'
