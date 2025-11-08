@@ -1,0 +1,43 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your SpiceDB release is named: {{ .Release.Name }}
+
+SpiceDB has been deployed with the following configuration:
+- Datastore: {{ .Values.config.datastoreEngine }}
+- Replicas: {{ .Values.replicaCount }}
+- Namespace: {{ .Release.Namespace }}
+
+To access SpiceDB:
+
+1. Get the preshared key from the secret:
+
+   export SPICEDB_TOKEN=$(kubectl get secret {{ include "spicedb.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.preshared-key}" | base64 --decode)
+   echo $SPICEDB_TOKEN
+
+2. Forward the gRPC port to access SpiceDB locally:
+
+   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "spicedb.fullname" . }} 50051:50051
+
+3. Forward the HTTP port for the REST API:
+
+   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "spicedb.fullname" . }} 8443:8443
+
+4. Test the connection using grpcurl (with the preshared key):
+
+   grpcurl -H "authorization: Bearer $SPICEDB_TOKEN" \
+     -plaintext localhost:50051 \
+     grpc.health.v1.Health/Check
+
+5. Or use the zed CLI:
+
+   zed context set local localhost:50051 $SPICEDB_TOKEN --insecure
+
+For more information about SpiceDB:
+- Documentation: https://authzed.com/docs
+- GitHub: https://github.com/authzed/spicedb
+
+{{- if eq .Values.config.datastoreEngine "memory" }}
+
+WARNING: You are using the memory datastore. All data will be lost when pods restart!
+For production use, configure a persistent datastore (postgres or cockroachdb).
+{{- end }}

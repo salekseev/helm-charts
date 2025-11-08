@@ -1,0 +1,73 @@
+# Development configuration for SpiceDB with memory datastore
+# WARNING: Memory datastore is not persistent - all data is lost on pod restart!
+# This configuration is suitable for development and testing only.
+
+replicaCount: 1
+
+image:
+  repository: authzed/spicedb
+  pullPolicy: IfNotPresent
+  tag: ""  # Uses appVersion from Chart.yaml
+
+# Service account configuration
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+# RBAC for endpoint discovery
+rbac:
+  create: true
+
+# Pod annotations for monitoring
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+podLabels:
+  environment: development
+
+# Security contexts (commented out by default for easier local development)
+# podSecurityContext: {}
+
+# Container security context
+# Uncomment for production-like security
+# securityContext:
+#   runAsNonRoot: true
+#   runAsUser: 1000
+#   readOnlyRootFilesystem: true
+#   allowPrivilegeEscalation: false
+#   capabilities:
+#     drop:
+#     - ALL
+
+# Service configuration
+service:
+  type: ClusterIP
+  grpcPort: 50051
+  httpPort: 8443
+  metricsPort: 9090
+  dispatchPort: 50053
+
+# Resource limits for development
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# SpiceDB configuration
+config:
+  datastoreEngine: memory
+  logLevel: debug  # Verbose logging for development
+
+# No node selector for development
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

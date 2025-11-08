@@ -90,9 +90,7 @@
     "podAnnotations": {
       "type": "object",
       "description": "Annotations to add to the pods",
-      "additionalProperties": {
-        "type": "string"
-      },
+      "additionalProperties": true,
       "default": {}
     },
     "podLabels": {
