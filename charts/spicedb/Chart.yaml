@@ -14,4 +14,5 @@ home: https://github.com/authzed/spicedb
 sources:
   - https://github.com/authzed/spicedb
 maintainers:
-  - name: SpiceDB Helm Chart Maintainers
+  - name: salekseev
+    url: https://github.com/salekseev
