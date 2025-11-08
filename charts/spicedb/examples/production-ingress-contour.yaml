@@ -1,0 +1,459 @@
+# Production Contour Ingress Controller Configuration for SpiceDB
+# This example demonstrates a production-ready Contour Ingress setup with:
+# - H2C (HTTP/2 Cleartext) protocol for gRPC support
+# - Timeout and retry policy configuration
+# - TLS termination with cert-manager integration
+# - Multiple host configuration
+# - HTTPProxy CRD examples (Contour-specific)
+# - Rate limiting via HTTPProxy
+# - NetworkPolicy integration (optional)
+#
+# Prerequisites:
+# - Contour Ingress Controller installed (projectcontour/contour)
+# - cert-manager installed for automated TLS certificate management
+# - DNS records configured for your hostnames
+# - Optional: NetworkPolicy support enabled in your cluster
+#
+# Note: Contour provides two APIs:
+# 1. Standard Kubernetes Ingress (demonstrated here)
+# 2. HTTPProxy CRD (Contour-specific, more features - see advanced section)
+#
+# Usage:
+#   helm install spicedb ./charts/spicedb -f examples/production-ingress-contour.yaml
+
+---
+# =============================================================================
+# INGRESS CONFIGURATION (Standard Kubernetes Ingress)
+# =============================================================================
+ingress:
+  enabled: true
+  className: contour
+
+  # Contour-specific annotations for production gRPC traffic
+  annotations:
+    # ========== PROTOCOL CONFIGURATION ==========
+    # Enable H2C (HTTP/2 Cleartext) for gRPC backend communication
+    # This tells Contour to use HTTP/2 protocol when communicating with SpiceDB
+    projectcontour.io/upstream-protocol.h2c: "grpc"
+
+    # Alternative: Use TLS between Contour and backend (if SpiceDB has TLS enabled)
+    # projectcontour.io/upstream-protocol.tls: "grpc"
+
+    # ========== TIMEOUT CONFIGURATION ==========
+    # Request timeout (how long to wait for a request to complete)
+    # Use "infinity" for long-lived gRPC streams
+    projectcontour.io/request-timeout: "infinity"
+
+    # Response timeout (how long to wait for response headers)
+    # For long-running gRPC calls, set to "infinity"
+    projectcontour.io/response-timeout: "infinity"
+
+    # Idle timeout (how long to keep idle connections open)
+    # Important for gRPC streaming connections
+    projectcontour.io/idle-timeout: "infinity"
+
+    # Connection timeout (how long to wait for backend connection)
+    projectcontour.io/connection-timeout: "2s"
+
+    # ========== RETRY POLICY ==========
+    # Number of retries for failed requests
+    # Careful with retries on gRPC - some operations may not be idempotent
+    projectcontour.io/num-retries: "3"
+
+    # Retry on specific conditions
+    # 5xx: Server errors, gateway-error: Bad gateway, connect-failure: Connection failed
+    projectcontour.io/retry-on: "5xx,gateway-error,connect-failure"
+
+    # Per-try timeout (timeout for each individual retry attempt)
+    projectcontour.io/per-try-timeout: "10s"
+
+    # ========== CERTIFICATE MANAGEMENT ==========
+    # Use cert-manager to automatically provision and renew TLS certificates
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Alternative: Use staging for testing
+    # cert-manager.io/cluster-issuer: "letsencrypt-staging"
+
+    # Specify ACME challenge type
+    cert-manager.io/acme-challenge-type: "http01"
+
+    # ========== WEBSOCKET SUPPORT (if needed) ==========
+    # Enable WebSocket support for long-lived connections
+    projectcontour.io/websocket-routes: "/"
+
+    # ========== ADVANCED OPTIONS (Uncomment as needed) ==========
+    # Load balancing policy
+    # Options: RoundRobin (default), WeightedLeastRequest, Random, RingHash, Maglev
+    # projectcontour.io/lb-type: "WeightedLeastRequest"
+
+    # Health check policy (requires HTTPProxy CRD)
+    # See advanced HTTPProxy section below for health check configuration
+
+    # TLS minimum protocol version
+    # projectcontour.io/tls-minimum-protocol-version: "1.2"
+
+  # =============================================================================
+  # HOST CONFIGURATION - Multi-host setup for production
+  # =============================================================================
+  hosts:
+    # Primary gRPC API endpoint for client permission checks
+    - host: api.spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: grpc
+
+    # HTTP dashboard for administration and health checks
+    - host: dashboard.spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: http
+
+    # Metrics endpoint for Prometheus scraping
+    - host: metrics.spicedb.example.com
+      paths:
+        - path: /metrics
+          pathType: Exact
+          servicePort: metrics
+
+  # =============================================================================
+  # TLS CONFIGURATION
+  # =============================================================================
+  tls:
+    # TLS for gRPC API
+    - secretName: spicedb-api-tls
+      hosts:
+        - api.spicedb.example.com
+
+    # TLS for HTTP dashboard
+    - secretName: spicedb-dashboard-tls
+      hosts:
+        - dashboard.spicedb.example.com
+
+    # TLS for metrics endpoint
+    - secretName: spicedb-metrics-tls
+      hosts:
+        - metrics.spicedb.example.com
+
+# =============================================================================
+# SPICEDB CONFIGURATION
+# =============================================================================
+config:
+  datastoreEngine: postgres
+  logLevel: info
+
+  datastore:
+    hostname: "postgres.database.svc.cluster.local"
+    port: 5432
+    username: "spicedb"
+    password: "CHANGE_ME_INSECURE"
+    database: "spicedb"
+    sslMode: "require"
+
+# Multiple replicas for high availability
+replicaCount: 3
+
+# Resource limits for production workload
+resources:
+  requests:
+    cpu: 1000m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+# =============================================================================
+# MONITORING
+# =============================================================================
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    additionalLabels:
+      release: prometheus
+
+# =============================================================================
+# OPTIONAL: NETWORKPOLICY CONFIGURATION
+# =============================================================================
+# NetworkPolicy provides network-level access control for Contour environments
+#
+# Uncomment to enable NetworkPolicy:
+# networkPolicy:
+#   enabled: true
+#   policyTypes:
+#     - Ingress
+#     - Egress
+#
+#   ingress:
+#     # Allow traffic from Contour Envoy pods
+#     - from:
+#       - namespaceSelector:
+#           matchLabels:
+#             name: projectcontour
+#         podSelector:
+#           matchLabels:
+#             app: envoy
+#       ports:
+#       - protocol: TCP
+#         port: 50051
+#       - protocol: TCP
+#         port: 8443
+#       - protocol: TCP
+#         port: 9090
+#
+#     # Allow traffic from Prometheus
+#     - from:
+#       - namespaceSelector:
+#           matchLabels:
+#             name: monitoring
+#       ports:
+#       - protocol: TCP
+#         port: 9090
+#
+#     # Allow inter-pod dispatch
+#     - from:
+#       - podSelector:
+#           matchLabels:
+#             app.kubernetes.io/name: spicedb
+#       ports:
+#       - protocol: TCP
+#         port: 50053
+#
+#   egress:
+#     # Allow DNS
+#     - to:
+#       - namespaceSelector:
+#           matchLabels:
+#             name: kube-system
+#       ports:
+#       - protocol: UDP
+#         port: 53
+#
+#     # Allow database connections
+#     - to:
+#       - namespaceSelector:
+#           matchLabels:
+#             name: database
+#       ports:
+#       - protocol: TCP
+#         port: 5432
+
+# =============================================================================
+# ADVANCED: HTTPPROXY CRD CONFIGURATION
+# =============================================================================
+# Contour's HTTPProxy CRD provides advanced features beyond standard Ingress:
+# - Rate limiting
+# - Advanced health checks
+# - Header manipulation
+# - Request/response policies
+# - Traffic mirroring
+# - Circuit breaking
+#
+# Note: HTTPProxy requires separate resource creation (not part of this Helm chart)
+# Create this separately if you need advanced Contour features
+#
+# Example HTTPProxy with rate limiting and health checks:
+# ---
+# apiVersion: projectcontour.io/v1
+# kind: HTTPProxy
+# metadata:
+#   name: spicedb-api
+#   namespace: default
+# spec:
+#   virtualhost:
+#     fqdn: api.spicedb.example.com
+#     tls:
+#       secretName: spicedb-api-tls
+#     rateLimitPolicy:
+#       global:
+#         descriptors:
+#           # Rate limit: 100 requests per second per IP
+#           - entries:
+#             - remoteAddress: {}
+#       local:
+#         requests: 100
+#         unit: second
+#         responseStatusCode: 429
+#         responseHeadersToAdd:
+#           - name: x-rate-limit
+#             value: "exceeded"
+#   routes:
+#     - conditions:
+#       - prefix: /
+#       services:
+#       - name: spicedb
+#         port: 50051
+#         protocol: h2c  # HTTP/2 Cleartext for gRPC
+#       timeoutPolicy:
+#         response: infinity
+#         idle: infinity
+#       retryPolicy:
+#         count: 3
+#         perTryTimeout: 10s
+#         retryOn:
+#           - 5xx
+#           - gateway-error
+#           - connect-failure
+#       healthCheckPolicy:
+#         path: /healthz
+#         intervalSeconds: 10
+#         timeoutSeconds: 5
+#         unhealthyThresholdCount: 3
+#         healthyThresholdCount: 2
+#       loadBalancerPolicy:
+#         strategy: WeightedLeastRequest
+# ---
+# apiVersion: projectcontour.io/v1
+# kind: HTTPProxy
+# metadata:
+#   name: spicedb-dashboard
+#   namespace: default
+# spec:
+#   virtualhost:
+#     fqdn: dashboard.spicedb.example.com
+#     tls:
+#       secretName: spicedb-dashboard-tls
+#   routes:
+#     - conditions:
+#       - prefix: /
+#       services:
+#       - name: spicedb
+#         port: 8443
+#       responseHeadersPolicy:
+#         set:
+#           # Security headers
+#           - name: Strict-Transport-Security
+#             value: "max-age=31536000; includeSubDomains"
+#           - name: X-Frame-Options
+#             value: "DENY"
+#           - name: X-Content-Type-Options
+#             value: "nosniff"
+# ---
+# apiVersion: projectcontour.io/v1
+# kind: HTTPProxy
+# metadata:
+#   name: spicedb-metrics
+#   namespace: default
+# spec:
+#   virtualhost:
+#     fqdn: metrics.spicedb.example.com
+#     tls:
+#       secretName: spicedb-metrics-tls
+#   routes:
+#     - conditions:
+#       - exact: /metrics
+#       services:
+#       - name: spicedb
+#         port: 9090
+#       # Optional: Restrict metrics endpoint to Prometheus IPs
+#       # requestHeadersPolicy:
+#       #   set:
+#       #     - name: X-Forwarded-For
+#       #       value: "%REQ(X-FORWARDED-FOR)%"
+#       # conditions:
+#       #   - header:
+#       #       name: X-Forwarded-For
+#       #       contains: "10.0.0.0/8"
+
+# =============================================================================
+# VALIDATION AND TESTING
+# =============================================================================
+# After deployment, verify the configuration:
+#
+# 1. Check Ingress resource:
+#    kubectl get ingress spicedb
+#    kubectl describe ingress spicedb
+#
+# 2. Verify Contour processed the Ingress:
+#    kubectl get httpproxies.projectcontour.io
+#    # Contour auto-creates HTTPProxy from Ingress
+#
+# 3. Check Envoy configuration:
+#    kubectl exec -n projectcontour <envoy-pod> -- curl localhost:19000/config_dump
+#
+# 4. Verify certificates:
+#    kubectl get certificate
+#    kubectl describe certificate spicedb-api-tls
+#
+# 5. Test HTTPS endpoints:
+#    curl -v https://api.spicedb.example.com
+#    grpcurl api.spicedb.example.com:443 list
+#
+# 6. Check Contour logs:
+#    kubectl logs -n projectcontour -l app=contour
+#    kubectl logs -n projectcontour -l app=envoy
+#
+# 7. Test timeout configuration (for long-lived streams):
+#    # Should not timeout on long gRPC streams
+#
+# 8. Verify retry policy:
+#    # Temporarily break backend and observe retry behavior in Envoy logs
+#
+# 9. Monitor metrics:
+#    # Check envoy_cluster_upstream_rq_* metrics for backend health
+#    kubectl port-forward -n projectcontour <envoy-pod> 19000:19000
+#    curl localhost:19000/stats | grep spicedb
+#
+# 10. Test HTTPProxy features (if using advanced configuration):
+#     kubectl get httpproxy spicedb-api -o yaml
+#     kubectl describe httpproxy spicedb-api
+
+# =============================================================================
+# TROUBLESHOOTING
+# =============================================================================
+# Common issues and solutions:
+#
+# Ingress not working:
+# - Check Contour controller logs: kubectl logs -n projectcontour -l app=contour
+# - Verify Envoy pods are running: kubectl get pods -n projectcontour -l app=envoy
+# - Check if Ingress was converted to HTTPProxy: kubectl get httpproxies
+#
+# gRPC calls failing:
+# - Ensure upstream-protocol.h2c annotation is set to "grpc"
+# - Check Envoy access logs: kubectl logs -n projectcontour -l app=envoy | grep spicedb
+# - Verify backend service endpoints: kubectl get endpoints spicedb
+#
+# Certificate not provisioned:
+# - Check cert-manager logs: kubectl logs -n cert-manager -l app=cert-manager
+# - Verify ClusterIssuer: kubectl get clusterissuer letsencrypt-prod
+# - Check certificate status: kubectl describe certificate spicedb-api-tls
+#
+# Timeout errors:
+# - Verify timeout annotations are set to "infinity" for gRPC streams
+# - Check Envoy route timeout: kubectl exec -n projectcontour <envoy-pod> -- curl localhost:19000/config_dump | jq '.configs[1].dynamic_route_configs'
+#
+# 503 Service Unavailable:
+# - Check if backend pods are ready: kubectl get pods -l app.kubernetes.io/name=spicedb
+# - Verify service exists: kubectl get service spicedb
+# - Check Envoy cluster health: kubectl exec -n projectcontour <envoy-pod> -- curl localhost:19000/clusters | grep spicedb
+#
+# HTTPProxy features not working:
+# - Ensure you're using Contour's HTTPProxy CRD, not standard Ingress
+# - Verify Contour version supports the features you're using
+# - Check HTTPProxy status: kubectl describe httpproxy <name>
+#
+# Rate limiting not working:
+# - HTTPProxy rate limiting requires Envoy rate limit service
+# - Deploy rate limit service separately or use global rate limiting
+# - Check Envoy rate limit stats: curl localhost:19000/stats | grep rate_limit
+
+# =============================================================================
+# CONTOUR-SPECIFIC ADVANTAGES
+# =============================================================================
+# Why use Contour over NGINX Ingress:
+#
+# 1. Native HTTP/2 and gRPC support (no special annotations needed)
+# 2. Dynamic configuration updates without reload (via Envoy)
+# 3. Advanced HTTPProxy CRD with more features than Ingress
+# 4. Better observability with detailed Envoy metrics
+# 5. More flexible routing and traffic management
+# 6. Built-in circuit breaking and outlier detection
+# 7. VMware/Tanzu ecosystem integration
+# 8. Generally lower latency for gRPC traffic
+#
+# Trade-offs:
+# - More complex architecture (Contour + Envoy)
+# - Smaller community compared to NGINX Ingress
+# - HTTPProxy CRD is Contour-specific (not portable)
+# - Requires understanding of both Contour and Envoy concepts

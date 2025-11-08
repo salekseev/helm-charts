@@ -303,6 +303,103 @@
         }
       }
     },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration for exposing SpiceDB to external traffic",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress resource creation",
+          "default": false
+        },
+        "className": {
+          "type": "string",
+          "description": "IngressClass name for selecting the ingress controller (nginx, contour, traefik, etc.)",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for controller-specific configuration",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "hosts": {
+          "type": "array",
+          "description": "List of ingress hosts with paths and service configurations",
+          "items": {
+            "type": "object",
+            "required": ["host", "paths"],
+            "properties": {
+              "host": {
+                "type": "string",
+                "description": "Hostname for the ingress rule",
+                "minLength": 1
+              },
+              "paths": {
+                "type": "array",
+                "description": "List of paths for this host",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["path"],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to match (e.g., /, /api)",
+                      "minLength": 1
+                    },
+                    "pathType": {
+                      "type": "string",
+                      "description": "Path matching type",
+                      "enum": ["Exact", "Prefix", "ImplementationSpecific"],
+                      "default": "Prefix"
+                    },
+                    "servicePort": {
+                      "description": "Target service port (name or number)",
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "enum": ["grpc", "http", "metrics", "dispatch"]
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 65535
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": []
+        },
+        "tls": {
+          "type": "array",
+          "description": "TLS configuration for HTTPS",
+          "items": {
+            "type": "object",
+            "properties": {
+              "secretName": {
+                "type": "string",
+                "description": "Name of the secret containing TLS certificate"
+              },
+              "hosts": {
+                "type": "array",
+                "description": "List of hosts covered by the TLS certificate",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": []
+        }
+      }
+    },
     "nodeSelector": {
       "type": "object",
       "description": "Node selector for pod assignment",
@@ -323,6 +420,53 @@
       "type": "object",
       "description": "Affinity rules for pod assignment",
       "default": {}
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "NetworkPolicy configuration for network isolation and zero-trust security",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable NetworkPolicy for network isolation. Requires a network plugin that supports NetworkPolicy (Calico, Cilium, etc.)",
+          "default": false
+        },
+        "ingressControllerNamespaceSelector": {
+          "type": "object",
+          "description": "Namespace selector for ingress controller to allow traffic to gRPC and HTTP ports",
+          "additionalProperties": true,
+          "default": {}
+        },
+        "prometheusNamespaceSelector": {
+          "type": "object",
+          "description": "Namespace selector for Prometheus to allow traffic to metrics port",
+          "additionalProperties": true,
+          "default": {}
+        },
+        "databaseEgress": {
+          "type": "object",
+          "description": "Database egress configuration for outbound traffic to database",
+          "additionalProperties": true,
+          "default": {}
+        },
+        "ingress": {
+          "type": "array",
+          "description": "Custom ingress rules for additional traffic patterns",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "default": []
+        },
+        "egress": {
+          "type": "array",
+          "description": "Custom egress rules for additional outbound traffic",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "default": []
+        }
+      }
     }
   }
 }

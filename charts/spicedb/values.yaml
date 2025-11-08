@@ -434,8 +434,247 @@ monitoring:
     # Default: /metrics
     path: /metrics
 
+# Ingress configuration for exposing SpiceDB to external traffic
+# Supports multiple ingress controllers: nginx, Contour, Traefik
+ingress:
+  # Enable ingress resource creation
+  enabled: false
+
+  # IngressClass name for selecting the ingress controller
+  # Common values:
+  #   - nginx: For NGINX Ingress Controller
+  #   - contour: For Contour Ingress Controller
+  #   - traefik: For Traefik Ingress Controller
+  # Leave empty to use the cluster's default ingress class
+  className: ""
+
+  # Annotations for controller-specific configuration
+  # Examples for different controllers:
+  #
+  # NGINX Ingress Controller (gRPC support):
+  #   annotations:
+  #     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+  #     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  #     nginx.ingress.kubernetes.io/grpc-backend: "true"
+  #
+  # NGINX Ingress Controller (TLS passthrough for end-to-end encryption):
+  #   annotations:
+  #     nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+  #     nginx.ingress.kubernetes.io/backend-protocol: "GRPCS"
+  #
+  # NGINX with cert-manager for automated TLS:
+  #   annotations:
+  #     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  #     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+  #
+  # Contour:
+  #   annotations:
+  #     projectcontour.io/upstream-protocol.h2c: "grpc"
+  #
+  # Traefik:
+  #   annotations:
+  #     traefik.ingress.kubernetes.io/router.entrypoints: websecure
+  #     traefik.ingress.kubernetes.io/router.tls: "true"
+  annotations: {}
+
+  # Ingress hosts configuration
+  # Supports multiple hosts with multiple paths per host
+  # Each path can route to different SpiceDB service ports
+  #
+  # Available service ports:
+  #   - grpc: 50051 (main gRPC API)
+  #   - http: 8443 (dashboard and health)
+  #   - metrics: 9090 (Prometheus metrics)
+  #   - dispatch: 50053 (cluster dispatch)
+  #
+  # Path types:
+  #   - Prefix: Matches URL path prefix (e.g., /api matches /api, /api/v1, /api/*)
+  #   - Exact: Matches exact URL path only
+  #   - ImplementationSpecific: Ingress controller-specific behavior
+  #
+  # Single host example:
+  #   hosts:
+  #     - host: spicedb.example.com
+  #       paths:
+  #         - path: /
+  #           pathType: Prefix
+  #           servicePort: grpc  # Use named port
+  #
+  # Multi-host example with different paths:
+  #   hosts:
+  #     - host: api.spicedb.example.com
+  #       paths:
+  #         - path: /v1
+  #           pathType: Prefix
+  #           servicePort: grpc
+  #     - host: metrics.spicedb.example.com
+  #       paths:
+  #         - path: /metrics
+  #           pathType: Exact
+  #           servicePort: metrics  # Named port
+  #         - path: /health
+  #           pathType: Prefix
+  #           servicePort: 8443  # Numeric port also supported
+  #     - host: dispatch.spicedb.example.com
+  #       paths:
+  #         - path: /
+  #           pathType: Prefix
+  #           servicePort: dispatch
+  #
+  # Single host with multiple paths to different services:
+  #   hosts:
+  #     - host: spicedb.example.com
+  #       paths:
+  #         - path: /v1
+  #           pathType: Prefix
+  #           servicePort: grpc
+  #         - path: /metrics
+  #           pathType: Exact
+  #           servicePort: metrics
+  #         - path: /dashboard
+  #           pathType: Prefix
+  #           servicePort: http
+  hosts: []
+
+  # TLS configuration for HTTPS
+  # Supports multiple TLS configurations for different host groups
+  #
+  # TLS Termination vs Passthrough:
+  #   - TLS Termination (default): Ingress controller terminates TLS, backends use HTTP
+  #     Requires: TLS secret at ingress level
+  #     Use case: Standard HTTPS setup, simplest configuration
+  #
+  #   - TLS Passthrough: Ingress controller forwards encrypted traffic to backend
+  #     Requires: nginx.ingress.kubernetes.io/ssl-passthrough: "true" annotation
+  #               TLS configured in SpiceDB (see tls.grpc.secretName)
+  #     Use case: End-to-end encryption, regulatory compliance
+  #
+  # cert-manager integration:
+  #   TLS secrets can be automatically managed by cert-manager
+  #   Add cert-manager.io/cluster-issuer annotation to enable
+  #
+  # Single TLS configuration:
+  #   tls:
+  #     - secretName: spicedb-tls
+  #       hosts:
+  #         - spicedb.example.com
+  #
+  # Multiple TLS configurations for different host groups:
+  #   tls:
+  #     - secretName: api-tls-cert
+  #       hosts:
+  #         - api.spicedb.example.com
+  #         - grpc.spicedb.example.com
+  #     - secretName: monitoring-tls-cert
+  #       hosts:
+  #         - metrics.spicedb.example.com
+  #     - secretName: dispatch-tls-cert
+  #       hosts:
+  #         - dispatch.spicedb.example.com
+  #
+  # TLS with cert-manager (automated certificate management):
+  #   annotations:
+  #     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  #   tls:
+  #     - secretName: spicedb-tls  # cert-manager creates this secret
+  #       hosts:
+  #         - spicedb.example.com
+  #
+  # SNI routing without secretName (uses default TLS certificate):
+  #   tls:
+  #     - hosts:
+  #         - spicedb.example.com
+  tls: []
+
 nodeSelector: {}
 
 tolerations: []
 
 affinity: {}
+
+# NetworkPolicy configuration for network isolation
+# Implements zero-trust security by restricting network traffic to/from SpiceDB
+# When enabled, only explicitly allowed traffic patterns are permitted
+networkPolicy:
+  # Enable NetworkPolicy for network isolation
+  # Requires a network plugin that supports NetworkPolicy (Calico, Cilium, etc.)
+  enabled: false
+
+  # Namespace selector for ingress controller
+  # Allows traffic from ingress controller namespace to gRPC and HTTP ports
+  # Example for nginx-ingress in ingress-nginx namespace:
+  #   ingressControllerNamespaceSelector:
+  #     matchLabels:
+  #       kubernetes.io/metadata.name: ingress-nginx
+  # Leave empty to allow from all namespaces (not recommended for production)
+  ingressControllerNamespaceSelector: {}
+
+  # Namespace selector for Prometheus
+  # Allows traffic from Prometheus namespace to metrics port
+  # Example for Prometheus in monitoring namespace:
+  #   prometheusNamespaceSelector:
+  #     matchLabels:
+  #       kubernetes.io/metadata.name: monitoring
+  # Leave empty to allow from all namespaces
+  prometheusNamespaceSelector: {}
+
+  # Database egress configuration
+  # Defines allowed outbound traffic to database
+  # If not set, automatically configures egress based on config.datastoreEngine:
+  #   - postgres: port 5432 (or config.datastore.port if specified)
+  #   - cockroachdb: port 26257 (or config.datastore.port if specified)
+  #   - memory: no database egress rules
+  #
+  # Use this to restrict database access to specific namespaces/pods
+  # Example for PostgreSQL in database namespace:
+  #   databaseEgress:
+  #     ports:
+  #     - protocol: TCP
+  #       port: 5432
+  #     to:
+  #     - namespaceSelector:
+  #         matchLabels:
+  #           kubernetes.io/metadata.name: database
+  #       podSelector:
+  #         matchLabels:
+  #           app: postgresql
+  #
+  # Example for CockroachDB in production namespace:
+  #   databaseEgress:
+  #     ports:
+  #     - protocol: TCP
+  #       port: 26257
+  #     to:
+  #     - namespaceSelector:
+  #         matchLabels:
+  #           kubernetes.io/metadata.name: production
+  #       podSelector:
+  #         matchLabels:
+  #           app.kubernetes.io/name: cockroachdb
+  databaseEgress: {}
+
+  # Custom ingress rules
+  # Additional ingress rules to allow specific traffic patterns
+  # Example:
+  #   ingress:
+  #   - from:
+  #     - namespaceSelector:
+  #         matchLabels:
+  #           app: my-app
+  #     ports:
+  #     - protocol: TCP
+  #       port: 50051
+  ingress: []
+
+  # Custom egress rules
+  # Additional egress rules to allow specific outbound traffic
+  # Example:
+  #   egress:
+  #   - to:
+  #     - namespaceSelector:
+  #         matchLabels:
+  #           app: external-service
+  #     ports:
+  #     - protocol: TCP
+  #       port: 443
+  egress: []

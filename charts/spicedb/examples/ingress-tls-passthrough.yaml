@@ -1,0 +1,41 @@
+# Example: TLS Passthrough for End-to-End Encryption
+# This example demonstrates:
+# - TLS passthrough where ingress controller forwards encrypted traffic
+# - End-to-end encryption from client to SpiceDB (no TLS termination at ingress)
+# - Combination of SpiceDB TLS configuration with Ingress
+# - NGINX SSL passthrough annotations
+
+# Enable TLS on SpiceDB itself for end-to-end encryption
+tls:
+  enabled: true
+  grpc:
+    # Secret must contain tls.crt, tls.key, ca.crt
+    secretName: spicedb-grpc-tls
+    certPath: /etc/spicedb/tls/grpc/tls.crt
+    keyPath: /etc/spicedb/tls/grpc/tls.key
+    caPath: /etc/spicedb/tls/grpc/ca.crt
+
+ingress:
+  enabled: true
+  className: nginx
+
+  # Annotations for TLS passthrough (no TLS termination at ingress)
+  annotations:
+    # Enable SSL passthrough - ingress forwards encrypted traffic
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    # Backend protocol is GRPCS (gRPC over TLS)
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPCS"
+
+  hosts:
+    - host: spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: grpc
+
+  # With passthrough, TLS is configured in SpiceDB, not at ingress
+  # This tls section is optional for SNI routing
+  tls:
+    - hosts:
+        - spicedb.example.com
+      # No secretName needed - SpiceDB handles TLS

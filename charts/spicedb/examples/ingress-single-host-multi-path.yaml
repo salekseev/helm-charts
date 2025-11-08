@@ -1,0 +1,52 @@
+# Example: Single Host with Multiple Paths
+# This example demonstrates:
+# - Single hostname with multiple paths routing to different services
+# - Path-based routing for API, metrics, and dashboard
+# - Mixed pathType usage (Prefix and Exact)
+# - Single TLS certificate for all paths
+
+ingress:
+  enabled: true
+  className: nginx
+
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+  hosts:
+    - host: spicedb.example.com
+      paths:
+        # Main gRPC API on root path
+        - path: /
+          pathType: Prefix
+          servicePort: grpc
+
+        # Exact match for Prometheus metrics
+        - path: /metrics
+          pathType: Exact
+          servicePort: metrics
+
+        # Dashboard and health endpoints
+        - path: /dashboard
+          pathType: Prefix
+          servicePort: http
+
+        - path: /health
+          pathType: Prefix
+          servicePort: http
+
+        # Dispatch endpoint (if needed for external access)
+        - path: /dispatch
+          pathType: Prefix
+          servicePort: dispatch
+
+  # Single TLS certificate covers all paths on this host
+  tls:
+    - secretName: spicedb-tls
+      hosts:
+        - spicedb.example.com
+
+# Enable monitoring
+monitoring:
+  enabled: true

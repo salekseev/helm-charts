@@ -1286,6 +1286,716 @@ kubectl exec deployment/spicedb -- env | grep DISPATCH_UPSTREAM_ADDR
 # Should show: {release-name}-spicedb.{namespace}.svc.cluster.local:50053
 ```
 
+## Ingress and Network Exposure
+
+SpiceDB can be exposed outside the Kubernetes cluster using Ingress controllers. This section covers when to use Ingress, supported controllers, configuration patterns, and integration with NetworkPolicy for defense-in-depth security.
+
+### When to Use Ingress
+
+Use Ingress to expose SpiceDB when:
+
+- **External Access Required**: Clients outside the Kubernetes cluster need to access SpiceDB
+- **Centralized TLS Termination**: You want to manage TLS certificates at the ingress layer
+- **Domain-Based Routing**: Multiple services share the same IP address, differentiated by hostname
+- **Load Balancing**: Distribute traffic across multiple SpiceDB replicas (in addition to Service-level load balancing)
+- **Advanced Traffic Management**: Rate limiting, authentication, header manipulation
+- **Cost Optimization**: Reduce the number of cloud load balancers (one ingress controller serves many services)
+
+**Do NOT use Ingress when:**
+- Only internal cluster communication is needed (use ClusterIP Service instead)
+- You need Layer 4 (TCP/UDP) load balancing without HTTP awareness (use LoadBalancer Service or NodePort)
+- Maximum performance is critical and ingress overhead is unacceptable (use LoadBalancer Service)
+
+### Supported Ingress Controllers
+
+This chart has been tested with three major ingress controllers:
+
+| Controller | Best For | gRPC Support | Pros | Cons |
+|------------|----------|--------------|------|------|
+| **NGINX** | General use, widest compatibility | Excellent (with annotations) | Most popular, extensive documentation, battle-tested | Requires reload on config changes |
+| **Contour** | VMware/Tanzu environments, advanced routing | Native HTTP/2 support | Dynamic config, HTTPProxy CRD, low latency | Smaller community, more complex |
+| **Traefik** | Cloud-native environments, dynamic config | Good (native support) | Easy configuration, automatic discovery | Less mature than NGINX |
+
+### Quick Start Examples
+
+#### NGINX Ingress (Most Common)
+
+```bash
+# Basic NGINX ingress with TLS
+helm install spicedb charts/spicedb \
+  --set ingress.enabled=true \
+  --set ingress.className=nginx \
+  --set ingress.hosts[0].host=spicedb.example.com \
+  --set ingress.hosts[0].paths[0].path=/ \
+  --set ingress.hosts[0].paths[0].pathType=Prefix \
+  --set ingress.hosts[0].paths[0].servicePort=grpc \
+  --set ingress.annotations."nginx\.ingress\.kubernetes\.io/backend-protocol"=GRPC \
+  --set ingress.tls[0].secretName=spicedb-tls \
+  --set ingress.tls[0].hosts[0]=spicedb.example.com
+```
+
+For production deployments, use the comprehensive example:
+
+```bash
+helm install spicedb charts/spicedb -f examples/production-ingress-nginx.yaml
+```
+
+See [examples/production-ingress-nginx.yaml](examples/production-ingress-nginx.yaml) for a complete production configuration with:
+- Rate limiting
+- Proxy timeout configuration for gRPC streams
+- SSL redirect and HSTS headers
+- cert-manager integration
+- NetworkPolicy examples
+
+#### Contour Ingress (VMware/Tanzu)
+
+```bash
+helm install spicedb charts/spicedb -f examples/production-ingress-contour.yaml
+```
+
+See [examples/production-ingress-contour.yaml](examples/production-ingress-contour.yaml) for Contour-specific features:
+- H2C (HTTP/2 Cleartext) protocol configuration
+- Timeout and retry policies
+- HTTPProxy CRD examples
+- Advanced health checks and rate limiting
+
+#### Traefik Ingress
+
+```bash
+helm install spicedb charts/spicedb -f examples/ingress-traefik-grpc.yaml
+```
+
+See [examples/ingress-traefik-grpc.yaml](examples/ingress-traefik-grpc.yaml) for Traefik configuration.
+
+### TLS Termination Options
+
+There are two primary TLS termination strategies when using Ingress:
+
+#### Option 1: TLS Termination at Ingress (Recommended)
+
+The ingress controller terminates TLS, and communicates with SpiceDB over unencrypted HTTP/gRPC within the cluster.
+
+**Advantages:**
+- Centralized certificate management at ingress layer
+- Easier certificate rotation (no SpiceDB restart needed)
+- Ingress can inspect traffic for WAF, rate limiting, etc.
+- Lower CPU usage on SpiceDB (no encryption overhead)
+
+**Disadvantages:**
+- Traffic is unencrypted between ingress and SpiceDB pods
+- Requires trust in cluster network security
+
+**Configuration:**
+
+```yaml
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: grpc
+  tls:
+    - secretName: spicedb-tls
+      hosts:
+        - spicedb.example.com
+
+# SpiceDB does NOT have TLS enabled
+tls:
+  enabled: false
+```
+
+**Use when:** Standard enterprise deployments, trusted cluster networks, centralized cert management required.
+
+#### Option 2: TLS Passthrough (End-to-End Encryption)
+
+The ingress controller forwards encrypted traffic without decryption, and SpiceDB terminates TLS.
+
+**Advantages:**
+- End-to-end encryption (traffic encrypted throughout)
+- Ingress controller cannot inspect traffic (better for compliance/privacy)
+- No TLS certificates stored at ingress layer
+- Meets strict regulatory requirements (PCI DSS, HIPAA)
+
+**Disadvantages:**
+- More complex certificate management (certs at both layers)
+- Ingress cannot perform HTTP-level features (rate limiting, header injection)
+- Higher CPU usage on SpiceDB (encryption overhead)
+- Requires special ingress controller configuration
+
+**Configuration:**
+
+```yaml
+# SpiceDB TLS configuration
+tls:
+  enabled: true
+  grpc:
+    secretName: spicedb-grpc-tls
+
+# Ingress passthrough configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPCS"
+  hosts:
+    - host: spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: grpc
+  tls:
+    - hosts:
+        - spicedb.example.com
+      # Note: No secretName - ingress doesn't need the cert
+```
+
+**Prerequisites:**
+- NGINX Ingress Controller must be deployed with `--enable-ssl-passthrough` flag
+- SpiceDB TLS certificates must be configured
+
+**Use when:** Compliance requirements mandate end-to-end encryption, ingress cannot be trusted with decryption, or regulatory requirements.
+
+See [examples/ingress-tls-passthrough.yaml](examples/ingress-tls-passthrough.yaml) for complete example.
+
+### Configuration Patterns
+
+#### Multi-Host Configuration
+
+Expose different SpiceDB endpoints on separate hostnames for better access control and monitoring:
+
+```yaml
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+  hosts:
+    # Client API on dedicated hostname
+    - host: api.spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: grpc
+
+    # Dashboard on separate hostname (easier to restrict access)
+    - host: dashboard.spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: http
+
+    # Metrics endpoint (restrict to monitoring namespace)
+    - host: metrics.spicedb.example.com
+      paths:
+        - path: /metrics
+          pathType: Exact
+          servicePort: metrics
+
+  tls:
+    - secretName: api-tls
+      hosts: [api.spicedb.example.com]
+    - secretName: dashboard-tls
+      hosts: [dashboard.spicedb.example.com]
+    - secretName: metrics-tls
+      hosts: [metrics.spicedb.example.com]
+```
+
+**Benefits:**
+- Different firewall rules per endpoint
+- Separate TLS certificates (reduced blast radius)
+- Easier to restrict metrics endpoint to monitoring systems
+- Clearer monitoring and logging (per-hostname metrics)
+
+See [examples/ingress-multi-host-tls.yaml](examples/ingress-multi-host-tls.yaml).
+
+#### Single-Host Path-Based Routing
+
+All services accessible via different paths on one domain (simpler for development):
+
+```yaml
+ingress:
+  enabled: true
+  hosts:
+    - host: spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: grpc
+        - path: /dashboard
+          pathType: Prefix
+          servicePort: http
+        - path: /metrics
+          pathType: Exact
+          servicePort: metrics
+  tls:
+    - secretName: spicedb-tls
+      hosts: [spicedb.example.com]
+```
+
+**Benefits:**
+- Single DNS entry
+- Single TLS certificate
+- Simpler for development/testing
+
+**Trade-offs:**
+- Less granular access control
+- All services share same hostname in logs/metrics
+
+See [examples/ingress-single-host-multi-path.yaml](examples/ingress-single-host-multi-path.yaml).
+
+### Controller-Specific Setup
+
+#### NGINX Ingress Controller
+
+**Installation:**
+
+```bash
+# Using Helm
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx \
+  --create-namespace
+
+# For TLS passthrough support (optional)
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx \
+  --create-namespace \
+  --set controller.extraArgs.enable-ssl-passthrough=true
+```
+
+**Required Annotations for gRPC:**
+
+```yaml
+annotations:
+  nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+  nginx.ingress.kubernetes.io/ssl-redirect: "true"
+```
+
+**Production Recommendations:**
+
+```yaml
+annotations:
+  # gRPC protocol
+  nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+  nginx.ingress.kubernetes.io/grpc-backend: "true"
+
+  # Timeouts for long-lived streams
+  nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+  nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+
+  # Rate limiting
+  nginx.ingress.kubernetes.io/limit-rps: "100"
+
+  # SSL redirect and HSTS
+  nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  nginx.ingress.kubernetes.io/hsts: "true"
+  nginx.ingress.kubernetes.io/hsts-max-age: "31536000"
+```
+
+#### Contour Ingress Controller
+
+**Installation:**
+
+```bash
+kubectl apply -f https://projectcontour.io/quickstart/contour.yaml
+```
+
+**Required Annotations for gRPC:**
+
+```yaml
+annotations:
+  projectcontour.io/upstream-protocol.h2c: "grpc"
+  projectcontour.io/request-timeout: "infinity"
+  projectcontour.io/response-timeout: "infinity"
+```
+
+**Production Recommendations:**
+
+```yaml
+annotations:
+  # H2C protocol for gRPC
+  projectcontour.io/upstream-protocol.h2c: "grpc"
+
+  # Timeouts for streaming
+  projectcontour.io/request-timeout: "infinity"
+  projectcontour.io/response-timeout: "infinity"
+  projectcontour.io/idle-timeout: "infinity"
+
+  # Retry policy
+  projectcontour.io/num-retries: "3"
+  projectcontour.io/retry-on: "5xx,gateway-error"
+  projectcontour.io/per-try-timeout: "10s"
+```
+
+**Advanced Features with HTTPProxy CRD:**
+
+Contour provides HTTPProxy CRD for advanced features not available in standard Ingress. See [examples/production-ingress-contour.yaml](examples/production-ingress-contour.yaml) for HTTPProxy examples including:
+- Native rate limiting
+- Health checks
+- Load balancing strategies
+- Header manipulation
+
+#### Traefik Ingress Controller
+
+**Installation:**
+
+```bash
+helm repo add traefik https://traefik.github.io/charts
+helm install traefik traefik/traefik \
+  --namespace traefik \
+  --create-namespace
+```
+
+**Required Annotations:**
+
+```yaml
+annotations:
+  traefik.ingress.kubernetes.io/router.entrypoints: websecure
+  traefik.ingress.kubernetes.io/router.tls: "true"
+  traefik.ingress.kubernetes.io/service.serversscheme: h2c
+```
+
+### NetworkPolicy Integration
+
+NetworkPolicy provides network-level access control, complementing Ingress-level security. Enable NetworkPolicy for defense-in-depth security in production environments.
+
+#### What NetworkPolicy Provides
+
+**Security Benefits:**
+- **Namespace Isolation**: Restrict which namespaces can communicate with SpiceDB
+- **Pod-Level Access Control**: Only specific pods (e.g., ingress controller, Prometheus) can reach SpiceDB
+- **Egress Control**: Limit SpiceDB's outbound connections to only required services (database, DNS)
+- **Defense in Depth**: Network-level controls complement application-level authentication
+
+**Limitations:**
+- NetworkPolicy is enforced at Layer 3/4 (IP/port), not Layer 7 (HTTP/gRPC)
+- Cannot inspect gRPC method calls or HTTP paths
+- Requires CNI plugin support (Calico, Cilium, Weave Net)
+- More complex to troubleshoot than application-level security
+
+**When to Use:**
+- Production environments with security compliance requirements
+- Multi-tenant clusters where namespace isolation is critical
+- Defense-in-depth security architecture
+- Environments with untrusted workloads
+
+#### Basic NetworkPolicy Example
+
+Allow traffic only from ingress controller and Prometheus:
+
+```yaml
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    # Allow from NGINX Ingress Controller
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: ingress-nginx
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: ingress-nginx
+      ports:
+      - protocol: TCP
+        port: 50051  # gRPC
+      - protocol: TCP
+        port: 8443   # HTTP
+
+    # Allow from Prometheus
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: monitoring
+      ports:
+      - protocol: TCP
+        port: 9090   # Metrics
+
+    # Allow inter-pod dispatch (multi-replica)
+    - from:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: spicedb
+      ports:
+      - protocol: TCP
+        port: 50053  # Dispatch
+
+  egress:
+    # Allow DNS resolution
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            name: kube-system
+      ports:
+      - protocol: UDP
+        port: 53
+
+    # Allow PostgreSQL connection
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            name: database
+      ports:
+      - protocol: TCP
+        port: 5432
+```
+
+**Important:** NetworkPolicy syntax depends on your CNI plugin. The above example works with most plugins but verify with your specific CNI documentation.
+
+See production examples for complete NetworkPolicy configurations:
+- [examples/production-ingress-nginx.yaml](examples/production-ingress-nginx.yaml)
+- [examples/production-ingress-contour.yaml](examples/production-ingress-contour.yaml)
+
+#### Contour-Specific NetworkPolicy
+
+For Contour, allow traffic from Envoy pods (not Contour controller):
+
+```yaml
+networkPolicy:
+  enabled: true
+  ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: projectcontour
+        podSelector:
+          matchLabels:
+            app: envoy  # Envoy, not Contour controller
+```
+
+### cert-manager Integration
+
+Use [cert-manager](https://cert-manager.io/) for automated TLS certificate provisioning and renewal.
+
+**Installation:**
+
+```bash
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
+```
+
+**Create ClusterIssuer:**
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@example.com
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+```
+
+**Ingress Configuration:**
+
+```yaml
+ingress:
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  tls:
+    - secretName: spicedb-tls  # cert-manager creates this
+      hosts:
+        - spicedb.example.com
+```
+
+cert-manager automatically:
+1. Detects the annotation
+2. Creates a Certificate resource
+3. Completes ACME challenge
+4. Stores certificate in the specified secret
+5. Renews certificates before expiration
+
+See [examples/cert-manager-integration.yaml](examples/cert-manager-integration.yaml) for complete setup.
+
+### Troubleshooting
+
+#### gRPC Calls Failing Through Ingress
+
+**Symptoms:**
+- HTTP/REST calls work but gRPC calls fail
+- Error: `unimplemented` or `unknown service`
+
+**Diagnosis:**
+
+```bash
+# Check backend protocol annotation
+kubectl get ingress spicedb -o yaml | grep backend-protocol
+
+# Test direct connection (bypassing ingress)
+kubectl port-forward svc/spicedb 50051:50051
+grpcurl -plaintext localhost:50051 list
+```
+
+**Solution:**
+
+Ensure backend protocol annotation is set:
+
+```yaml
+# For NGINX
+nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+
+# For Contour
+projectcontour.io/upstream-protocol.h2c: "grpc"
+
+# For Traefik
+traefik.ingress.kubernetes.io/service.serversscheme: "h2c"
+```
+
+#### TLS Certificate Not Provisioned
+
+**Symptoms:**
+- Ingress shows no TLS
+- Certificate not found errors
+
+**Diagnosis:**
+
+```bash
+# Check certificate status
+kubectl get certificate
+kubectl describe certificate spicedb-tls
+
+# Check cert-manager logs
+kubectl logs -n cert-manager -l app=cert-manager
+
+# Verify ClusterIssuer
+kubectl get clusterissuer
+kubectl describe clusterissuer letsencrypt-prod
+```
+
+**Common Issues:**
+- DNS not propagated (wait or use DNS01 challenge)
+- ClusterIssuer misconfigured
+- ACME challenge failing (check ingress allows `/.well-known/acme-challenge/`)
+- Rate limit hit (use staging issuer for testing)
+
+#### 502 Bad Gateway
+
+**Symptoms:**
+- Ingress returns 502 error
+- Upstream connection failures
+
+**Diagnosis:**
+
+```bash
+# Check backend pods are running
+kubectl get pods -l app.kubernetes.io/name=spicedb
+
+# Check service endpoints
+kubectl get endpoints spicedb
+
+# Check ingress controller logs
+kubectl logs -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx
+
+# For Contour, check Envoy logs
+kubectl logs -n projectcontour -l app=envoy
+```
+
+**Common Causes:**
+- No healthy backend pods
+- Service selector mismatch
+- Wrong service port configured
+- Backend pods not ready (readiness probe failing)
+
+#### Timeout Errors on gRPC Streams
+
+**Symptoms:**
+- Long-lived gRPC streams disconnect after 60 seconds
+- Timeout errors during streaming calls
+
+**Solution:**
+
+Increase proxy timeouts for gRPC:
+
+```yaml
+# NGINX
+annotations:
+  nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+  nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+# Contour
+annotations:
+  projectcontour.io/request-timeout: "infinity"
+  projectcontour.io/response-timeout: "infinity"
+```
+
+#### NetworkPolicy Blocking Traffic
+
+**Symptoms:**
+- Direct pod access works, but ingress returns connection errors
+- Prometheus cannot scrape metrics
+
+**Diagnosis:**
+
+```bash
+# Test from ingress namespace
+kubectl run -it --rm -n ingress-nginx debug --image=busybox -- \
+  wget -qO- http://spicedb.default.svc.cluster.local:50051
+
+# Check NetworkPolicy
+kubectl get networkpolicy
+kubectl describe networkpolicy spicedb
+```
+
+**Solution:**
+
+Verify namespace labels match NetworkPolicy selectors:
+
+```bash
+# Check actual namespace labels
+kubectl get namespace ingress-nginx --show-labels
+
+# Update NetworkPolicy to match
+kubectl label namespace ingress-nginx name=ingress-nginx
+```
+
+#### Rate Limiting Too Aggressive
+
+**Symptoms:**
+- Legitimate traffic receives 429 (Too Many Requests)
+- Clients experience intermittent failures
+
+**Solution:**
+
+Adjust rate limit annotations:
+
+```yaml
+# NGINX - increase limits
+nginx.ingress.kubernetes.io/limit-rps: "200"  # Increased from 100
+nginx.ingress.kubernetes.io/limit-burst-multiplier: "10"  # Allow bigger bursts
+```
+
+### Examples Reference
+
+| Example File | Use Case | Controller | Features |
+|-------------|----------|------------|----------|
+| [production-ingress-nginx.yaml](examples/production-ingress-nginx.yaml) | Production NGINX setup | NGINX | Rate limiting, timeouts, NetworkPolicy, cert-manager |
+| [production-ingress-contour.yaml](examples/production-ingress-contour.yaml) | Production Contour setup | Contour | HTTPProxy, retry policies, advanced routing |
+| [ingress-examples.yaml](examples/ingress-examples.yaml) | Multi-controller examples | All | Quick reference for all controllers |
+| [ingress-multi-host-tls.yaml](examples/ingress-multi-host-tls.yaml) | Multi-host routing | NGINX | Separate hosts per service |
+| [ingress-single-host-multi-path.yaml](examples/ingress-single-host-multi-path.yaml) | Path-based routing | NGINX | Single hostname, multiple paths |
+| [ingress-tls-passthrough.yaml](examples/ingress-tls-passthrough.yaml) | End-to-end encryption | NGINX | TLS passthrough, no ingress termination |
+| [ingress-contour-grpc.yaml](examples/ingress-contour-grpc.yaml) | Contour gRPC | Contour | Basic Contour configuration |
+| [ingress-traefik-grpc.yaml](examples/ingress-traefik-grpc.yaml) | Traefik gRPC | Traefik | Basic Traefik configuration |
+
+For more details on each example, see [examples/README.md](examples/README.md).
+
 ## Observability and Monitoring
 
 SpiceDB provides comprehensive observability features including Prometheus metrics, structured logging, and health endpoints. This chart includes built-in support for Prometheus Operator integration and configurable logging.

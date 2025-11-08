@@ -1,0 +1,212 @@
+# Example Ingress Configurations for SpiceDB Helm Chart
+# These examples demonstrate different ingress controller configurations
+
+# ============================================================================
+# NGINX Ingress Controller Example
+# ============================================================================
+# This configuration uses the NGINX Ingress Controller to expose SpiceDB
+# with gRPC backend protocol support and TLS termination
+# ============================================================================
+---
+# Example 1: NGINX with gRPC and TLS
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    # Required for gRPC traffic
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    # Force SSL redirect
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Optional: configure client certificate authentication
+    # nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
+    # nginx.ingress.kubernetes.io/auth-tls-secret: "default/ca-secret"
+  hosts:
+    - host: spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: grpc
+  tls:
+    - secretName: spicedb-tls
+      hosts:
+        - spicedb.example.com
+
+# ============================================================================
+# Contour Ingress Controller Example
+# ============================================================================
+# This configuration uses the Contour Ingress Controller with gRPC support
+# Contour has native HTTP/2 and gRPC support
+# ============================================================================
+---
+# Example 2: Contour with gRPC
+ingress:
+  enabled: true
+  className: contour
+  annotations:
+    # Configure gRPC upstream protocol
+    projectcontour.io/upstream-protocol.h2c: "grpc"
+    # Optional: configure timeouts
+    # projectcontour.io/response-timeout: "60s"
+    # projectcontour.io/idle-timeout: "60s"
+  hosts:
+    - host: spicedb-contour.example.com
+      paths:
+        # Expose gRPC endpoint
+        - path: /
+          pathType: Prefix
+          servicePort: grpc
+        # Expose metrics endpoint separately
+        - path: /metrics
+          pathType: Prefix
+          servicePort: metrics
+  tls:
+    - secretName: spicedb-contour-tls
+      hosts:
+        - spicedb-contour.example.com
+
+# ============================================================================
+# Traefik Ingress Controller Example
+# ============================================================================
+# This configuration uses Traefik with gRPC support via HTTP endpoint
+# Traefik can handle gRPC over HTTP/2
+# ============================================================================
+---
+# Example 3: Traefik with TLS
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    # Configure Traefik to use websecure entrypoint (HTTPS)
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    # Enable TLS
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    # Optional: configure middleware
+    # traefik.ingress.kubernetes.io/router.middlewares: default-compress@kubernetescrd
+  hosts:
+    - host: spicedb-traefik.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: http
+  tls:
+    - secretName: spicedb-traefik-tls
+      hosts:
+        - spicedb-traefik.example.com
+
+# ============================================================================
+# Multi-Host Configuration Example
+# ============================================================================
+# This example shows how to expose different SpiceDB endpoints on different hosts
+# ============================================================================
+---
+# Example 4: Multi-host with different services
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    # Main gRPC API endpoint
+    - host: api.spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: grpc
+    # HTTP/REST endpoint (if using HTTP gateway)
+    - host: http.spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: http
+    # Metrics endpoint
+    - host: metrics.spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: metrics
+  tls:
+    - secretName: spicedb-api-tls
+      hosts:
+        - api.spicedb.example.com
+    - secretName: spicedb-http-tls
+      hosts:
+        - http.spicedb.example.com
+    - secretName: spicedb-metrics-tls
+      hosts:
+        - metrics.spicedb.example.com
+
+# ============================================================================
+# Simple HTTP Exposure (Development/Testing)
+# ============================================================================
+# This is a minimal configuration for development environments
+# WARNING: Not recommended for production use
+# ============================================================================
+---
+# Example 5: Simple HTTP without TLS (development only)
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: spicedb-dev.local
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: http
+  # Note: No TLS configuration - traffic is unencrypted
+
+# ============================================================================
+# Using Numeric Port Numbers
+# ============================================================================
+# This example shows how to use numeric port numbers instead of named ports
+# ============================================================================
+---
+# Example 6: Numeric ports
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+  hosts:
+    - host: spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: 50051  # gRPC port
+        - path: /metrics
+          pathType: Exact
+          servicePort: 9090   # Metrics port
+  tls:
+    - secretName: spicedb-tls
+      hosts:
+        - spicedb.example.com
+
+# ============================================================================
+# cert-manager Integration Example
+# ============================================================================
+# This example shows how to use cert-manager for automatic TLS certificate
+# provisioning with Let's Encrypt
+# ============================================================================
+---
+# Example 7: cert-manager with Let's Encrypt
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    # cert-manager annotations for automatic certificate provisioning
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # Optional: configure ACME challenge type
+    # cert-manager.io/acme-challenge-type: http01
+    # NGINX annotations for gRPC
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: grpc
+  tls:
+    - secretName: spicedb-tls-auto  # cert-manager will create this secret
+      hosts:
+        - spicedb.example.com
