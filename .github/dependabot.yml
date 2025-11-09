@@ -40,8 +40,3 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
-    # Ignore patch updates for container images to reduce noise
-    # Only alert on minor and major version updates
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-patch"]
