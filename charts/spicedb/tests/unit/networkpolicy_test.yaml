@@ -239,3 +239,72 @@ tests:
                   matchLabels:
                     app.kubernetes.io/name: spicedb
                     app.kubernetes.io/instance: RELEASE-NAME
+
+  - it: should include ingress controller namespace selector when configured
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingressControllerNamespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 50051
+            from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: ingress-nginx
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 8443
+            from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: ingress-nginx
+
+  - it: should include prometheus namespace selector when configured
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.prometheusNamespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 9090
+            from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: monitoring
+
+  - it: should include custom ingress rules
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  app: my-app
+          ports:
+            - protocol: TCP
+              port: 50051
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            from:
+              - namespaceSelector:
+                  matchLabels:
+                    app: my-app
+            ports:
+              - protocol: TCP
+                port: 50051
