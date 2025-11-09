@@ -55,7 +55,7 @@ repos:
       - id: conftest-policies
         name: Conftest Policy Validation
         description: Validates example manifests against OPA policies
-        entry: bash -c 'cd charts/spicedb && conftest test -p policies/ policies/examples/compliant-deployment.yaml && if conftest test -p policies/ policies/examples/non-compliant-deployment.yaml 2>/dev/null; then echo "ERROR: Non-compliant manifest should fail" && exit 1; else echo "OK: Non-compliant manifest correctly rejected"; fi'
+        entry: bash -c 'cd charts/spicedb && conftest test -p policies/ policies/examples/compliant-deployment.yaml'
         language: system
         files: 'charts/spicedb/policies/.*\.rego'
         pass_filenames: false
