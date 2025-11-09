@@ -423,14 +423,52 @@ git commit --no-verify -m "message"
 
 ## CI/CD Pipeline
 
-All pull requests must pass the CI/CD pipeline:
+All pull requests must pass the CI/CD pipeline before merging.
+
+### Required Checks (Always Run)
+
+These checks run on every PR and must pass before merging:
 
 1. **Lint**: Helm lint with strict mode
 2. **Unit Tests**: All helm-unittest tests must pass
 3. **Policy Validation**: Conftest security policies must pass
 4. **Chart Testing**: Install test on kind cluster
 
-See [.github/workflows/ci.yaml](.github/workflows/ci.yaml) for details.
+See [.github/workflows/ci-unit.yaml](.github/workflows/ci-unit.yaml) for details.
+
+### Optional Integration Tests
+
+Integration tests verify chart deployment across multiple Kubernetes versions (v1.28, v1.29, v1.30). These tests are comprehensive but resource-intensive (30-54 minutes).
+
+**When Integration Tests Run:**
+
+- ✅ **Always** on pushes to `master` branch
+- ✅ **On PRs** when maintainer adds the `run-integration-tests` label
+- ✅ **Manually** via GitHub Actions workflow dispatch
+
+**For Contributors:**
+
+Integration tests are **optional for most PRs** to save CI resources. Maintainers will add the `run-integration-tests` label when appropriate, typically for:
+
+- Template changes that affect deployment
+- Changes to migration or initialization logic
+- Updates to default values that impact functionality
+- Major features or refactoring
+
+**For Maintainers:**
+
+To trigger integration tests on a PR:
+
+```bash
+# Add the label via GitHub CLI
+gh pr edit <PR-NUMBER> --add-label "run-integration-tests"
+
+# Or add it manually via GitHub web UI
+```
+
+The integration tests will start automatically when the label is added.
+
+See [.github/workflows/ci-integration.yaml](.github/workflows/ci-integration.yaml) for details.
 
 ## Submitting Changes
 

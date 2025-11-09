@@ -1,0 +1,142 @@
+name: Unit Tests & Validation
+
+# Fast, required checks that run on every PR
+# - Helm linting
+# - Unit tests with helm-unittest
+# - Security policy validation
+# - Chart testing (ct lint and ct install)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  lint:
+    name: Lint Helm Chart
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Lint chart
+        run: |
+          cd charts/spicedb
+          helm lint . --strict
+
+  unittest:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Install helm-unittest plugin
+        run: |
+          helm plugin install https://github.com/helm-unittest/helm-unittest.git
+
+      - name: Run unit tests
+        run: |
+          cd charts/spicedb
+          helm unittest --color .
+
+  policy:
+    name: Validate Security Policies
+    runs-on: ubuntu-latest
+    needs: unittest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Install Conftest
+        run: |
+          wget https://github.com/open-policy-agent/conftest/releases/download/v0.56.0/conftest_0.56.0_Linux_x86_64.tar.gz
+          tar xzf conftest_0.56.0_Linux_x86_64.tar.gz
+          sudo mv conftest /usr/local/bin/
+          conftest --version
+
+      - name: Validate policies
+        run: |
+          cd charts/spicedb
+          # Test the policy files against example compliant manifest
+          conftest test -p policies/ policies/examples/compliant-deployment.yaml
+
+          # Test the policy files against example non-compliant manifest (should fail)
+          # We expect this to fail, so we negate the result
+          if conftest test -p policies/ policies/examples/non-compliant-deployment.yaml; then
+            echo "ERROR: Non-compliant manifest should have been rejected by policies"
+            exit 1
+          else
+            echo "SUCCESS: Non-compliant manifest correctly rejected by policies"
+          fi
+
+          # Render chart templates and validate with conftest
+          # Note: This will fail until we have actual templates, so we make it conditional
+          if [ -n "$(ls -A templates/*.yaml 2>/dev/null)" ]; then
+            helm template . --values values.yaml | conftest test -p policies/ -
+          else
+            echo "No templates found yet, skipping chart validation"
+          fi
+
+  chart-testing:
+    name: Chart Testing
+    runs-on: ubuntu-latest
+    # Skip chart-testing (ct install) for draft PRs
+    if: ${{ github.event_name == 'push' || github.event.pull_request.draft == false }}
+    needs: [lint, unittest, policy]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2.7.0
+
+      - name: List changed charts
+        id: list-changed
+        run: |
+          changed=$(ct list-changed --target-branch ${{ github.event.repository.default_branch }})
+          if [[ -n "$changed" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run chart-testing (lint)
+        if: steps.list-changed.outputs.changed == 'true'
+        run: ct lint --target-branch ${{ github.event.repository.default_branch }} --config .github/ct.yaml
+
+      - name: Create kind cluster
+        if: steps.list-changed.outputs.changed == 'true'
+        uses: helm/kind-action@v1.10.0
+
+      - name: Run chart-testing (install)
+        if: steps.list-changed.outputs.changed == 'true'
+        run: ct install --target-branch ${{ github.event.repository.default_branch }}
