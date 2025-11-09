@@ -290,7 +290,7 @@ test_idempotency() {
         --set config.datastore.password=testpassword123 \
         --set config.datastore.database=spicedb \
         --set config.presharedKey="insecure-default-key-change-in-production" \
-        --set image.tag=v1.36.0 \
+        --set image.tag=${SPICEDB_UPGRADE_VERSION} \
         --set replicaCount=2 \
         --wait --timeout=10m
 
