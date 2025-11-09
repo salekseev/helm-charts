@@ -1,40 +1,102 @@
-# Taskmaster
+# Helm Charts Repository
 
-This project is managed using Task Master.
+Production-ready Helm charts for various applications and services.
 
+## Available Charts
 
-<!-- TASKMASTER_EXPORT_START -->
-> 🎯 **Taskmaster Export** - 2025-11-08 15:08:32 UTC
-> 📋 Export: without subtasks • Status filter: none
-> 🔗 Powered by [Task Master](https://task-master.dev?utm_source=github-readme&utm_medium=readme-export&utm_campaign=helm-charts&utm_content=task-export-link)
+### [SpiceDB](./charts/spicedb/)
 
-| Project Dashboard |  |
-| :-                |:-|
-| Task Progress     | ██████████████████░░ 90% |
-| Done | 9 |
-| In Progress | 0 |
-| Pending | 1 |
-| Deferred | 0 |
-| Cancelled | 0 |
-|-|-|
-| Subtask Progress | ████████████████████ 100% |
-| Completed | 61 |
-| In Progress | 0 |
-| Pending | 0 |
+A production-grade Helm chart for [SpiceDB](https://github.com/authzed/spicedb), Google Zanzibar-inspired authorization system.
 
+**Features:**
+- Multiple datastore backends (memory, PostgreSQL, CockroachDB)
+- Automated database migrations
+- Comprehensive TLS support
+- High availability configuration
+- Observability and monitoring
+- Network policies and security hardening
+- Full documentation and examples
 
-| ID | Title | Status | Priority | Dependencies | Complexity |
-| :- | :-    | :-     | :-       | :-           | :-         |
-| 1 | Establish Test Infrastructure and TDD Foundation | ✓&nbsp;done | high | None | N/A |
-| 2 | Implement Core Kubernetes Resources with Memory Datastore | ✓&nbsp;done | high | 1 | N/A |
-| 3 | Implement PostgreSQL and CockroachDB Datastore Support | ✓&nbsp;done | high | 2 | N/A |
-| 4 | Implement Automated Database Migration System | ✓&nbsp;done | high | 3 | N/A |
-| 5 | Implement Comprehensive TLS Support for All Endpoints | ✓&nbsp;done | high | 4 | N/A |
-| 6 | Implement High Availability Configuration | ✓&nbsp;done | medium | 5 | N/A |
-| 7 | Implement Observability and Monitoring Integration | ✓&nbsp;done | medium | 6 | N/A |
-| 8 | Implement Dispatch Cluster Mode Configuration | ✓&nbsp;done | medium | 7 | N/A |
-| 9 | Implement Ingress and NetworkPolicy Support | ✓&nbsp;done | low | 8 | N/A |
-| 10 | Finalize Documentation, Examples, and Release Preparation | ○&nbsp;pending | medium | 9 | N/A |
+**Quick Start:**
 
-> 📋 **End of Taskmaster Export** - Tasks are synced from your project using the `sync-readme` command.
-<!-- TASKMASTER_EXPORT_END -->
+```bash
+# Add repository
+helm repo add salekseev https://salekseev.github.io/helm-charts
+
+# Install SpiceDB with memory datastore
+helm install spicedb salekseev/spicedb
+```
+
+For detailed documentation, see the [SpiceDB chart README](./charts/spicedb/README.md).
+
+## Installation
+
+### Using Helm Repository
+
+```bash
+# Add the repository
+helm repo add salekseev https://salekseev.github.io/helm-charts
+
+# Update repository index
+helm repo update
+
+# Install a chart
+helm install my-release salekseev/<chart-name>
+```
+
+### Using OCI Registry
+
+```bash
+# Install from GitHub Container Registry
+helm install my-release oci://ghcr.io/salekseev/helm-charts/<chart-name> --version <version>
+```
+
+## Chart Versions
+
+Each chart maintains its own versioning and changelog. See individual chart directories for:
+- Version history and compatibility
+- Breaking changes
+- Upgrade guides
+- Configuration documentation
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md) for:
+- Development setup
+- Commit message format (conventional commits)
+- Pull request process
+- Testing requirements
+
+## Repository Structure
+
+```
+.
+├── charts/              # Individual Helm charts
+│   └── spicedb/        # SpiceDB chart
+│       ├── Chart.yaml
+│       ├── values.yaml
+│       ├── templates/
+│       ├── examples/
+│       └── README.md
+├── .github/            # GitHub Actions workflows
+│   └── workflows/
+└── README.md          # This file
+```
+
+## Automation
+
+This repository uses automated release management:
+- **Conventional Commits** for semantic versioning
+- **release-please** for automatic changelog and version updates
+- **Automated OCI publishing** to GitHub Container Registry
+- **Comprehensive CI/CD** with testing and validation
+
+## Support
+
+- **Documentation**: See individual chart READMEs
+- **Issues**: [GitHub Issues](https://github.com/salekseev/helm-charts/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/salekseev/helm-charts/discussions)
+
+## License
+
+Charts in this repository are licensed under the Apache License 2.0. See individual chart directories for specific license information.

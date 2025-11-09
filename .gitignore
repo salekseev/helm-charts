@@ -23,3 +23,15 @@ node_modules/
 
 # OS specific
 .DS_Store
+
+# Task Master AI
+.taskmaster/
+
+# MCP configuration
+.mcp.json
+
+# Claude Code instructions
+CLAUDE.md
+
+# Temporary development files
+RELEASE_READINESS_REPORT.md

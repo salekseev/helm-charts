@@ -1,12 +1,13 @@
-# Contributing to SpiceDB Helm Chart
+# Contributing to Helm Charts
 
-Thank you for your interest in contributing to the SpiceDB Helm Chart! This document outlines the development workflow and best practices.
+Thank you for your interest in contributing! This document outlines the development workflow and best practices for all charts in this repository.
 
 ## Development Environment Setup
 
 ### Prerequisites
 
 1. **Helm 3.14.0+**
+
    ```bash
    # Install Helm
    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
@@ -14,12 +15,14 @@ Thank you for your interest in contributing to the SpiceDB Helm Chart! This docu
    ```
 
 2. **helm-unittest plugin**
+
    ```bash
    helm plugin install https://github.com/helm-unittest/helm-unittest.git
    helm unittest --help
    ```
 
 3. **Conftest v0.45.0+** (for policy validation)
+
    ```bash
    # Linux
    wget https://github.com/open-policy-agent/conftest/releases/download/v0.56.0/conftest_0.56.0_Linux_x86_64.tar.gz
@@ -34,6 +37,7 @@ Thank you for your interest in contributing to the SpiceDB Helm Chart! This docu
    ```
 
 4. **pre-commit** (optional but recommended)
+
    ```bash
    # Using pip
    pip install pre-commit
@@ -46,6 +50,7 @@ Thank you for your interest in contributing to the SpiceDB Helm Chart! This docu
    ```
 
 5. **Kubernetes cluster** (for integration testing)
+
    - [Minikube](https://minikube.sigs.k8s.io/docs/start/)
    - [kind](https://kind.sigs.k8s.io/docs/user/quick-start/)
    - [Docker Desktop](https://www.docker.com/products/docker-desktop)
@@ -59,11 +64,12 @@ We follow a strict TDD workflow to ensure high quality and maintainability.
 Before implementing or modifying any template, write a test that defines the expected behavior.
 
 ```bash
-# Create or modify a test file
-vim charts/spicedb/tests/unit/deployment_test.yaml
+# Create or modify a test file in the chart directory
+vim charts/<chart-name>/tests/unit/<template>_test.yaml
 ```
 
 Example test:
+
 ```yaml
 suite: test deployment
 templates:
@@ -82,7 +88,7 @@ tests:
 ### 2. Run Tests (They Should Fail)
 
 ```bash
-cd charts/spicedb
+cd charts/<chart-name>
 helm unittest .
 ```
 
@@ -93,7 +99,7 @@ The test should fail because the template doesn't exist or doesn't implement the
 Create or modify the template to satisfy the test.
 
 ```bash
-vim charts/spicedb/templates/deployment.yaml
+vim charts/<chart-name>/templates/<template>.yaml
 ```
 
 ### 4. Run Tests Again (They Should Pass)
@@ -126,61 +132,61 @@ git commit -m "feat: add resource limits support to deployment"
 
 ```bash
 # All tests
-helm unittest charts/spicedb
+helm unittest charts/<chart-name>
 
 # Specific test file
-helm unittest -f 'tests/unit/deployment_test.yaml' charts/spicedb
+helm unittest -f 'tests/unit/deployment_test.yaml' charts/<chart-name>
 
 # With color output
-helm unittest --color charts/spicedb
+helm unittest --color charts/<chart-name>
 
 # Update snapshots after intentional changes
-helm unittest --update-snapshot charts/spicedb
+helm unittest --update-snapshot charts/<chart-name>
 
 # With custom values
-helm unittest -v values-examples/valid.yaml charts/spicedb
+helm unittest -v values-examples/valid.yaml charts/<chart-name>
 ```
 
 ### Linting
 
 ```bash
 # Lint chart
-helm lint charts/spicedb --strict
+helm lint charts/<chart-name> --strict
 
 # Validate values against schema
-helm lint charts/spicedb --values charts/spicedb/values-examples/valid.yaml --strict
+helm lint charts/<chart-name> --values charts/<chart-name>/values-examples/valid.yaml --strict
 ```
 
 ### Policy Validation
 
 ```bash
 # Test compliant manifest
-conftest test -p charts/spicedb/policies/ charts/spicedb/policies/examples/compliant-deployment.yaml
+conftest test -p charts/<chart-name>/policies/ charts/<chart-name>/policies/examples/compliant-deployment.yaml
 
 # Test rendered chart
-helm template charts/spicedb | conftest test -p charts/spicedb/policies/ -
+helm template charts/<chart-name> | conftest test -p charts/<chart-name>/policies/ -
 
 # Test with custom values
-helm template charts/spicedb --values charts/spicedb/values-examples/valid.yaml | conftest test -p charts/spicedb/policies/ -
+helm template charts/<chart-name> --values charts/<chart-name>/values-examples/valid.yaml | conftest test -p charts/<chart-name>/policies/ -
 ```
 
 ### Local Testing
 
 ```bash
 # Render templates locally
-helm template my-release charts/spicedb
+helm template my-release charts/<chart-name>
 
 # Render with custom values
-helm template my-release charts/spicedb --values charts/spicedb/values-examples/valid.yaml
+helm template my-release charts/<chart-name> --values charts/<chart-name>/values-examples/valid.yaml
 
 # Install on local cluster
-helm install spicedb-test charts/spicedb
+helm install <release-name> charts/<chart-name>
 
 # Upgrade
-helm upgrade spicedb-test charts/spicedb
+helm upgrade <release-name> charts/<chart-name>
 
 # Uninstall
-helm uninstall spicedb-test
+helm uninstall <release-name>
 ```
 
 ## Pre-commit Hooks
@@ -222,8 +228,8 @@ git commit --no-verify -m "message"
 
 1. **Use Helper Templates**: Define common patterns in `_helpers.tpl`
    ```yaml
-   {{- define "spicedb.labels" -}}
-   app.kubernetes.io/name: {{ include "spicedb.name" . }}
+   {{- define "mychart.labels" -}}
+   app.kubernetes.io/name: {{ include "mychart.name" . }}
    {{- end }}
    ```
 
@@ -293,9 +299,9 @@ See [.github/workflows/ci.yaml](.github/workflows/ci.yaml) for details.
 
 4. **Ensure all tests pass**
    ```bash
-   helm unittest charts/spicedb
-   helm lint charts/spicedb --strict
-   helm template charts/spicedb | conftest test -p charts/spicedb/policies/ -
+   helm unittest charts/<chart-name>
+   helm lint charts/<chart-name> --strict
+   helm template charts/<chart-name> | conftest test -p charts/<chart-name>/policies/ -
    ```
 
 5. **Commit with meaningful messages**
@@ -365,8 +371,8 @@ Our release process is fully automated using [Release Please](https://github.com
 1. **On every commit to `master`**:
    - Release Please analyzes commit messages
    - Creates or updates a release PR with:
-     - Updated version in `charts/spicedb/Chart.yaml`
-     - Generated changelog in `charts/spicedb/CHANGELOG.md`
+     - Updated version in chart's `Chart.yaml`
+     - Generated changelog in chart's `CHANGELOG.md`
 
 2. **When the release PR is merged**:
    - A GitHub release is created
@@ -384,7 +390,6 @@ This ensures consistent, predictable releases based on semantic versioning.
 
 - **Issues**: [GitHub Issues](https://github.com/salekseev/helm-charts/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/salekseev/helm-charts/discussions)
-- **SpiceDB Docs**: [authzed.com/docs](https://authzed.com/docs)
 
 ## License
 
