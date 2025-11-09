@@ -20,38 +20,32 @@ A production-grade Helm chart for [SpiceDB](https://github.com/authzed/spicedb),
 **Quick Start:**
 
 ```bash
-# Add repository
-helm repo add salekseev https://salekseev.github.io/helm-charts
-
-# Install SpiceDB with memory datastore
-helm install spicedb salekseev/spicedb
+# Install SpiceDB from OCI registry
+helm install spicedb oci://ghcr.io/salekseev/helm-charts/spicedb --version 1.0.0
 ```
 
 For detailed documentation, see the [SpiceDB chart README](./charts/spicedb/README.md).
 
 ## Installation
 
-### Using Helm Repository
+### Using OCI Registry (Recommended)
+
+Charts are published to GitHub Container Registry as OCI artifacts:
 
 ```bash
-# Add the repository
-helm repo add salekseev https://salekseev.github.io/helm-charts
+# Install a specific version
+helm install my-release oci://ghcr.io/salekseev/helm-charts/spicedb --version 1.0.0
 
-# Update repository index
-helm repo update
+# Pull the chart locally
+helm pull oci://ghcr.io/salekseev/helm-charts/spicedb --version 1.0.0
 
-# Install a chart
-helm install my-release salekseev/<chart-name>
-```
-
-### Using OCI Registry
-
-```bash
-# Install from GitHub Container Registry
-helm install my-release oci://ghcr.io/salekseev/helm-charts/<chart-name> --version <version>
+# Show available versions
+helm show chart oci://ghcr.io/salekseev/helm-charts/spicedb --version 1.0.0
 ```
 
 ## Chart Versions
+
+Charts are automatically published to [GitHub Container Registry](https://github.com/salekseev?tab=packages&repo_name=helm-charts) when releases are created.
 
 Each chart maintains its own versioning and changelog. See individual chart directories for:
 - Version history and compatibility
