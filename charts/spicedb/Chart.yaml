@@ -3,7 +3,7 @@ name: spicedb
 description: A Helm chart for SpiceDB - an open source, Zanzibar-inspired permissions database
 type: application
 version: 0.1.0
-appVersion: "v1.39.0"
+appVersion: "v1.46.2"
 keywords:
   - spicedb
   - permissions

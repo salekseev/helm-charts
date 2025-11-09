@@ -312,22 +312,73 @@ See [.github/workflows/ci.yaml](.github/workflows/ci.yaml) for details.
 
 ### Commit Message Format
 
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
+We use [Conventional Commits](https://www.conventionalcommits.org/) for automated versioning and changelog generation. The commit format directly controls how the chart version is bumped.
 
-- `feat:` New feature
-- `fix:` Bug fix
-- `docs:` Documentation changes
-- `test:` Test changes
-- `refactor:` Code refactoring
-- `chore:` Maintenance tasks
+#### Commit Types and Versioning
 
-Examples:
+- `feat:` New feature (triggers **MINOR** version bump: 1.0.0 -> 1.1.0)
+- `fix:` Bug fix (triggers **PATCH** version bump: 1.0.0 -> 1.0.1)
+- `docs:` Documentation changes (no version bump)
+- `test:` Test changes (no version bump)
+- `refactor:` Code refactoring (no version bump)
+- `chore:` Maintenance tasks (no version bump)
+
+#### Breaking Changes
+
+For breaking changes that require a **MAJOR** version bump (1.0.0 -> 2.0.0):
+
+```
+feat!: change default datastore from memory to postgres
+
+BREAKING CHANGE: The default datastore is now PostgreSQL instead of in-memory.
+Users must provide PostgreSQL connection details or explicitly set
+datastore.engine to "memory" to maintain previous behavior.
+```
+
+Or use the `BREAKING CHANGE:` footer:
+
+```
+feat: migrate to new Helm chart API version
+
+BREAKING CHANGE: Chart now requires Helm 3.14.0 or later.
+```
+
+#### Examples
+
 ```
 feat: add PostgreSQL datastore support
 fix: correct service port configuration
 docs: update README with TLS examples
 test: add tests for migration hooks
+chore: update dependencies
+
+feat!: remove deprecated values.legacy configuration
+
+BREAKING CHANGE: The values.legacy section has been removed.
+Use values.config instead.
 ```
+
+#### Automated Release Process
+
+Our release process is fully automated using [Release Please](https://github.com/googleapis/release-please):
+
+1. **On every commit to `master`**:
+   - Release Please analyzes commit messages
+   - Creates or updates a release PR with:
+     - Updated version in `charts/spicedb/Chart.yaml`
+     - Generated changelog in `charts/spicedb/CHANGELOG.md`
+
+2. **When the release PR is merged**:
+   - A GitHub release is created
+   - Chart package is published
+   - Version tags are created (without `v` prefix for Helm compatibility)
+
+3. **No manual version updates needed**:
+   - Never manually edit the version in `Chart.yaml`
+   - Never manually edit `CHANGELOG.md`
+   - Release Please handles all version management
+
+This ensures consistent, predictable releases based on semantic versioning.
 
 ## Getting Help
 

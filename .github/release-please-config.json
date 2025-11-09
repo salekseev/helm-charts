@@ -1,0 +1,40 @@
+{
+  "packages": {
+    "charts/spicedb": {
+      "release-type": "simple",
+      "package-name": "spicedb",
+      "changelog-path": "CHANGELOG.md",
+      "include-v-in-tag": false,
+      "extra-files": [
+        "Chart.yaml"
+      ]
+    }
+  },
+  "changelog-sections": [
+    {
+      "type": "feat",
+      "section": "Features",
+      "hidden": false
+    },
+    {
+      "type": "fix",
+      "section": "Bug Fixes",
+      "hidden": false
+    },
+    {
+      "type": "docs",
+      "section": "Documentation",
+      "hidden": false
+    },
+    {
+      "type": "chore",
+      "section": "Miscellaneous",
+      "hidden": false
+    },
+    {
+      "type": "refactor",
+      "section": "Code Refactoring",
+      "hidden": false
+    }
+  ]
+}
