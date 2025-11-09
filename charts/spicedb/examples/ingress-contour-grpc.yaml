@@ -1,0 +1,44 @@
+# Example: Contour Ingress Controller with gRPC
+# This example demonstrates:
+# - Contour-specific annotations for gRPC support
+# - H2C (HTTP/2 Cleartext) protocol configuration
+# - Multi-host setup with Contour
+
+ingress:
+  enabled: true
+  className: contour
+
+  # Contour-specific annotations
+  annotations:
+    # Enable H2C (HTTP/2 Cleartext) for gRPC
+    projectcontour.io/upstream-protocol.h2c: "grpc"
+    # Optional: Request timeout for long-lived gRPC streams
+    projectcontour.io/request-timeout: "infinity"
+    # Optional: Response timeout
+    projectcontour.io/response-timeout: "infinity"
+    # cert-manager integration
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+  hosts:
+    - host: grpc.spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: grpc
+
+    - host: metrics.spicedb.example.com
+      paths:
+        - path: /metrics
+          pathType: Exact
+          servicePort: metrics
+
+  tls:
+    - secretName: grpc-tls
+      hosts:
+        - grpc.spicedb.example.com
+    - secretName: metrics-tls
+      hosts:
+        - metrics.spicedb.example.com
+
+monitoring:
+  enabled: true

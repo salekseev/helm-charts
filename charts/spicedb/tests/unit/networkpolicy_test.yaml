@@ -1,0 +1,241 @@
+suite: Test NetworkPolicy
+templates:
+  - networkpolicy.yaml
+
+tests:
+  - it: should not create NetworkPolicy when disabled
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create NetworkPolicy when enabled
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb
+
+  - it: should include DNS egress rule
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            ports:
+              - protocol: UDP
+                port: 53
+              - protocol: TCP
+                port: 53
+            to:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: kube-system
+                podSelector:
+                  matchLabels:
+                    k8s-app: kube-dns
+
+  - it: should include Kubernetes API server egress rule
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            ports:
+              - protocol: TCP
+                port: 443
+            to:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: default
+                podSelector:
+                  matchLabels:
+                    component: apiserver
+
+  - it: should not include database egress for memory datastore
+    set:
+      networkPolicy.enabled: true
+      config.datastoreEngine: memory
+    asserts:
+      - notContains:
+          path: spec.egress
+          content:
+            ports:
+              - protocol: TCP
+                port: 5432
+
+  - it: should include PostgreSQL egress with default port
+    set:
+      networkPolicy.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            ports:
+              - protocol: TCP
+                port: 5432
+            to:
+              - namespaceSelector: {}
+
+  - it: should include PostgreSQL egress with custom port
+    set:
+      networkPolicy.enabled: true
+      config.datastoreEngine: postgres
+      config.datastore.port: 5433
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            ports:
+              - protocol: TCP
+                port: 5433
+            to:
+              - namespaceSelector: {}
+
+  - it: should include CockroachDB egress with default port
+    set:
+      networkPolicy.enabled: true
+      config.datastoreEngine: cockroachdb
+      config.datastore.port: null
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            ports:
+              - protocol: TCP
+                port: 26257
+            to:
+              - namespaceSelector: {}
+
+  - it: should include CockroachDB egress with custom port
+    set:
+      networkPolicy.enabled: true
+      config.datastoreEngine: cockroachdb
+      config.datastore.port: 26258
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            ports:
+              - protocol: TCP
+                port: 26258
+            to:
+              - namespaceSelector: {}
+
+  - it: should use custom database egress when provided
+    set:
+      networkPolicy.enabled: true
+      config.datastoreEngine: postgres
+      networkPolicy.databaseEgress:
+        ports:
+          - protocol: TCP
+            port: 5432
+        to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: database
+            podSelector:
+              matchLabels:
+                app: postgresql
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            ports:
+              - protocol: TCP
+                port: 5432
+            to:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: database
+                podSelector:
+                  matchLabels:
+                    app: postgresql
+
+  - it: should include dispatch egress when enabled
+    set:
+      networkPolicy.enabled: true
+      dispatch.enabled: true
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            ports:
+              - protocol: TCP
+                port: 50053
+            to:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: spicedb
+                    app.kubernetes.io/instance: RELEASE-NAME
+
+  - it: should not include dispatch egress when disabled
+    set:
+      networkPolicy.enabled: true
+      dispatch.enabled: false
+    asserts:
+      - notContains:
+          path: spec.egress
+          content:
+            ports:
+              - protocol: TCP
+                port: 50053
+
+  - it: should include custom egress rules
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  app: external-service
+          ports:
+            - protocol: TCP
+              port: 8080
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - namespaceSelector:
+                  matchLabels:
+                    app: external-service
+            ports:
+              - protocol: TCP
+                port: 8080
+
+  - it: should include both policyTypes
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+            - Egress
+
+  - it: should include dispatch ingress when enabled
+    set:
+      networkPolicy.enabled: true
+      dispatch.enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 50053
+            from:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: spicedb
+                    app.kubernetes.io/instance: RELEASE-NAME

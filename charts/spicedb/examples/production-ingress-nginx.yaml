@@ -1,0 +1,367 @@
+# Production NGINX Ingress Controller Configuration for SpiceDB
+# This example demonstrates a production-ready NGINX Ingress setup with:
+# - gRPC backend protocol support
+# - TLS termination with SSL redirect
+# - Rate limiting for protection against abuse
+# - Proxy timeout configuration for long-lived gRPC streams
+# - CORS and security headers
+# - cert-manager integration for automated certificate management
+# - Multiple host configuration for separation of concerns
+# - NetworkPolicy integration (optional)
+#
+# Prerequisites:
+# - NGINX Ingress Controller installed (kubernetes/ingress-nginx)
+# - cert-manager installed for automated TLS certificate management
+# - DNS records configured for your hostnames
+# - Optional: NetworkPolicy support enabled in your cluster
+#
+# Usage:
+#   helm install spicedb ./charts/spicedb -f examples/production-ingress-nginx.yaml
+
+---
+# =============================================================================
+# INGRESS CONFIGURATION
+# =============================================================================
+ingress:
+  enabled: true
+  className: nginx
+
+  # NGINX-specific annotations for production gRPC traffic
+  annotations:
+    # ========== PROTOCOL CONFIGURATION ==========
+    # Configure NGINX to use gRPC protocol for backend communication
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    # Explicit gRPC backend support (recommended for gRPC services)
+    nginx.ingress.kubernetes.io/grpc-backend: "true"
+
+    # ========== SSL/TLS CONFIGURATION ==========
+    # Force all HTTP traffic to redirect to HTTPS
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Force SSL redirect even for non-HTTP requests
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+    # ========== CERTIFICATE MANAGEMENT ==========
+    # Use cert-manager to automatically provision and renew TLS certificates
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Alternative: Use staging for testing
+    # cert-manager.io/cluster-issuer: "letsencrypt-staging"
+
+    # Specify ACME challenge type (http01 is most common)
+    cert-manager.io/acme-challenge-type: "http01"
+
+    # ========== PROXY TIMEOUTS ==========
+    # gRPC connections can be long-lived, configure appropriate timeouts
+    # Proxy connect timeout (how long to wait for backend connection)
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    # Proxy send timeout (how long to wait when sending to backend)
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Proxy read timeout (how long to wait when reading from backend)
+    # Set high for long-lived gRPC streams (1 hour = 3600s)
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    # Keep-alive timeout for upstream connections
+    nginx.ingress.kubernetes.io/upstream-keepalive-timeout: "3600"
+
+    # ========== RATE LIMITING ==========
+    # Protect against abuse and DoS attacks
+    # Limit to 100 requests per second per IP address
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    # Alternative: Limit by requests per minute
+    # nginx.ingress.kubernetes.io/limit-rpm: "6000"
+
+    # Configure rate limit burst (allows brief spikes above limit)
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "5"
+    # Rate limiting zone size
+    nginx.ingress.kubernetes.io/limit-rate: "1024k"
+
+    # ========== SECURITY HEADERS ==========
+    # Enable common security headers
+    nginx.ingress.kubernetes.io/enable-cors: "false"
+    # Strict transport security (HSTS) - force HTTPS for 1 year
+    nginx.ingress.kubernetes.io/hsts: "true"
+    nginx.ingress.kubernetes.io/hsts-max-age: "31536000"
+    nginx.ingress.kubernetes.io/hsts-include-subdomains: "true"
+    nginx.ingress.kubernetes.io/hsts-preload: "true"
+
+    # ========== ADVANCED OPTIONS (Uncomment as needed) ==========
+    # Client certificate authentication (mTLS)
+    # nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
+    # nginx.ingress.kubernetes.io/auth-tls-secret: "default/client-ca-secret"
+    # nginx.ingress.kubernetes.io/auth-tls-verify-depth: "1"
+    # nginx.ingress.kubernetes.io/auth-tls-pass-certificate-to-upstream: "true"
+
+    # Custom proxy headers
+    # nginx.ingress.kubernetes.io/configuration-snippet: |
+    #   grpc_set_header X-Real-IP $remote_addr;
+    #   grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    #   grpc_set_header X-Forwarded-Proto $scheme;
+
+    # IP whitelist (restrict access to specific IPs/CIDRs)
+    # nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,192.168.0.0/16"
+
+  # =============================================================================
+  # HOST CONFIGURATION - Multi-host setup for production
+  # =============================================================================
+  # Separate hosts for different services provides:
+  # - Better access control (different firewall rules per host)
+  # - Clearer DNS management and service discovery
+  # - Separate TLS certificates per service (optional)
+  # - Easier monitoring and logging segregation
+  hosts:
+    # Primary gRPC API endpoint for client permission checks
+    - host: api.spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: grpc
+
+    # HTTP dashboard for administration and health checks
+    - host: dashboard.spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: http
+
+    # Metrics endpoint for Prometheus scraping (consider restricting access)
+    - host: metrics.spicedb.example.com
+      paths:
+        - path: /metrics
+          pathType: Exact
+          servicePort: metrics
+
+  # =============================================================================
+  # TLS CONFIGURATION
+  # =============================================================================
+  # Separate TLS certificates per host allow for:
+  # - Different certificate authorities per service
+  # - Independent certificate rotation
+  # - Reduced blast radius if a certificate is compromised
+  tls:
+    # TLS for gRPC API
+    - secretName: spicedb-api-tls
+      hosts:
+        - api.spicedb.example.com
+
+    # TLS for HTTP dashboard
+    - secretName: spicedb-dashboard-tls
+      hosts:
+        - dashboard.spicedb.example.com
+
+    # TLS for metrics endpoint
+    - secretName: spicedb-metrics-tls
+      hosts:
+        - metrics.spicedb.example.com
+
+# =============================================================================
+# SPICEDB CONFIGURATION
+# =============================================================================
+# Production datastore configuration (required for ingress exposure)
+config:
+  # Use persistent datastore (never "memory" for production)
+  datastoreEngine: postgres
+  logLevel: info
+
+  # Use existingSecret for production credentials
+  # kubectl create secret generic spicedb-db-secret \
+  #   --from-literal=datastore-uri='postgresql://user:pass@host:5432/db?sslmode=require'
+  # existingSecret: "spicedb-db-secret"
+
+  datastore:
+    hostname: "postgres.database.svc.cluster.local"
+    port: 5432
+    username: "spicedb"
+    password: "CHANGE_ME_INSECURE"
+    database: "spicedb"
+    sslMode: "require"
+
+# Multiple replicas for high availability
+replicaCount: 3
+
+# Resource limits for production workload
+resources:
+  requests:
+    cpu: 1000m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+# =============================================================================
+# OPTIONAL: NETWORKPOLICY CONFIGURATION
+# =============================================================================
+# NetworkPolicy provides network-level access control
+# Restricts traffic to SpiceDB to only allowed sources
+#
+# Benefits:
+# - Defense in depth (complements Ingress-level authentication)
+# - Prevents unauthorized pod-to-pod communication
+# - Reduces attack surface
+# - Compliance with network segmentation requirements
+#
+# Uncomment to enable NetworkPolicy:
+# networkPolicy:
+#   enabled: true
+#
+#   # Policy type determines the direction of traffic to control
+#   policyTypes:
+#     - Ingress  # Control incoming traffic
+#     - Egress   # Control outgoing traffic
+#
+#   # Ingress rules: what traffic is allowed TO SpiceDB pods
+#   ingress:
+#     # Allow traffic from NGINX Ingress Controller
+#     - from:
+#       - namespaceSelector:
+#           matchLabels:
+#             name: ingress-nginx
+#         podSelector:
+#           matchLabels:
+#             app.kubernetes.io/name: ingress-nginx
+#       ports:
+#       - protocol: TCP
+#         port: 50051  # gRPC API
+#       - protocol: TCP
+#         port: 8443   # HTTP dashboard
+#       - protocol: TCP
+#         port: 9090   # Metrics
+#
+#     # Allow traffic from Prometheus (for metrics scraping)
+#     - from:
+#       - namespaceSelector:
+#           matchLabels:
+#             name: monitoring
+#         podSelector:
+#           matchLabels:
+#             app: prometheus
+#       ports:
+#       - protocol: TCP
+#         port: 9090
+#
+#     # Allow inter-pod communication for dispatch clustering
+#     - from:
+#       - podSelector:
+#           matchLabels:
+#             app.kubernetes.io/name: spicedb
+#       ports:
+#       - protocol: TCP
+#         port: 50053  # Dispatch port
+#
+#   # Egress rules: what traffic is allowed FROM SpiceDB pods
+#   egress:
+#     # Allow DNS resolution
+#     - to:
+#       - namespaceSelector:
+#           matchLabels:
+#             name: kube-system
+#         podSelector:
+#           matchLabels:
+#             k8s-app: kube-dns
+#       ports:
+#       - protocol: UDP
+#         port: 53
+#
+#     # Allow connections to PostgreSQL database
+#     - to:
+#       - namespaceSelector:
+#           matchLabels:
+#             name: database
+#         podSelector:
+#           matchLabels:
+#             app: postgres
+#       ports:
+#       - protocol: TCP
+#         port: 5432
+#
+#     # Allow HTTPS for external API calls (if needed)
+#     - to:
+#       - namespaceSelector: {}
+#       ports:
+#       - protocol: TCP
+#         port: 443
+
+# =============================================================================
+# MONITORING
+# =============================================================================
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    additionalLabels:
+      release: prometheus
+
+# =============================================================================
+# VALIDATION AND TESTING
+# =============================================================================
+# After deployment, verify the configuration:
+#
+# 1. Check Ingress resource was created:
+#    kubectl get ingress spicedb
+#    kubectl describe ingress spicedb
+#
+# 2. Verify cert-manager created certificates:
+#    kubectl get certificate
+#    kubectl get certificaterequest
+#
+# 3. Check TLS secrets were created:
+#    kubectl get secret spicedb-api-tls spicedb-dashboard-tls spicedb-metrics-tls
+#
+# 4. Test HTTPS endpoints (after DNS propagation):
+#    curl -v https://api.spicedb.example.com
+#    curl -v https://dashboard.spicedb.example.com
+#    curl -v https://metrics.spicedb.example.com/metrics
+#
+# 5. Verify gRPC connectivity:
+#    grpcurl api.spicedb.example.com:443 list
+#
+# 6. Test rate limiting:
+#    for i in {1..150}; do curl -k https://api.spicedb.example.com & done
+#    # Should see HTTP 429 (Too Many Requests) after ~100 requests
+#
+# 7. Check NGINX Ingress Controller logs:
+#    kubectl logs -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx
+#
+# 8. Verify SSL redirect:
+#    curl -v http://api.spicedb.example.com
+#    # Should return 308 redirect to https://
+#
+# 9. Test NetworkPolicy (if enabled):
+#    kubectl run test-pod --rm -it --image=busybox -- wget -qO- http://spicedb:50051
+#    # Should be denied if not in allowed namespaces
+#
+# 10. Monitor metrics in Prometheus:
+#     # Look for nginx_ingress_controller_requests metrics
+#     # Filter by host label to see per-endpoint traffic
+
+# =============================================================================
+# TROUBLESHOOTING
+# =============================================================================
+# Common issues and solutions:
+#
+# TLS certificate not provisioned:
+# - Check cert-manager logs: kubectl logs -n cert-manager -l app=cert-manager
+# - Verify ClusterIssuer exists: kubectl get clusterissuer letsencrypt-prod
+# - Check certificate status: kubectl describe certificate spicedb-api-tls
+# - Verify DNS records are correct and propagated
+#
+# gRPC health checks failing:
+# - Ensure backend-protocol is set to "GRPC"
+# - Check if grpc-backend annotation is present
+# - Verify SpiceDB is running: kubectl get pods -l app.kubernetes.io/name=spicedb
+#
+# 502 Bad Gateway errors:
+# - Check backend pods are ready: kubectl get pods
+# - Verify service endpoints exist: kubectl get endpoints spicedb
+# - Check NGINX logs for upstream errors
+#
+# Rate limiting too aggressive:
+# - Adjust limit-rps or limit-rpm annotations
+# - Increase limit-burst-multiplier for burstier workloads
+#
+# Timeout errors on long-lived gRPC streams:
+# - Increase proxy-read-timeout and proxy-send-timeout
+# - Verify upstream-keepalive-timeout is set appropriately
+#
+# NetworkPolicy blocking legitimate traffic:
+# - Check policy allows NGINX namespace: kubectl describe networkpolicy
+# - Verify namespace labels match selectors
+# - Temporarily disable policy for debugging

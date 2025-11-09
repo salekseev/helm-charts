@@ -1,0 +1,267 @@
+suite: test migration cleanup RBAC
+templates:
+  - hooks/migration-cleanup-rbac.yaml
+tests:
+  # Basic rendering tests
+  - it: should create RBAC resources when migrations and cleanup enabled
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      migrations.cleanup.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 3
+
+  - it: should create RBAC resources when migrations enabled and cleanup not explicitly disabled
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - hasDocuments:
+          count: 3
+
+  - it: should NOT create RBAC resources when migrations disabled
+    set:
+      migrations.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should NOT create RBAC resources when using memory datastore
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: memory
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ServiceAccount tests
+  - it: should create ServiceAccount with correct metadata
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: apiVersion
+          value: v1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb-migration-cleanup
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: spicedb
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: migration-cleanup
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+
+  - it: should have correct ServiceAccount hook annotations
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-upgrade,post-install
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-5"
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation
+
+  - it: should enable automountServiceAccountToken
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: automountServiceAccountToken
+          value: true
+
+  # Role tests
+  - it: should create Role with correct metadata
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Role
+      - equal:
+          path: apiVersion
+          value: rbac.authorization.k8s.io/v1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb-migration-cleanup
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: spicedb
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: migration-cleanup
+
+  - it: should have correct Role hook annotations
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-upgrade,post-install
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-5"
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation
+
+  - it: should grant list permission for jobs
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    documentIndex: 1
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["batch"]
+            resources: ["jobs"]
+            verbs: ["list"]
+
+  - it: should grant delete permission for jobs
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    documentIndex: 1
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["batch"]
+            resources: ["jobs"]
+            verbs: ["delete"]
+
+  # RoleBinding tests
+  - it: should create RoleBinding with correct metadata
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: RoleBinding
+      - equal:
+          path: apiVersion
+          value: rbac.authorization.k8s.io/v1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb-migration-cleanup
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: spicedb
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: migration-cleanup
+
+  - it: should have correct RoleBinding hook annotations
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-upgrade,post-install
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-5"
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation
+
+  - it: should bind to correct Role
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: roleRef.apiGroup
+          value: rbac.authorization.k8s.io
+      - equal:
+          path: roleRef.kind
+          value: Role
+      - equal:
+          path: roleRef.name
+          value: RELEASE-NAME-spicedb-migration-cleanup
+
+  - it: should bind to correct ServiceAccount
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    release:
+      namespace: test-namespace
+    documentIndex: 2
+    asserts:
+      - contains:
+          path: subjects
+          content:
+            kind: ServiceAccount
+            name: RELEASE-NAME-spicedb-migration-cleanup
+            namespace: test-namespace
+
+  # Custom release name tests
+  - it: should work with custom fullname override for ServiceAccount
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      fullnameOverride: custom-spicedb
+    release:
+      namespace: custom-ns
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.name
+          value: custom-spicedb-migration-cleanup
+
+  - it: should work with custom fullname override for Role
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      fullnameOverride: custom-spicedb
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.name
+          value: custom-spicedb-migration-cleanup
+
+  - it: should work with custom fullname override for RoleBinding
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      fullnameOverride: custom-spicedb
+    release:
+      namespace: custom-ns
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: metadata.name
+          value: custom-spicedb-migration-cleanup
+      - equal:
+          path: roleRef.name
+          value: custom-spicedb-migration-cleanup
+      - equal:
+          path: subjects[0].name
+          value: custom-spicedb-migration-cleanup
+      - equal:
+          path: subjects[0].namespace
+          value: custom-ns

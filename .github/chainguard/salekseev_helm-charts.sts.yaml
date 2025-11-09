@@ -1,0 +1,9 @@
+issuer: https://token.actions.githubusercontent.com
+subject_pattern: repo:salekseev/helm-charts:ref:.*
+
+permissions:
+  contents: write
+  metadata: read
+  issues: write
+  packages: write
+  pull_requests: write

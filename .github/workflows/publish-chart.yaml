@@ -1,0 +1,120 @@
+name: Publish Helm Chart
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish Chart to OCI Registry
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Authenticate with octo-sts
+        uses: octo-sts/action@d6c70ad3b9ac85df6da6b9749014d7283987cfec # v1.0.3
+        id: octo-sts
+        with:
+          scope: salekseev/helm-charts
+          identity: chart-publisher
+
+      - name: Extract version from release tag
+        id: version
+        run: |
+          # Remove 'v' prefix if present
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Extracted version: ${VERSION}"
+
+      - name: Update Chart version
+        run: |
+          # Update Chart.yaml with the release version
+          sed -i "s/^version:.*/version: ${{ steps.version.outputs.version }}/" charts/spicedb/Chart.yaml
+          cat charts/spicedb/Chart.yaml
+
+      - name: Package Helm chart
+        run: |
+          helm package charts/spicedb
+          ls -lh spicedb-*.tgz
+
+      - name: Login to GitHub Container Registry
+        run: |
+          echo "${{ steps.octo-sts.outputs.token }}" | helm registry login ghcr.io \
+            --username ${{ github.actor }} \
+            --password-stdin
+
+      - name: Push chart to OCI registry
+        run: |
+          helm push spicedb-${{ steps.version.outputs.version }}.tgz oci://ghcr.io/salekseev/helm-charts
+
+      - name: Logout from registry
+        if: always()
+        run: |
+          helm registry logout ghcr.io
+
+      - name: Verify chart accessibility
+        run: |
+          # Wait a moment for the registry to process the upload
+          sleep 5
+
+          # Try to pull the chart to verify it's accessible
+          helm pull oci://ghcr.io/salekseev/helm-charts/spicedb --version ${{ steps.version.outputs.version }}
+
+          # Verify the downloaded file exists
+          if [ -f "spicedb-${{ steps.version.outputs.version }}.tgz" ]; then
+            echo "✓ Chart successfully published and verified"
+            ls -lh spicedb-${{ steps.version.outputs.version }}.tgz
+          else
+            echo "✗ Failed to verify chart publication"
+            exit 1
+          fi
+
+      - name: Update Artifact Hub metadata
+        if: success()
+        run: |
+          # Create artifacthub-repo.yml if it doesn't exist
+          if [ ! -f "artifacthub-repo.yml" ]; then
+            cat > artifacthub-repo.yml << 'EOF'
+          repositoryID: $(uuidgen)
+          owners:
+            - name: salekseev
+              email: salekseev@users.noreply.github.com
+          EOF
+            echo "Created artifacthub-repo.yml metadata file"
+          fi
+
+          # Display metadata for reference
+          cat artifacthub-repo.yml || true
+
+      - name: Create release assets summary
+        if: success()
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          ## 📦 Chart Published Successfully
+
+          **Chart:** spicedb
+          **Version:** ${{ steps.version.outputs.version }}
+          **Registry:** ghcr.io/salekseev/helm-charts
+
+          ### Installation
+
+          ```bash
+          helm install spicedb oci://ghcr.io/salekseev/helm-charts/spicedb --version ${{ steps.version.outputs.version }}
+          ```
+
+          ### Pull Chart
+
+          ```bash
+          helm pull oci://ghcr.io/salekseev/helm-charts/spicedb --version ${{ steps.version.outputs.version }}
+          ```
+          EOF

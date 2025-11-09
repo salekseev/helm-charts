@@ -1,0 +1,19 @@
+{{- if or .Values.podDisruptionBudget.enabled (gt (int .Values.replicaCount) 1) }}
+# PodDisruptionBudget ensures high availability during voluntary disruptions
+# This prevents excessive pod disruption during node drains, upgrades, or scaling operations
+# Automatically enabled when running more than 1 replica or explicitly enabled
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "spicedb.fullname" . }}
+  labels:
+    {{- include "spicedb.labels" . | nindent 4 }}
+spec:
+  # Maximum number of pods that can be unavailable during voluntary disruption
+  # This ensures at least (replicas - maxUnavailable) pods remain running
+  # Example: With 3 replicas and maxUnavailable=1, at least 2 pods will always run
+  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "spicedb.selectorLabels" . | nindent 6 }}
+{{- end }}

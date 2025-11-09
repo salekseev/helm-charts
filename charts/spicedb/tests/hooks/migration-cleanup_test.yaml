@@ -1,0 +1,244 @@
+suite: test migration cleanup job
+templates:
+  - hooks/migration-cleanup.yaml
+tests:
+  # Basic rendering tests
+  - it: should create cleanup job when migrations enabled and cleanup enabled
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      migrations.cleanup.enabled: true
+    release:
+      revision: 1
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Job
+      - equal:
+          path: apiVersion
+          value: batch/v1
+
+  - it: should create cleanup job when migrations enabled and cleanup not explicitly disabled
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    release:
+      revision: 1
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: should NOT create cleanup job when migrations disabled
+    set:
+      migrations.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should NOT create cleanup job when using memory datastore
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: memory
+    release:
+      revision: 1
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # Metadata tests
+  - it: should have correct metadata name with revision
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    release:
+      revision: 5
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb-migration-cleanup-5
+
+  - it: should have correct metadata labels
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    release:
+      revision: 1
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: spicedb
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: migration-cleanup
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+
+  # Hook annotations tests
+  - it: should have correct hook annotations
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    release:
+      revision: 1
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-install,post-upgrade
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "5"
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: hook-succeeded,hook-failed
+
+  # Job spec tests
+  - it: should have correct job spec configuration
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    release:
+      revision: 1
+    asserts:
+      - equal:
+          path: spec.backoffLimit
+          value: 2
+      - equal:
+          path: spec.activeDeadlineSeconds
+          value: 300
+      - equal:
+          path: spec.template.spec.restartPolicy
+          value: OnFailure
+
+  # Pod template metadata tests
+  - it: should have correct pod template name and labels
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    release:
+      revision: 1
+    asserts:
+      - equal:
+          path: spec.template.metadata.name
+          value: RELEASE-NAME-spicedb-migration-cleanup
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: migration-cleanup
+
+  # ServiceAccount tests
+  - it: should use correct service account
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    release:
+      revision: 1
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: RELEASE-NAME-spicedb-migration-cleanup
+
+  # Container configuration tests
+  - it: should have correct container name
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    release:
+      revision: 1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: cleanup
+
+  - it: should use alpine kubectl image
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    release:
+      revision: 1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: alpine/kubectl:1.34.1
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: IfNotPresent
+
+  # Command tests
+  - it: should have correct cleanup command structure
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    release:
+      revision: 1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - /bin/sh
+            - -c
+            - |
+              # Wait briefly for migration job to fully complete and register success
+              sleep 10
+
+              # Delete completed migration jobs using label selectors
+              # This targets jobs with:
+              #   - app.kubernetes.io/name matching the chart name
+              #   - app.kubernetes.io/component=migration
+              #   - status.successful=1 (completed successfully)
+              echo "Cleaning up completed migration jobs..."
+              kubectl delete jobs \
+                -l app.kubernetes.io/name=spicedb,app.kubernetes.io/component=migration \
+                --field-selector status.successful=1 \
+                --ignore-not-found=true
+
+              echo "Cleanup complete"
+
+  # Resources tests
+  - it: should have default resource limits
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    release:
+      revision: 1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 128Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 10m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 64Mi
+
+  # Edge cases
+  - it: should handle different release revisions correctly
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    release:
+      revision: 42
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb-migration-cleanup-42
+
+  - it: should work with custom release name
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      fullnameOverride: custom-spicedb
+    release:
+      name: my-release
+      revision: 1
+    asserts:
+      - equal:
+          path: metadata.name
+          value: custom-spicedb-migration-cleanup-1
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: custom-spicedb-migration-cleanup

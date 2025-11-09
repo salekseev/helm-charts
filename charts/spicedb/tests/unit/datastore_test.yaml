@@ -1,0 +1,141 @@
+suite: test datastore connection string generation
+templates:
+  - secret.yaml
+tests:
+  # Test PostgreSQL connection string generation
+  - it: should generate PostgreSQL connection string with minimal parameters
+    set:
+      config.datastoreEngine: postgres
+      config.datastore.hostname: postgres.example.com
+      config.datastore.port: 5432
+      config.datastore.username: testuser
+      config.datastore.password: testpass
+      config.datastore.database: testdb
+      config.datastore.sslMode: disable
+    asserts:
+      - equal:
+          path: data["datastore-uri"]
+          # Expected: postgresql://testuser:testpass@postgres.example.com:5432/testdb?sslmode=disable
+          value: cG9zdGdyZXNxbDovL3Rlc3R1c2VyOnRlc3RwYXNzQHBvc3RncmVzLmV4YW1wbGUuY29tOjU0MzIvdGVzdGRiP3NzbG1vZGU9ZGlzYWJsZQ==
+
+  - it: should generate PostgreSQL connection string with SSL parameters
+    set:
+      config.datastoreEngine: postgres
+      config.datastore.hostname: postgres.example.com
+      config.datastore.port: 5432
+      config.datastore.username: testuser
+      config.datastore.password: testpass
+      config.datastore.database: testdb
+      config.datastore.sslMode: verify-full
+      config.datastore.sslRootCert: /certs/ca.crt
+      config.datastore.sslCert: /certs/client.crt
+      config.datastore.sslKey: /certs/client.key
+    asserts:
+      - isNotEmpty:
+          path: data["datastore-uri"]
+      # Verify it's base64 encoded and contains expected SSL params
+      - matchRegex:
+          path: data["datastore-uri"]
+          pattern: ^[A-Za-z0-9+/=]+$
+
+  - it: should generate CockroachDB connection string with default SSL mode
+    set:
+      config.datastoreEngine: cockroachdb
+      config.datastore.hostname: cockroachdb.example.com
+      config.datastore.port: 26257
+      config.datastore.username: spicedb
+      config.datastore.password: secretpass
+      config.datastore.database: spicedb
+      config.datastore.sslMode: verify-full
+    asserts:
+      - isNotEmpty:
+          path: data["datastore-uri"]
+      - matchRegex:
+          path: data["datastore-uri"]
+          pattern: ^[A-Za-z0-9+/=]+$
+
+  - it: should use explicit datastoreURI when provided
+    set:
+      config.datastoreEngine: postgres
+      config.datastoreURI: postgresql://custom:uri@custom.host:5432/customdb
+      config.datastore.hostname: ignored.host
+      config.datastore.username: ignored
+    asserts:
+      - equal:
+          path: data["datastore-uri"]
+          # Base64 of postgresql://custom:uri@custom.host:5432/customdb
+          value: cG9zdGdyZXNxbDovL2N1c3RvbTp1cmlAY3VzdG9tLmhvc3Q6NTQzMi9jdXN0b21kYg==
+
+  - it: should not create secret for memory datastore
+    set:
+      config.datastoreEngine: memory
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not create secret when existingSecret is provided
+    set:
+      config.datastoreEngine: postgres
+      config.existingSecret: my-external-secret
+      config.datastore.hostname: postgres.example.com
+      config.datastore.username: testuser
+      config.datastore.password: testpass
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # Test URL encoding of special characters in passwords
+  - it: should handle special characters in password
+    set:
+      config.datastoreEngine: postgres
+      config.datastore.hostname: postgres.example.com
+      config.datastore.port: 5432
+      config.datastore.username: testuser
+      config.datastore.password: "pass@word!123"
+      config.datastore.database: testdb
+      config.datastore.sslMode: disable
+    asserts:
+      - isNotEmpty:
+          path: data["datastore-uri"]
+
+  # Test that preshared key is still generated for postgres/cockroachdb
+  - it: should still generate preshared key for postgres datastore
+    set:
+      config.datastoreEngine: postgres
+      config.datastore.hostname: postgres.example.com
+      config.datastore.username: testuser
+      config.datastore.password: testpass
+    asserts:
+      - isNotEmpty:
+          path: data["preshared-key"]
+
+  - it: should still generate preshared key for cockroachdb datastore
+    set:
+      config.datastoreEngine: cockroachdb
+      config.datastore.hostname: cockroachdb.example.com
+      config.datastore.username: testuser
+      config.datastore.password: testpass
+    asserts:
+      - isNotEmpty:
+          path: data["preshared-key"]
+
+  # Test secret metadata
+  - it: should have correct secret name and labels
+    set:
+      config.datastoreEngine: postgres
+      config.datastore.hostname: postgres.example.com
+      config.datastore.username: testuser
+      config.datastore.password: testpass
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: spicedb
+      - equal:
+          path: kind
+          value: Secret
+      - equal:
+          path: type
+          value: Opaque

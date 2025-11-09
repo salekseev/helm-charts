@@ -1,0 +1,151 @@
+{{- if .Values.networkPolicy.enabled }}
+# NetworkPolicy restricts network traffic to and from SpiceDB pods
+# Implements zero-trust security by explicitly allowing only required traffic flows
+# This prevents unauthorized access and limits blast radius in case of compromise
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "spicedb.fullname" . }}
+  labels:
+    {{- include "spicedb.labels" . | nindent 4 }}
+spec:
+  # Apply this policy to SpiceDB pods using selector labels
+  podSelector:
+    matchLabels:
+      {{- include "spicedb.selectorLabels" . | nindent 6 }}
+
+  # Define policy types for both ingress and egress traffic
+  policyTypes:
+  - Ingress
+  - Egress
+
+  # Ingress rules: define allowed incoming traffic to SpiceDB pods
+  ingress:
+  # Allow gRPC traffic (port 50051) from ingress controller
+  # This enables external clients to access the SpiceDB API
+  - ports:
+    - protocol: TCP
+      port: 50051
+    {{- if .Values.networkPolicy.ingressControllerNamespaceSelector }}
+    from:
+    - namespaceSelector:
+        {{- toYaml .Values.networkPolicy.ingressControllerNamespaceSelector | nindent 8 }}
+    {{- end }}
+
+  # Allow HTTP traffic (port 8443) from ingress controller
+  # This enables external access to the dashboard and metrics endpoints
+  - ports:
+    - protocol: TCP
+      port: 8443
+    {{- if .Values.networkPolicy.ingressControllerNamespaceSelector }}
+    from:
+    - namespaceSelector:
+        {{- toYaml .Values.networkPolicy.ingressControllerNamespaceSelector | nindent 8 }}
+    {{- end }}
+
+  {{- if .Values.dispatch.enabled }}
+  # Allow dispatch cluster communication (port 50053) between SpiceDB pods
+  # This enables distributed permission checking across the cluster
+  # Only allows traffic from pods with matching SpiceDB selector labels
+  - ports:
+    - protocol: TCP
+      port: 50053
+    from:
+    - podSelector:
+        matchLabels:
+          {{- include "spicedb.selectorLabels" . | nindent 10 }}
+  {{- end }}
+
+  # Allow metrics scraping (port 9090) from Prometheus
+  # This enables monitoring of SpiceDB performance and health
+  - ports:
+    - protocol: TCP
+      port: 9090
+    {{- if .Values.networkPolicy.prometheusNamespaceSelector }}
+    from:
+    - namespaceSelector:
+        {{- toYaml .Values.networkPolicy.prometheusNamespaceSelector | nindent 8 }}
+    {{- end }}
+
+  {{- if .Values.networkPolicy.ingress }}
+  # Custom ingress rules for additional traffic patterns
+  # These rules are merged with the default rules above
+  {{- range .Values.networkPolicy.ingress }}
+  - {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- end }}
+
+  # Egress rules: define allowed outgoing traffic from SpiceDB pods
+  egress:
+  # Allow DNS resolution for service discovery
+  # Required for Kubernetes DNS-based service discovery
+  - ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+
+  # Allow Kubernetes API server access
+  # Required for service discovery and cluster operations
+  - ports:
+    - protocol: TCP
+      port: 443
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: default
+      podSelector:
+        matchLabels:
+          component: apiserver
+
+  # Allow database connections
+  # This enables SpiceDB to connect to its datastore backend
+  {{- if .Values.networkPolicy.databaseEgress }}
+  # Custom database egress configuration
+  - {{- toYaml .Values.networkPolicy.databaseEgress | nindent 4 }}
+  {{- else if ne .Values.config.datastoreEngine "memory" }}
+  # Default database egress based on datastore engine
+  # Automatically configures the correct port based on datastoreEngine
+  {{- $port := 5432 }}
+  {{- if eq .Values.config.datastoreEngine "cockroachdb" }}
+  {{- $port = 26257 }}
+  {{- end }}
+  {{- if .Values.config.datastore.port }}
+  {{- $port = .Values.config.datastore.port }}
+  {{- end }}
+  - ports:
+    - protocol: TCP
+      port: {{ $port }}
+    to:
+    # Allow to any namespace by default
+    # Override with networkPolicy.databaseEgress for tighter restrictions
+    - namespaceSelector: {}
+  {{- end }}
+
+  {{- if .Values.dispatch.enabled }}
+  # Allow dispatch cluster communication to other SpiceDB pods
+  # This enables distributed permission checking across the cluster
+  - ports:
+    - protocol: TCP
+      port: 50053
+    to:
+    - podSelector:
+        matchLabels:
+          {{- include "spicedb.selectorLabels" . | nindent 10 }}
+  {{- end }}
+
+  {{- if .Values.networkPolicy.egress }}
+  # Custom egress rules for additional traffic patterns
+  # These rules are merged with the default rules above
+  {{- range .Values.networkPolicy.egress }}
+  - {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- end }}
+{{- end }}

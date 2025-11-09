@@ -1,0 +1,39 @@
+# Example: Traefik Ingress Controller with gRPC
+# This example demonstrates:
+# - Traefik-specific annotations and configuration
+# - gRPC protocol support in Traefik
+# - Multiple entrypoints and TLS configuration
+
+ingress:
+  enabled: true
+  className: traefik
+
+  # Traefik-specific annotations
+  annotations:
+    # Use websecure entrypoint (HTTPS)
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    # Enable TLS
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    # Optional: Enable gRPC protocol
+    traefik.ingress.kubernetes.io/service.serversscheme: h2c
+    # cert-manager integration
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+  hosts:
+    - host: spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: grpc
+
+    - host: metrics.spicedb.example.com
+      paths:
+        - path: /metrics
+          pathType: Prefix
+          servicePort: metrics
+
+  tls:
+    - secretName: spicedb-tls
+      hosts:
+        - spicedb.example.com
+        - metrics.spicedb.example.com

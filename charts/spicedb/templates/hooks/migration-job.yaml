@@ -1,0 +1,113 @@
+{{- if and .Values.migrations.enabled (ne .Values.config.datastoreEngine "memory") -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "spicedb.fullname" . }}-migration
+  labels:
+    {{- include "spicedb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    # Run this job before install and upgrade operations
+    helm.sh/hook: pre-install,pre-upgrade
+    # Set hook weight to ensure proper ordering (lower weights run first)
+    helm.sh/hook-weight: "0"
+    # Delete the previous job before creating a new one
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  # Retry failed migrations up to 3 times with exponential backoff
+  backoffLimit: 3
+  # Timeout the entire job after 10 minutes to prevent hung migrations
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      name: {{ include "spicedb.fullname" . }}-migration
+      labels:
+        {{- include "spicedb.labels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      # Restart the pod on failure to trigger retry attempts
+      restartPolicy: OnFailure
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: migration
+        {{- with .Values.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        # Command: spicedb migrate [target|head] [--phase=<phase>]
+        # Default: migrate to latest (head)
+        # With targetMigration: migrate to specific version
+        # With targetPhase: migrate head to specific phase only
+        command:
+        {{- if .Values.migrations.targetMigration }}
+        - spicedb
+        - migrate
+        - {{ .Values.migrations.targetMigration | quote }}
+        {{- if .Values.migrations.targetPhase }}
+        - --phase={{ .Values.migrations.targetPhase }}
+        {{- end }}
+        {{- else if .Values.migrations.targetPhase }}
+        - spicedb
+        - migrate
+        - head
+        - --phase={{ .Values.migrations.targetPhase }}
+        {{- else }}
+        - spicedb
+        - migrate
+        - head
+        {{- end }}
+        env:
+        # Datastore engine - must match deployment configuration
+        - name: SPICEDB_DATASTORE_ENGINE
+          value: {{ .Values.config.datastoreEngine }}
+        # Logging configuration for migrations
+        # SPICEDB_LOG_LEVEL controls verbosity: debug, info, warn, error
+        - name: SPICEDB_LOG_LEVEL
+          value: {{ .Values.migrations.logLevel }}
+        # SPICEDB_LOG_FORMAT controls output format: json (structured), console (human-readable)
+        - name: SPICEDB_LOG_FORMAT
+          value: {{ .Values.logging.format }}
+        {{- if ne .Values.config.datastoreEngine "memory" }}
+        # Datastore connection URI - inherited from deployment secret
+        # Memory datastore doesn't need connection credentials
+        - name: SPICEDB_DATASTORE_CONN_URI
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.config.existingSecret | default (include "spicedb.fullname" .) }}
+              key: datastore-uri
+        {{- end }}
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        {{- if and .Values.tls.enabled .Values.tls.datastore.secretName }}
+        # Mount datastore TLS certificates for securing database connections during migration
+        - name: tls-datastore-certs
+          mountPath: /etc/spicedb/tls/datastore
+          readOnly: true
+        {{- end }}
+        {{- with .Values.migrations.resources }}
+        # Resource limits for migration job (may differ from deployment)
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      {{- if and .Values.tls.enabled .Values.tls.datastore.secretName }}
+      # Volume for datastore TLS certificates
+      # Mounts the Kubernetes secret containing CA cert and optional client cert/key
+      - name: tls-datastore-certs
+        secret:
+          secretName: {{ .Values.tls.datastore.secretName }}
+          defaultMode: 0400
+      {{- end }}
+{{- end }}

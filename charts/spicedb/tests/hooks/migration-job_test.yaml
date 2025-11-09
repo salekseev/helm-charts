@@ -1,0 +1,425 @@
+suite: test migration job
+templates:
+  - hooks/migration-job.yaml
+tests:
+  # Basic rendering tests
+  - it: should create migration job when migrations enabled
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      config.datastore.hostname: postgres.example.com
+      config.datastore.username: testuser
+      config.datastore.password: testpass
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Job
+      - equal:
+          path: apiVersion
+          value: batch/v1
+
+  - it: should NOT create migration job when migrations disabled
+    set:
+      migrations.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should NOT create migration job when using memory datastore
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: memory
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # Metadata tests
+  - it: should have correct metadata name and labels
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb-migration
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: spicedb
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: migration
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+
+  # Hook annotations tests
+  - it: should have correct hook annotations
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-install,pre-upgrade
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "0"
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation
+
+  # Job spec tests
+  - it: should have correct job spec configuration
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: spec.backoffLimit
+          value: 3
+      - equal:
+          path: spec.activeDeadlineSeconds
+          value: 600
+      - equal:
+          path: spec.template.spec.restartPolicy
+          value: OnFailure
+
+  # Pod template metadata tests
+  - it: should have correct pod template labels
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: spec.template.metadata.name
+          value: RELEASE-NAME-spicedb-migration
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: migration
+
+  # Image configuration tests
+  - it: should use default image repository and tag
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: ^authzed/spicedb:v
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: IfNotPresent
+
+  - it: should use custom image repository and tag
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      image.repository: custom/spicedb
+      image.tag: custom-tag
+      image.pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: custom/spicedb:custom-tag
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+
+  # Image pull secrets tests
+  - it: should not set imagePullSecrets by default
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - isNull:
+          path: spec.template.spec.imagePullSecrets
+
+  - it: should set imagePullSecrets when provided
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      imagePullSecrets:
+        - name: my-registry-secret
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets
+          value:
+            - name: my-registry-secret
+
+  # Default command tests
+  - it: should use default migrate head command
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - spicedb
+            - migrate
+            - head
+
+  # Command with targetMigration tests
+  - it: should use targetMigration in command when set
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      migrations.targetMigration: "2024-01-15T10:00:00Z"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - spicedb
+            - migrate
+            - "2024-01-15T10:00:00Z"
+
+  - it: should use targetMigration with targetPhase when both set
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      migrations.targetMigration: "2024-01-15T10:00:00Z"
+      migrations.targetPhase: write
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - spicedb
+            - migrate
+            - "2024-01-15T10:00:00Z"
+            - --phase=write
+
+  # Command with targetPhase tests
+  - it: should use head with targetPhase when only targetPhase set
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      migrations.targetPhase: complete
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - spicedb
+            - migrate
+            - head
+            - --phase=complete
+
+  # Environment variables tests - datastore engine
+  - it: should set datastore engine environment variable for postgres
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      config.datastore.hostname: postgres.example.com
+      config.datastore.username: testuser
+      config.datastore.password: testpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_ENGINE
+            value: postgres
+
+  - it: should set datastore engine environment variable for cockroachdb
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: cockroachdb
+      config.datastore.hostname: cockroach.example.com
+      config.datastore.username: spicedb
+      config.datastore.password: secretpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_ENGINE
+            value: cockroachdb
+
+  # Environment variables tests - log level
+  - it: should set log level from migrations.logLevel
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      migrations.logLevel: debug
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_LOG_LEVEL
+            value: debug
+
+  - it: should use default info log level when not specified
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_LOG_LEVEL
+            value: info
+
+  # Environment variables tests - connection URI
+  - it: should set connection URI from default secret for postgres
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      config.datastore.hostname: postgres.example.com
+      config.datastore.username: testuser
+      config.datastore.password: testpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_CONN_URI
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-spicedb
+                key: datastore-uri
+
+  - it: should set connection URI from default secret for cockroachdb
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: cockroachdb
+      config.datastore.hostname: cockroach.example.com
+      config.datastore.username: spicedb
+      config.datastore.password: secretpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_CONN_URI
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-spicedb
+                key: datastore-uri
+
+  - it: should use existingSecret when provided
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      config.existingSecret: my-external-secret
+      config.datastore.hostname: postgres.example.com
+      config.datastore.username: testuser
+      config.datastore.password: testpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_CONN_URI
+            valueFrom:
+              secretKeyRef:
+                name: my-external-secret
+                key: datastore-uri
+
+  - it: should NOT set connection URI for memory datastore
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: memory
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_CONN_URI
+
+  # Resources tests
+  - it: should not set resources by default
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].resources
+
+  - it: should set resource limits when migrations.resources provided
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      migrations.resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 128Mi
+
+  # Container name test
+  - it: should have correct container name
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: migration
+
+  # Edge cases and complex scenarios
+  - it: should handle all migration features together
+    set:
+      migrations.enabled: true
+      config.datastoreEngine: postgres
+      migrations.targetMigration: "2024-02-01T00:00:00Z"
+      migrations.targetPhase: write
+      migrations.logLevel: debug
+      migrations.resources:
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+        requests:
+          cpu: 200m
+          memory: 256Mi
+      config.existingSecret: custom-secret
+      config.datastore.hostname: postgres.example.com
+      config.datastore.username: testuser
+      config.datastore.password: testpass
+      image.repository: custom/spicedb
+      image.tag: v1.30.0
+      image.pullPolicy: Always
+      imagePullSecrets:
+        - name: my-secret
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - spicedb
+            - migrate
+            - "2024-02-01T00:00:00Z"
+            - --phase=write
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_LOG_LEVEL
+            value: debug
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_ENGINE
+            value: postgres
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_CONN_URI
+            valueFrom:
+              secretKeyRef:
+                name: custom-secret
+                key: datastore-uri
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: custom/spicedb:v1.30.0
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 1000m
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: my-secret

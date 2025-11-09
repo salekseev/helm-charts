@@ -1,0 +1,472 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SpiceDB Helm Chart Values",
+  "description": "Schema for validating SpiceDB Helm chart values.yaml",
+  "type": "object",
+  "required": ["replicaCount", "image", "config"],
+  "properties": {
+    "replicaCount": {
+      "type": "integer",
+      "description": "Number of SpiceDB replicas to deploy",
+      "minimum": 1,
+      "default": 1
+    },
+    "image": {
+      "type": "object",
+      "description": "Container image configuration",
+      "required": ["repository", "pullPolicy"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "SpiceDB container image repository",
+          "default": "authzed/spicedb",
+          "minLength": 1
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"],
+          "default": "IfNotPresent"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Overrides the image tag whose default is the chart appVersion",
+          "default": ""
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "default": []
+    },
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name",
+      "default": ""
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the fully qualified app name",
+      "default": ""
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Specifies whether a service account should be created",
+          "default": true
+        },
+        "automount": {
+          "type": "boolean",
+          "description": "Automatically mount a ServiceAccount's API credentials",
+          "default": true
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations to add to the service account",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the service account to use. If not set and create is true, a name is generated using the fullname template",
+          "default": ""
+        }
+      }
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Annotations to add to the pods",
+      "additionalProperties": true,
+      "default": {}
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Labels to add to the pods",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {}
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Security context for the pod",
+      "properties": {
+        "fsGroup": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runAsNonRoot": {
+          "type": "boolean"
+        },
+        "runAsUser": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runAsGroup": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["RuntimeDefault", "Unconfined", "Localhost"]
+            }
+          }
+        }
+      },
+      "default": {}
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Security context for the container",
+      "properties": {
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "add": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "readOnlyRootFilesystem": {
+          "type": "boolean"
+        },
+        "runAsNonRoot": {
+          "type": "boolean"
+        },
+        "runAsUser": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "allowPrivilegeEscalation": {
+          "type": "boolean"
+        }
+      },
+      "default": {}
+    },
+    "service": {
+      "type": "object",
+      "description": "Service configuration",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Kubernetes service type",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer", "ExternalName"],
+          "default": "ClusterIP"
+        },
+        "grpcPort": {
+          "type": "integer",
+          "description": "gRPC service port",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 50051
+        },
+        "httpPort": {
+          "type": "integer",
+          "description": "HTTP gateway port",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 8443
+        },
+        "metricsPort": {
+          "type": "integer",
+          "description": "Metrics/Prometheus port",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 9090
+        },
+        "dispatchPort": {
+          "type": "integer",
+          "description": "Dispatch cluster communication port",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 50053
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "Container resource requests and limits",
+      "properties": {
+        "limits": {
+          "type": "object",
+          "description": "Resource limits",
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "pattern": "^[0-9]+m?$"
+            },
+            "memory": {
+              "type": "string",
+              "pattern": "^[0-9]+(Mi|Gi)$"
+            }
+          }
+        },
+        "requests": {
+          "type": "object",
+          "description": "Resource requests",
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "pattern": "^[0-9]+m?$"
+            },
+            "memory": {
+              "type": "string",
+              "pattern": "^[0-9]+(Mi|Gi)$"
+            }
+          }
+        }
+      },
+      "default": {}
+    },
+    "config": {
+      "type": "object",
+      "description": "SpiceDB configuration",
+      "required": ["datastoreEngine"],
+      "properties": {
+        "datastoreEngine": {
+          "type": "string",
+          "description": "Datastore engine to use",
+          "enum": ["memory", "postgres", "cockroachdb"],
+          "default": "memory"
+        }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "description": "Logging configuration for SpiceDB and migration jobs",
+      "required": ["level", "format"],
+      "properties": {
+        "level": {
+          "type": "string",
+          "description": "Log verbosity level",
+          "enum": ["debug", "info", "warn", "error"],
+          "default": "info"
+        },
+        "format": {
+          "type": "string",
+          "description": "Log output format",
+          "enum": ["json", "console"],
+          "default": "json"
+        }
+      }
+    },
+    "dispatch": {
+      "type": "object",
+      "description": "Dispatch cluster mode configuration for distributed permission checking",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable dispatch cluster mode for distributed permission checking",
+          "default": false
+        },
+        "upstreamCASecretName": {
+          "type": "string",
+          "description": "Name of Kubernetes secret containing custom CA certificate for upstream dispatch connections",
+          "default": ""
+        },
+        "upstreamCAPath": {
+          "type": "string",
+          "description": "Path where the upstream CA certificate will be mounted in the container",
+          "default": "/etc/dispatch-ca/ca.crt"
+        },
+        "clusterName": {
+          "type": "string",
+          "description": "Cluster name for identifying this SpiceDB cluster in logs and metrics",
+          "default": ""
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration for exposing SpiceDB to external traffic",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress resource creation",
+          "default": false
+        },
+        "className": {
+          "type": "string",
+          "description": "IngressClass name for selecting the ingress controller (nginx, contour, traefik, etc.)",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for controller-specific configuration",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "hosts": {
+          "type": "array",
+          "description": "List of ingress hosts with paths and service configurations",
+          "items": {
+            "type": "object",
+            "required": ["host", "paths"],
+            "properties": {
+              "host": {
+                "type": "string",
+                "description": "Hostname for the ingress rule",
+                "minLength": 1
+              },
+              "paths": {
+                "type": "array",
+                "description": "List of paths for this host",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["path"],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to match (e.g., /, /api)",
+                      "minLength": 1
+                    },
+                    "pathType": {
+                      "type": "string",
+                      "description": "Path matching type",
+                      "enum": ["Exact", "Prefix", "ImplementationSpecific"],
+                      "default": "Prefix"
+                    },
+                    "servicePort": {
+                      "description": "Target service port (name or number)",
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "enum": ["grpc", "http", "metrics", "dispatch"]
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 65535
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": []
+        },
+        "tls": {
+          "type": "array",
+          "description": "TLS configuration for HTTPS",
+          "items": {
+            "type": "object",
+            "properties": {
+              "secretName": {
+                "type": "string",
+                "description": "Name of the secret containing TLS certificate"
+              },
+              "hosts": {
+                "type": "array",
+                "description": "List of hosts covered by the TLS certificate",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": []
+        }
+      }
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod assignment",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {}
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod assignment",
+      "items": {
+        "type": "object"
+      },
+      "default": []
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod assignment",
+      "default": {}
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "NetworkPolicy configuration for network isolation and zero-trust security",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable NetworkPolicy for network isolation. Requires a network plugin that supports NetworkPolicy (Calico, Cilium, etc.)",
+          "default": false
+        },
+        "ingressControllerNamespaceSelector": {
+          "type": "object",
+          "description": "Namespace selector for ingress controller to allow traffic to gRPC and HTTP ports",
+          "additionalProperties": true,
+          "default": {}
+        },
+        "prometheusNamespaceSelector": {
+          "type": "object",
+          "description": "Namespace selector for Prometheus to allow traffic to metrics port",
+          "additionalProperties": true,
+          "default": {}
+        },
+        "databaseEgress": {
+          "type": "object",
+          "description": "Database egress configuration for outbound traffic to database",
+          "additionalProperties": true,
+          "default": {}
+        },
+        "ingress": {
+          "type": "array",
+          "description": "Custom ingress rules for additional traffic patterns",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "default": []
+        },
+        "egress": {
+          "type": "array",
+          "description": "Custom egress rules for additional outbound traffic",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "default": []
+        }
+      }
+    }
+  }
+}

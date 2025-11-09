@@ -1,0 +1,146 @@
+# Production PostgreSQL Configuration for SpiceDB
+# This example demonstrates a production-ready deployment with PostgreSQL as the datastore
+#
+# Prerequisites:
+# - PostgreSQL database server accessible from the cluster
+# - Database and user created with appropriate permissions
+# - SSL/TLS certificates if using sslMode: require or verify-full
+#
+# Usage:
+#   helm install spicedb ./charts/spicedb -f examples/production-postgres.yaml
+
+# High availability configuration with 3 replicas
+replicaCount: 3
+
+image:
+  repository: authzed/spicedb
+  pullPolicy: IfNotPresent
+  # Use a specific stable version in production
+  tag: "v1.39.0"
+
+# PostgreSQL datastore configuration
+config:
+  # Set datastore engine to PostgreSQL
+  datastoreEngine: postgres
+
+  # Log level for production monitoring
+  logLevel: info
+
+  # If using an external secret (recommended for production), uncomment:
+  # existingSecret: "spicedb-postgres-credentials"
+
+  # Datastore connection parameters
+  datastore:
+    # PostgreSQL server hostname (use service name for in-cluster PostgreSQL)
+    hostname: "postgres.database.svc.cluster.local"
+
+    # PostgreSQL default port
+    port: 5432
+
+    # Database username
+    username: "spicedb"
+
+    # Database password (only if not using existingSecret)
+    # In production, prefer using existingSecret instead
+    password: "CHANGE_ME_INSECURE"
+
+    # Database name
+    database: "spicedb_production"
+
+    # SSL mode for encrypted connections
+    # Options: disable, allow, prefer, require, verify-ca, verify-full
+    # Use 'require' or higher for production
+    sslMode: "require"
+
+    # Optional: SSL certificate paths (mounted as volumes)
+    # Uncomment if using verify-ca or verify-full SSL mode
+    # sslRootCert: "/etc/spicedb/ssl/ca.crt"
+    # sslCert: "/etc/spicedb/ssl/client.crt"
+    # sslKey: "/etc/spicedb/ssl/client.key"
+
+# Production resource limits
+# Adjust based on your workload requirements
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+# Security context for container
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+    - ALL
+
+# Pod security context
+podSecurityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+# Pod disruption budget for high availability
+# Ensures at least 2 pods are always available during updates
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Horizontal Pod Autoscaler (optional)
+# Uncomment to enable automatic scaling based on CPU/memory
+# autoscaling:
+#   enabled: true
+#   minReplicas: 3
+#   maxReplicas: 10
+#   targetCPUUtilizationPercentage: 80
+#   targetMemoryUtilizationPercentage: 80
+
+# Node selector for scheduling pods on specific nodes
+# Uncomment and adjust as needed
+# nodeSelector:
+#   workload-type: spicedb
+
+# Tolerations for pod scheduling
+# Uncomment if using dedicated nodes with taints
+# tolerations:
+# - key: "dedicated"
+#   operator: "Equal"
+#   value: "spicedb"
+#   effect: "NoSchedule"
+
+# Anti-affinity rules to spread pods across nodes
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - spicedb
+        topologyKey: kubernetes.io/hostname
+
+# Service configuration
+service:
+  type: ClusterIP
+  grpcPort: 50051
+  httpPort: 8443
+  metricsPort: 9090
+  dispatchPort: 50053
+
+# Pod annotations for monitoring integration
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+# Labels for organization
+podLabels:
+  environment: production
+  team: platform

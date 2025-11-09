@@ -1,0 +1,101 @@
+{{- if and .Values.migrations.enabled (ne .Values.config.datastoreEngine "memory") -}}
+{{- if ((.Values.migrations.cleanup).enabled | default true) -}}
+---
+# Migration Cleanup Job
+# This job runs after successful install/upgrade operations to clean up completed migration jobs
+# It uses kubectl to delete jobs that have successfully completed, keeping the cluster tidy
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "spicedb.fullname" . }}-migration-cleanup-{{ .Release.Revision }}
+  labels:
+    {{- include "spicedb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration-cleanup
+  annotations:
+    # Run this job after install and upgrade operations complete
+    helm.sh/hook: post-install,post-upgrade
+    # Set hook weight to run after migration job (weight 0) completes
+    # Higher weights run later in the lifecycle
+    helm.sh/hook-weight: "5"
+    # Delete this cleanup job after it completes (success or failure)
+    # This prevents accumulation of cleanup jobs and ensures install/upgrade isn't blocked
+    helm.sh/hook-delete-policy: hook-succeeded,hook-failed
+spec:
+  # Retry failed cleanup attempts up to 2 times
+  # Failures might occur if RBAC permissions aren't ready yet
+  backoffLimit: 2
+
+  # Give the cleanup job 5 minutes to complete
+  # This allows time for image pull and kubectl operations
+  activeDeadlineSeconds: 300
+
+  template:
+    metadata:
+      name: {{ include "spicedb.fullname" . }}-migration-cleanup
+      labels:
+        {{- include "spicedb.labels" . | nindent 8 }}
+        app.kubernetes.io/component: migration-cleanup
+    spec:
+      # Don't restart the pod on failure - let the Job's backoffLimit handle retries
+      restartPolicy: OnFailure
+
+      # Use the ServiceAccount created by migration-cleanup-rbac.yaml
+      # This account has permissions to list and delete jobs in this namespace
+      serviceAccountName: {{ include "spicedb.fullname" . }}-migration-cleanup
+
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      containers:
+      - name: cleanup
+        {{- with .Values.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        # Use Bitnami kubectl image which includes full shell support
+        # Bitnami images are well-maintained, security-scanned, and production-ready
+        # registry.k8s.io/kubectl uses distroless base with no shell support
+        # Using specific Debian-based tag for reliability
+        image: alpine/kubectl:1.34.1
+        imagePullPolicy: IfNotPresent
+
+        command:
+        - /bin/sh
+        - -c
+        - |
+          # Wait briefly for migration job to fully complete and register success
+          sleep 10
+
+          # Delete completed migration jobs using label selectors
+          # This targets jobs with:
+          #   - app.kubernetes.io/name matching the chart name
+          #   - app.kubernetes.io/component=migration
+          #   - status.successful=1 (completed successfully)
+          echo "Cleaning up completed migration jobs..."
+          kubectl delete jobs \
+            -l app.kubernetes.io/name={{ include "spicedb.name" . }},app.kubernetes.io/component=migration \
+            --field-selector status.successful=1 \
+            --ignore-not-found=true
+
+          echo "Cleanup complete"
+
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+
+        # Set resource limits to keep cleanup job lightweight
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+
+      volumes:
+      - name: tmp
+        emptyDir: {}
+{{- end }}
+{{- end }}

@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spicedb-non-compliant
+  labels:
+    app: spicedb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spicedb
+  template:
+    metadata:
+      labels:
+        app: spicedb
+    spec:
+      containers:
+      - name: spicedb
+        # Violation: using :latest tag
+        image: authzed/spicedb:latest
+        # Violation: privileged mode
+        securityContext:
+          privileged: true
+        # Violation: no resource limits or requests
+        ports:
+        - containerPort: 50051
+          name: grpc
+        # Violation: no liveness or readiness probes

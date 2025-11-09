@@ -1,0 +1,91 @@
+# Example: Multi-host Ingress with Multiple TLS Configurations
+# This example demonstrates:
+# - Multiple hosts with dedicated purposes (API, metrics, dispatch)
+# - Multiple paths per host routing to different service ports
+# - Separate TLS certificates for different host groups
+# - NGINX Ingress Controller with gRPC support
+# - cert-manager integration for automated certificate management
+
+ingress:
+  enabled: true
+  className: nginx
+
+  # Annotations for NGINX gRPC support and automated TLS
+  annotations:
+    # Enable gRPC protocol for backend communication
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/grpc-backend: "true"
+    # Redirect HTTP to HTTPS
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # cert-manager will automatically create and renew TLS certificates
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+  # Multiple hosts configuration
+  hosts:
+    # Primary gRPC API endpoint
+    - host: grpc.spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: grpc  # Port 50051
+
+    # Dedicated API endpoint with versioned paths
+    - host: api.spicedb.example.com
+      paths:
+        - path: /v1/permissions
+          pathType: Prefix
+          servicePort: grpc
+        - path: /v1/schema
+          pathType: Prefix
+          servicePort: grpc
+        - path: /v1/watch
+          pathType: Prefix
+          servicePort: grpc
+
+    # Monitoring and observability endpoints
+    - host: metrics.spicedb.example.com
+      paths:
+        # Exact match for Prometheus metrics endpoint
+        - path: /metrics
+          pathType: Exact
+          servicePort: metrics  # Port 9090
+        # Health check and dashboard on HTTP port
+        - path: /health
+          pathType: Prefix
+          servicePort: http  # Port 8443
+        - path: /dashboard
+          pathType: Prefix
+          servicePort: http
+
+    # Dedicated dispatch endpoint for cluster communication
+    - host: dispatch.spicedb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: dispatch  # Port 50053
+
+  # Multiple TLS configurations for different host groups
+  tls:
+    # Primary API hosts share a wildcard certificate
+    - secretName: api-tls-cert
+      hosts:
+        - grpc.spicedb.example.com
+        - api.spicedb.example.com
+
+    # Monitoring hosts use separate certificate
+    - secretName: monitoring-tls-cert
+      hosts:
+        - metrics.spicedb.example.com
+
+    # Dispatch uses its own certificate for isolation
+    - secretName: dispatch-tls-cert
+      hosts:
+        - dispatch.spicedb.example.com
+
+# Enable monitoring to expose metrics endpoint
+monitoring:
+  enabled: true
+
+# Enable dispatch cluster mode
+dispatch:
+  enabled: true

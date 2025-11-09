@@ -1,0 +1,415 @@
+suite: test ingress
+templates:
+  - ingress.yaml
+tests:
+  # Test 1: Ingress disabled by default
+  - it: should not create ingress when disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # Test 2: Basic ingress with single host and path
+  - it: should create ingress with single host and path
+    set:
+      ingress.enabled: true
+      ingress.className: nginx
+      ingress.hosts:
+        - host: spicedb.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+              servicePort: grpc
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: spicedb.example.com
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /
+      - equal:
+          path: spec.rules[0].http.paths[0].pathType
+          value: Prefix
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.name
+          value: grpc
+
+  # Test 3: Multiple hosts with different paths
+  - it: should create ingress with multiple hosts and paths
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: grpc.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+              servicePort: grpc
+        - host: metrics.example.com
+          paths:
+            - path: /metrics
+              pathType: Exact
+              servicePort: metrics
+            - path: /health
+              pathType: Prefix
+              servicePort: http
+    asserts:
+      - hasDocuments:
+          count: 1
+      - lengthEqual:
+          path: spec.rules
+          count: 2
+      - equal:
+          path: spec.rules[0].host
+          value: grpc.example.com
+      - equal:
+          path: spec.rules[1].host
+          value: metrics.example.com
+      - lengthEqual:
+          path: spec.rules[1].http.paths
+          count: 2
+      - equal:
+          path: spec.rules[1].http.paths[0].pathType
+          value: Exact
+      - equal:
+          path: spec.rules[1].http.paths[1].pathType
+          value: Prefix
+
+  # Test 4: Default pathType when not specified
+  - it: should default to Prefix pathType when not specified
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: spicedb.example.com
+          paths:
+            - path: /api
+              servicePort: grpc
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].pathType
+          value: Prefix
+
+  # Test 5: Named service port
+  - it: should use named service port
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: spicedb.example.com
+          paths:
+            - path: /
+              servicePort: grpc
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.name
+          value: grpc
+      - isNull:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+
+  # Test 6: Numeric service port
+  - it: should use numeric service port
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: spicedb.example.com
+          paths:
+            - path: /
+              servicePort: 50051
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 50051
+      - isNull:
+          path: spec.rules[0].http.paths[0].backend.service.port.name
+
+  # Test 7: Default to grpc port when servicePort not specified
+  - it: should default to grpc port when servicePort not specified
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: spicedb.example.com
+          paths:
+            - path: /
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.name
+          value: grpc
+
+  # Test 8: TLS with single host
+  - it: should configure TLS with single host
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: spicedb.example.com
+          paths:
+            - path: /
+              servicePort: grpc
+      ingress.tls:
+        - secretName: spicedb-tls
+          hosts:
+            - spicedb.example.com
+    asserts:
+      - lengthEqual:
+          path: spec.tls
+          count: 1
+      - equal:
+          path: spec.tls[0].secretName
+          value: spicedb-tls
+      - contains:
+          path: spec.tls[0].hosts
+          content: spicedb.example.com
+
+  # Test 9: Multiple TLS configurations for different host groups
+  - it: should support multiple TLS configurations
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: grpc.example.com
+          paths:
+            - path: /
+              servicePort: grpc
+        - host: metrics.example.com
+          paths:
+            - path: /metrics
+              servicePort: metrics
+        - host: admin.example.com
+          paths:
+            - path: /
+              servicePort: http
+      ingress.tls:
+        - secretName: grpc-tls
+          hosts:
+            - grpc.example.com
+        - secretName: monitoring-tls
+          hosts:
+            - metrics.example.com
+            - admin.example.com
+    asserts:
+      - lengthEqual:
+          path: spec.tls
+          count: 2
+      - equal:
+          path: spec.tls[0].secretName
+          value: grpc-tls
+      - lengthEqual:
+          path: spec.tls[0].hosts
+          count: 1
+      - equal:
+          path: spec.tls[1].secretName
+          value: monitoring-tls
+      - lengthEqual:
+          path: spec.tls[1].hosts
+          count: 2
+
+  # Test 10: TLS without secretName (SNI routing)
+  - it: should support TLS without secretName for SNI routing
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: spicedb.example.com
+          paths:
+            - path: /
+              servicePort: grpc
+      ingress.tls:
+        - hosts:
+            - spicedb.example.com
+    asserts:
+      - lengthEqual:
+          path: spec.tls
+          count: 1
+      - isNull:
+          path: spec.tls[0].secretName
+      - contains:
+          path: spec.tls[0].hosts
+          content: spicedb.example.com
+
+  # Test 11: Custom annotations
+  - it: should apply custom annotations
+    set:
+      ingress.enabled: true
+      ingress.annotations:
+        nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      ingress.hosts:
+        - host: spicedb.example.com
+          paths:
+            - path: /
+              servicePort: grpc
+    asserts:
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/backend-protocol"]
+          value: GRPC
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/ssl-redirect"]
+          value: "true"
+      - equal:
+          path: metadata.annotations["cert-manager.io/cluster-issuer"]
+          value: letsencrypt-prod
+
+  # Test 12: NGINX gRPC passthrough annotations
+  - it: should support NGINX gRPC backend protocol annotation
+    set:
+      ingress.enabled: true
+      ingress.className: nginx
+      ingress.annotations:
+        nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+        nginx.ingress.kubernetes.io/grpc-backend: "true"
+      ingress.hosts:
+        - host: grpc.example.com
+          paths:
+            - path: /
+              servicePort: grpc
+    asserts:
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/backend-protocol"]
+          value: GRPC
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/grpc-backend"]
+          value: "true"
+
+  # Test 13: Multiple paths on single host with different services
+  - it: should route different paths to different service ports
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: spicedb.example.com
+          paths:
+            - path: /v1
+              pathType: Prefix
+              servicePort: grpc
+            - path: /metrics
+              pathType: Exact
+              servicePort: metrics
+            - path: /dashboard
+              pathType: Prefix
+              servicePort: http
+    asserts:
+      - lengthEqual:
+          path: spec.rules[0].http.paths
+          count: 3
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.name
+          value: grpc
+      - equal:
+          path: spec.rules[0].http.paths[1].backend.service.port.name
+          value: metrics
+      - equal:
+          path: spec.rules[0].http.paths[2].backend.service.port.name
+          value: http
+
+  # Test 14: ImplementationSpecific pathType
+  - it: should support ImplementationSpecific pathType
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: spicedb.example.com
+          paths:
+            - path: /custom
+              pathType: ImplementationSpecific
+              servicePort: grpc
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].pathType
+          value: ImplementationSpecific
+
+  # Test 15: Labels from common helper
+  - it: should include standard labels
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: spicedb.example.com
+          paths:
+            - path: /
+              servicePort: grpc
+    asserts:
+      - isNotNull:
+          path: metadata.labels["app.kubernetes.io/name"]
+      - isNotNull:
+          path: metadata.labels["app.kubernetes.io/instance"]
+
+  # Test 16: No ingressClassName when not specified
+  - it: should not set ingressClassName when not specified
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: spicedb.example.com
+          paths:
+            - path: /
+              servicePort: grpc
+    asserts:
+      - isNull:
+          path: spec.ingressClassName
+
+  # Test 17: Complex real-world scenario
+  - it: should handle complex multi-host, multi-path, multi-TLS scenario
+    set:
+      ingress.enabled: true
+      ingress.className: nginx
+      ingress.annotations:
+        nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+        cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      ingress.hosts:
+        - host: grpc.spicedb.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+              servicePort: grpc
+        - host: api.spicedb.example.com
+          paths:
+            - path: /v1/permissions
+              pathType: Prefix
+              servicePort: grpc
+            - path: /v1/schema
+              pathType: Prefix
+              servicePort: grpc
+        - host: metrics.spicedb.example.com
+          paths:
+            - path: /metrics
+              pathType: Exact
+              servicePort: 9090
+            - path: /health
+              pathType: Prefix
+              servicePort: http
+        - host: dispatch.spicedb.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+              servicePort: 50053
+      ingress.tls:
+        - secretName: grpc-tls-cert
+          hosts:
+            - grpc.spicedb.example.com
+            - api.spicedb.example.com
+        - secretName: monitoring-tls-cert
+          hosts:
+            - metrics.spicedb.example.com
+        - secretName: dispatch-tls-cert
+          hosts:
+            - dispatch.spicedb.example.com
+    asserts:
+      - hasDocuments:
+          count: 1
+      - lengthEqual:
+          path: spec.rules
+          count: 4
+      - lengthEqual:
+          path: spec.tls
+          count: 3
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: grpc.spicedb.example.com
+      - equal:
+          path: spec.rules[2].host
+          value: metrics.spicedb.example.com
+      - lengthEqual:
+          path: spec.rules[2].http.paths
+          count: 2
+      - equal:
+          path: spec.rules[2].http.paths[0].backend.service.port.number
+          value: 9090

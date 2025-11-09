@@ -1,0 +1,94 @@
+# Test values for NetworkPolicy scenarios
+# This file demonstrates various NetworkPolicy configurations
+
+# Scenario 1: Basic NetworkPolicy with ingress controller
+# Use case: Allow traffic from nginx-ingress controller
+networkPolicy:
+  enabled: true
+  ingressControllerNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: ingress-nginx
+  prometheusNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: monitoring
+
+# Scenario 2: With dispatch enabled (test separately)
+# dispatch:
+#   enabled: true
+# networkPolicy:
+#   enabled: true
+#   ingressControllerNamespaceSelector:
+#     matchLabels:
+#       kubernetes.io/metadata.name: ingress-nginx
+
+# Scenario 3: With PostgreSQL database egress restriction
+# Demonstrates automatic port configuration (5432) based on datastoreEngine
+# config:
+#   datastoreEngine: postgres
+# networkPolicy:
+#   enabled: true
+#   databaseEgress:
+#     ports:
+#     - protocol: TCP
+#       port: 5432
+#     to:
+#     - namespaceSelector:
+#         matchLabels:
+#           kubernetes.io/metadata.name: database
+#       podSelector:
+#         matchLabels:
+#           app: postgresql
+
+# Scenario 4: With CockroachDB database egress restriction
+# Demonstrates automatic port configuration (26257) based on datastoreEngine
+# config:
+#   datastoreEngine: cockroachdb
+#   datastore:
+#     port: null  # Use default for cockroachdb (26257)
+# networkPolicy:
+#   enabled: true
+#   databaseEgress:
+#     ports:
+#     - protocol: TCP
+#       port: 26257
+#     to:
+#     - namespaceSelector:
+#         matchLabels:
+#           kubernetes.io/metadata.name: database
+#       podSelector:
+#         matchLabels:
+#           app.kubernetes.io/name: cockroachdb
+
+# Scenario 5: With custom ingress rules
+# networkPolicy:
+#   enabled: true
+#   ingress:
+#   - from:
+#     - namespaceSelector:
+#         matchLabels:
+#           app: my-app
+#     ports:
+#     - protocol: TCP
+#       port: 50051
+
+# Scenario 6: With custom egress rules
+# networkPolicy:
+#   enabled: true
+#   egress:
+#   - to:
+#     - namespaceSelector:
+#         matchLabels:
+#           app: external-service
+#     ports:
+#     - protocol: TCP
+#       port: 443
+
+# Scenario 7: PostgreSQL with custom port
+# Demonstrates using custom port instead of default
+# config:
+#   datastoreEngine: postgres
+#   datastore:
+#     port: 5433
+# networkPolicy:
+#   enabled: true
+#   # No databaseEgress specified - will auto-configure with custom port 5433
