@@ -53,9 +53,9 @@ repos:
         pass_filenames: false
 
       - id: conftest-policies
-        name: Conftest Policy Validation (optional)
+        name: Conftest Policy Validation
         description: Validates example manifests against OPA policies
-        entry: bash -c 'if command -v conftest &> /dev/null; then cd charts/spicedb && conftest test -p policies/ policies/examples/compliant-deployment.yaml; else echo "conftest not installed, skipping (optional check)"; fi'
+        entry: bash -c 'cd charts/spicedb && conftest test -p policies/ policies/examples/compliant-deployment.yaml'
         language: system
         files: 'charts/spicedb/policies/.*\.rego'
         pass_filenames: false
@@ -73,7 +73,7 @@ default_language_version:
   python: python3
 
 # Run specific hooks
-default_stages: [commit]
+default_stages: [pre-commit]
 
 # Fail fast - stop on first failure
 fail_fast: false
