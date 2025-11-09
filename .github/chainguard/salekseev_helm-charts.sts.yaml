@@ -7,3 +7,16 @@ permissions:
   issues: write
   packages: write
   pull_requests: write
+
+identities:
+  release-please:
+    permissions:
+      contents: write
+      pull_requests: write
+      metadata: read
+
+  chart-publisher:
+    permissions:
+      contents: read
+      packages: write
+      metadata: read
