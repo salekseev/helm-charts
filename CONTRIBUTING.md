@@ -2,6 +2,153 @@
 
 Thank you for your interest in contributing! This document outlines the development workflow and best practices for all charts in this repository.
 
+## Table of Contents
+
+- [Code of Conduct](#code-of-conduct)
+- [Getting Help](#getting-help)
+- [Reporting Issues](#reporting-issues)
+- [Contributing Changes](#contributing-changes)
+- [Development Environment Setup](#development-environment-setup)
+- [Test-Driven Development (TDD) Workflow](#test-driven-development-tdd-workflow)
+- [Development Workflow Commands](#development-workflow-commands)
+- [Code Style and Best Practices](#code-style-and-best-practices)
+- [Submitting Changes](#submitting-changes)
+
+## Code of Conduct
+
+We are committed to providing a welcoming and inclusive environment for all contributors. Please be respectful and constructive in all interactions.
+
+### Expected Behavior
+
+- Be respectful of differing viewpoints and experiences
+- Give and gracefully accept constructive feedback
+- Focus on what is best for the community
+- Show empathy towards other community members
+
+### Unacceptable Behavior
+
+- Harassment, trolling, or derogatory comments
+- Personal or political attacks
+- Publishing others' private information without permission
+- Other conduct which could reasonably be considered inappropriate
+
+If you witness or experience unacceptable behavior, please report it by opening an issue or contacting the maintainers directly.
+
+## Getting Help
+
+Before opening an issue, please check:
+
+- **Documentation**: Review the chart README and guides
+- **Existing Issues**: Search for similar problems or questions
+- **Discussions**: Check [GitHub Discussions](https://github.com/salekseev/helm-charts/discussions) for Q&A
+
+### Where to Ask Questions
+
+- **General Questions**: [GitHub Discussions](https://github.com/salekseev/helm-charts/discussions)
+- **Bug Reports**: [GitHub Issues](https://github.com/salekseev/helm-charts/issues)
+- **Feature Requests**: [GitHub Issues](https://github.com/salekseev/helm-charts/issues)
+
+## Reporting Issues
+
+We value high-quality bug reports and feature requests. Before creating an issue:
+
+### Before You Submit
+
+1. **Search for duplicates**: Check if the issue already exists
+2. **Verify the version**: Ensure you're using a supported chart version
+3. **Check documentation**: Review the relevant chart's README and guides
+
+### Bug Reports
+
+A good bug report should include:
+
+- **Chart name and version**: Which chart and version you're using
+- **Kubernetes version**: Your cluster version (`kubectl version`)
+- **Helm version**: Your Helm version (`helm version`)
+- **Values configuration**: The custom values you're using (sanitize secrets!)
+- **Expected behavior**: What you expected to happen
+- **Actual behavior**: What actually happened
+- **Steps to reproduce**: Clear steps to recreate the issue
+- **Error messages**: Full error messages and relevant logs
+- **Environment details**: Cloud provider, ingress controller, etc.
+
+**Tip**: It may be worthwhile to read [How to Report Bugs Effectively](https://www.chiark.greenend.org.uk/~sgtatham/bugs.html) before creating a bug report.
+
+### Feature Requests
+
+When requesting a feature:
+
+- **Describe the problem**: What problem does this solve?
+- **Proposed solution**: How would you like it to work?
+- **Alternatives considered**: What other solutions did you consider?
+- **Use case**: When would you use this feature?
+
+### Good First Issues
+
+Looking for a place to start? Check issues labeled with:
+- `good first issue` - Great for newcomers
+- `help wanted` - We'd love community contributions
+
+## Contributing Changes
+
+We welcome contributions! Here's the general workflow:
+
+### 1. Discussion First
+
+For significant changes, please open an issue first to discuss:
+- What you plan to change
+- Why the change is needed
+- How you plan to implement it
+
+This helps avoid duplicate work and ensures alignment with project goals.
+
+### 2. Fork and Branch
+
+```bash
+# Fork the repository on GitHub, then clone your fork
+git clone https://github.com/YOUR-USERNAME/helm-charts.git
+cd helm-charts
+
+# Add upstream remote
+git remote add upstream https://github.com/salekseev/helm-charts.git
+
+# Create a feature branch
+git checkout -b feature/your-feature-name
+```
+
+### 3. Make Changes
+
+Follow the [TDD workflow](#test-driven-development-tdd-workflow) and [code style guidelines](#code-style-and-best-practices).
+
+### 4. Test Your Changes
+
+Ensure all tests pass:
+
+```bash
+# Unit tests
+helm unittest charts/<chart-name>
+
+# Lint
+helm lint charts/<chart-name> --strict
+
+# Policy validation
+helm template charts/<chart-name> | conftest test -p charts/<chart-name>/policies/ -
+```
+
+### 5. Commit Your Changes
+
+We follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages. See [Commit Message Format](#commit-message-format) below.
+
+### 6. Submit Pull Request
+
+Push your changes and create a pull request:
+
+```bash
+git push origin feature/your-feature-name
+```
+
+Then open a PR against the `master` branch.
+
 ## Development Environment Setup
 
 ### Prerequisites
@@ -314,7 +461,39 @@ See [.github/workflows/ci.yaml](.github/workflows/ci.yaml) for details.
    git push origin feature/my-feature
    ```
 
-7. **Create Pull Request** against `main` branch
+7. **Create Pull Request** against `master` branch
+
+8. **Respond to review feedback**
+   - Address reviewer comments promptly
+   - Ask questions if feedback is unclear
+   - Push additional commits to address feedback
+
+9. **Squash related commits** (if requested)
+   - Combine work-in-progress commits into logical units
+   - Keep each commit focused on a single concern
+   - Maintain clear commit messages following Conventional Commits
+
+10. **Merge approval**
+    - All CI checks must pass
+    - At least one maintainer approval required
+    - No unresolved review comments
+    - PRs will be merged using merge commits (not squash merge)
+
+### Pull Request Guidelines
+
+**Do:**
+- Keep PRs focused on a single feature or bug fix
+- Write clear PR descriptions explaining the change
+- Update documentation if behavior changes
+- Add tests for new functionality
+- Reference related issues (e.g., "Fixes #123")
+- Ensure all CI checks pass
+
+**Don't:**
+- Submit PRs with unrelated changes
+- Include merge commits in your branch
+- Force push after review has started (unless requested)
+- Add unrelated refactoring to feature PRs
 
 ### Commit Message Format
 
@@ -385,11 +564,6 @@ Our release process is fully automated using [Release Please](https://github.com
    - Release Please handles all version management
 
 This ensures consistent, predictable releases based on semantic versioning.
-
-## Getting Help
-
-- **Issues**: [GitHub Issues](https://github.com/salekseev/helm-charts/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/salekseev/helm-charts/discussions)
 
 ## License
 
