@@ -899,7 +899,7 @@
           "9",
           "11"
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -940,7 +940,7 @@
               3
             ],
             "details": "Chart.yaml updates: Set version to '1.0.0', appVersion to latest stable SpiceDB version (check authzed/spicedb releases), description 'Production-grade Helm chart for SpiceDB with PostgreSQL/CockroachDB support, TLS, HA, and observability', home 'https://github.com/salekseev/helm-charts', sources array with GitHub repository and SpiceDB upstream, maintainers array with name/email, keywords array ['spicedb', 'authorization', 'permissions', 'zanzibar', 'postgres', 'cockroachdb'], annotations for artifacthub.io: category 'integration-delivery', license 'Apache-2.0', operator: false, prerelease: false, containsSecurityUpdates: false, recommendations. Create .helmignore: Exclude .git/, .github/, tests/, policies/, ci/, *.md (except README.md), .taskmaster/, .vscode/, .idea/, *.swp, *.bak, .DS_Store, OWNERS, CODEOWNERS.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify Chart.yaml passes 'helm lint' validation. Validate semver format for version field. Check appVersion matches current SpiceDB stable release. Run 'helm package .' and verify .helmignore excludes correct files (inspect .tgz contents). Validate Artifact Hub annotations against schema."
           },
           {
@@ -951,7 +951,7 @@
               4
             ],
             "details": "LICENSE: Copy Apache License 2.0 full text, update copyright year to 2025, add copyright holder information. CHANGELOG.md: Follow Keep a Changelog format. Add [Unreleased] section placeholder. Add [1.0.0] section with release date. Document Added features: Full SpiceDB support with memory/PostgreSQL/CockroachDB datastores, Migration management with Jobs and optional cleanup, TLS support for gRPC/HTTP/dispatch/datastore endpoints, Dispatch cluster mode with Kubernetes service discovery, High availability with HPA/PDB/anti-affinity/topology spread, Observability with Prometheus ServiceMonitor and structured logging, Security features with NetworkPolicy/RBAC/SecurityContext, External Secrets Operator integration, cert-manager integration for TLS certificate management, Comprehensive examples and documentation. No Changed, Deprecated, Removed, Fixed, or Security sections for initial release.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify LICENSE is byte-for-byte identical to official Apache 2.0 license text. Validate CHANGELOG.md follows Keep a Changelog format. Ensure all major features from Tasks 1-9 are documented in changelog. Review for accuracy and completeness against completed task list."
           },
           {
@@ -962,7 +962,7 @@
               5
             ],
             "details": "Create .github/workflows/release-please.yaml: Configure release-please action with release-type 'helm', bump-minor-pre-major: true for 0.x versions, bump-patch-for-minor-pre-major: true, changelog-sections for feat/fix/docs/chore/refactor conventional commit types, extra-files to update (Chart.yaml for version/appVersion), pull-request-title-pattern 'chore: release ${version}'. Configure to run on push to master branch. Set up release-please-config.json: packages configuration for chart root, component name 'spicedb', include-v-in-tag: false for Helm compatibility, separate-pull-requests: true. Create .release-please-manifest.json with initial version '1.0.0'. Document conventional commit format in CONTRIBUTING.md: feat: (new features, minor bump), fix: (bug fixes, patch bump), BREAKING CHANGE: (major bump), docs:/chore:/refactor: (no version bump). Configure GitHub branch protection requiring conventional commit format in PR titles.\n<info added on 2025-11-09T04:22:28.091Z>\nI need to analyze the codebase first to understand the current structure and any existing GitHub Actions workflows, then provide an accurate update based on the user's request.\n</info added on 2025-11-09T04:22:28.091Z>\n<info added on 2025-11-09T04:23:35.545Z>\nConfiguration files should be moved to .github/ directory following GitHub Actions best practices. Updated structure places release-please-config.json and .release-please-manifest.json in .github/ alongside the workflow file, keeping all release automation configuration centralized. This improves repository organization by grouping GitHub Actions and release automation configuration together rather than scattering files across the repository root.\n</info added on 2025-11-09T04:23:35.545Z>",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Validate GitHub Action workflow syntax with 'actionlint' or GitHub workflow validator. Test workflow locally with 'act' if possible. Verify release-please-config.json and manifest are valid JSON. After first commit with conventional format, verify release-please creates pull request. Check PR updates Chart.yaml version and CHANGELOG.md correctly. Verify release is created when PR is merged."
           },
           {
@@ -981,7 +981,7 @@
             "title": "Create OCI registry publishing workflow triggered by releases",
             "description": "Create GitHub Actions workflow that publishes Helm chart to OCI registry (ghcr.io) when a release is created by release-please, using octo-sts for secure authentication.",
             "details": "Create .github/workflows/publish-chart.yaml workflow that:\n1. Triggers on 'release' event with types: [published]\n2. Uses octo-sts/action@6177b4481c00308b3839969c3eca88c96a91775f for federated token\n3. Sets permissions: id-token: write (for OIDC), contents: read, packages: write\n4. Configures scope: 'salekseev/helm-charts' and identity for chart publishing\n5. Extracts chart version from release tag (e.g., '1.0.0' from tag)\n6. Runs helm package to create .tgz file\n7. Uses helm push to publish to ghcr.io/salekseev/helm-charts/spicedb:${version}\n8. Logs in to ghcr.io using octo-sts token as password\n9. Adds job to verify chart is accessible after publishing\n10. Optionally updates Artifact Hub metadata\n\nThe workflow ensures every release automatically publishes the chart to the OCI registry without manual intervention, using secure federated authentication via octo-sts instead of long-lived tokens.\n<info added on 2025-11-09T04:27:27.883Z>\nI need to analyze the codebase first to understand the current state and verify the implementation mentioned in the user request.Workflow successfully implemented at .github/workflows/publish-chart.yaml with all required features verified. File contains 123 lines implementing the complete OCI registry publishing pipeline. Key validations: octo-sts authentication configured with pinned SHA 6177b4481c00308b3839969c3eca88c96a91775f, correct OIDC permissions (id-token: write, contents: read, packages: write), scope and identity properly set (salekseev/helm-charts, chart-publisher). Version extraction correctly strips 'v' prefix from tags. Chart.yaml version auto-updated via sed before packaging. All workflow steps present: checkout, Helm setup (v3.14.0), octo-sts auth, version extraction, Chart.yaml update, helm package, ghcr.io login with octo-sts token, helm push to oci://ghcr.io/salekseev/helm-charts, registry logout with always() condition, verification via helm pull with 5-second delay, Artifact Hub metadata generation, GitHub Step Summary with installation commands. Implementation follows GitHub Actions best practices with proper error handling and cleanup.\n</info added on 2025-11-09T04:27:27.883Z>",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               6
             ],
@@ -1084,7 +1084,7 @@
       ],
       "created": "2025-11-08T14:58:57.206Z",
       "description": "Tasks for master context",
-      "updated": "2025-11-09T04:40:32.298Z"
+      "updated": "2025-11-09T04:41:55.944Z"
     }
   }
 }
