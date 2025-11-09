@@ -5,4 +5,4 @@ permissions:
   contents: write
   metadata: read
   issues: write
-  pull-requests: write
+  pull_requests: write
