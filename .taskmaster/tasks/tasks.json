@@ -892,7 +892,7 @@
         "id": 10,
         "title": "Finalize Documentation, Examples, and Release Preparation",
         "description": "Complete comprehensive documentation, validate all examples, prepare Chart.yaml metadata, and ensure release readiness",
-        "details": "Create comprehensive README.md with: overview, features, quick start (memory mode), installation instructions, configuration reference (all values.yaml fields), upgrade guide, troubleshooting section, contributing guidelines. Create QUICKSTART.md with 5-minute memory mode deployment. Create PRODUCTION_GUIDE.md with step-by-step PostgreSQL and CockroachDB production deployment, including prerequisites, infrastructure setup, TLS certificate generation, deployment steps, verification, integration. Create TROUBLESHOOTING.md with common issues: migration failures, TLS errors, connection issues, Pod Identity problems, OOM errors. Create UPGRADE_GUIDE.md with version upgrade paths, breaking changes, migration considerations, rollback procedures. Create SECURITY.md documenting security features, best practices, compliance considerations. Validate all example files: dev-memory.yaml, production-postgres.yaml, production-cockroachdb.yaml, production-cockroachdb-tls.yaml, production-ha.yaml, postgres-external-secrets.yaml, cert-manager-integration.yaml, production-ingress-nginx.yaml. Update Chart.yaml with: version (1.0.0), appVersion (latest SpiceDB version), description, home, sources, maintainers, keywords, annotations (artifacthub.io/*). Create CHANGELOG.md with release notes. Create LICENSE file (Apache 2.0). Run final validation: helm lint, helm unittest (all tests), conftest verify, helm template with all examples, helm package. Create .helmignore to exclude tests/, policies/, .github/, etc from package.",
+        "details": "Create comprehensive README.md with: overview, features, quick start (memory mode), installation instructions, configuration reference (all values.yaml fields), upgrade guide, troubleshooting section, contributing guidelines. Create QUICKSTART.md with 5-minute memory mode deployment. Create PRODUCTION_GUIDE.md with step-by-step PostgreSQL and CockroachDB production deployment, including prerequisites, infrastructure setup, TLS certificate generation, deployment steps, verification, integration. Create TROUBLESHOOTING.md with common issues: migration failures, TLS errors, connection issues, Pod Identity problems, OOM errors. Create UPGRADE_GUIDE.md with version upgrade paths, breaking changes, migration considerations, rollback procedures. Create SECURITY.md documenting security features, best practices, compliance considerations. Validate all example files: dev-memory.yaml, production-postgres.yaml, production-cockroachdb.yaml, production-cockroachdb-tls.yaml, production-ha.yaml, postgres-external-secrets.yaml, cert-manager-integration.yaml, production-ingress-nginx.yaml. Update Chart.yaml with: version (1.0.0), appVersion (latest SpiceDB version), description, home, sources, maintainers, keywords, annotations (artifacthub.io/*). Create CHANGELOG.md with release notes. Create LICENSE file (Apache 2.0). Run final validation: helm lint, helm unittest (all tests), conftest verify, helm template with all examples, helm package. Create .helmignore to exclude tests/, policies/, .github/, etc from package.\n<info added on 2025-11-09T04:18:15.740Z>\nI'll analyze the codebase to understand the current structure and provide an informed update about release-please integration.\n</info added on 2025-11-09T04:18:15.740Z>",
         "testStrategy": "Documentation completeness review: verify all sections present, no broken links, code examples valid. Example validation: helm template each example file, verify no errors, verify rendered manifests valid. Chart.yaml validation: verify all required fields present, version follows semver. helm lint test: verify zero errors and warnings. helm unittest test: verify 90%+ coverage, all tests passing. Conftest test: verify all policies passing. helm package test: verify package created, correct size, no excluded files included. Integration test matrix: install chart with each example file on Minikube, verify successful deployment. Release checklist: all documentation complete, all tests passing, all examples validated, Chart.yaml complete, CHANGELOG.md updated, LICENSE present.",
         "priority": "medium",
         "dependencies": [
@@ -900,7 +900,94 @@
           "11"
         ],
         "status": "pending",
-        "subtasks": [],
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create comprehensive README.md and QUICKSTART.md documentation",
+            "description": "Write README.md with overview, features, quick start, installation instructions, configuration reference covering all values.yaml fields from Tasks 1-9, upgrade guide, troubleshooting, and contributing guidelines. Create QUICKSTART.md with 5-minute memory mode deployment.",
+            "dependencies": [],
+            "details": "README.md sections: Project overview and SpiceDB introduction, key features list (memory/PostgreSQL/CockroachDB datastores, TLS support, dispatch clustering, HA configuration, observability), quick start with memory mode example, installation via Helm, comprehensive configuration reference documenting all values.yaml fields from completed tasks (image, replicas, datastore, migration, TLS, dispatch, monitoring, resources, security contexts, service accounts, affinity), upgrade procedures, basic troubleshooting, contributing guidelines with conventional commits. QUICKSTART.md: Prerequisites (kubectl, helm), add Helm repository command, install command for memory mode, verify deployment steps, access SpiceDB endpoints, cleanup instructions. Include code blocks with proper syntax highlighting. Add badges for chart version, artifact hub.",
+            "status": "pending",
+            "testStrategy": "Manual review for completeness and accuracy. Verify all configuration fields from values.yaml are documented. Test quick start commands in clean cluster. Check for broken links, proper markdown formatting. Validate code examples execute successfully."
+          },
+          {
+            "id": 2,
+            "title": "Create PRODUCTION_GUIDE.md, TROUBLESHOOTING.md, UPGRADE_GUIDE.md, and SECURITY.md",
+            "description": "Write production deployment guide for PostgreSQL and CockroachDB with TLS, troubleshooting guide for common issues, upgrade guide with version compatibility, and security best practices documentation.",
+            "dependencies": [
+              1
+            ],
+            "details": "PRODUCTION_GUIDE.md: Prerequisites (PostgreSQL 13+ or CockroachDB 22.1+, cert-manager optional), infrastructure setup, TLS certificate generation (cert-manager or manual), step-by-step deployment for PostgreSQL (external-secrets integration, TLS configuration, migration job), CockroachDB deployment (TLS, root cert, high availability), verification steps, integration testing. TROUBLESHOOTING.md: Migration failures (connection errors, permission issues), TLS errors (certificate validation, mTLS), connection issues (service discovery, network policies), Pod Identity/IRSA problems, OOM errors and resource tuning, dispatch cluster connectivity. UPGRADE_GUIDE.md: Version compatibility matrix, upgrade paths (minor vs major versions), breaking changes between versions, migration considerations, rollback procedures, helm upgrade commands with --reuse-values. SECURITY.md: Security features overview (TLS for all endpoints, mTLS dispatch, NetworkPolicy support, RBAC), security best practices (secret management, least privilege, network isolation), compliance considerations (encryption at rest/transit, audit logging).",
+            "status": "pending",
+            "testStrategy": "Validate production deployment steps against working examples. Verify troubleshooting scenarios match actual error messages from tests. Review upgrade procedures with helm diff. Security documentation review for completeness of implemented features from Tasks 4-8."
+          },
+          {
+            "id": 3,
+            "title": "Validate all example files with helm template",
+            "description": "Test all example configurations (dev-memory.yaml, production-postgres.yaml, production-cockroachdb.yaml, production-cockroachdb-tls.yaml, production-ha.yaml, postgres-external-secrets.yaml, cert-manager-integration.yaml, production-ingress-nginx.yaml) to ensure they render valid manifests without errors.",
+            "dependencies": [
+              1
+            ],
+            "details": "For each example file: Run 'helm template spicedb . -f examples/<file>.yaml' and verify no errors. Validate rendered manifests are syntactically correct YAML. Check all referenced secrets, configmaps, and services are properly configured. Verify resource limits and requests are appropriate. Validate ServiceAccount, RBAC, and NetworkPolicy configurations when present. Test examples in order: dev-memory.yaml (baseline), production-postgres.yaml (external datastore), production-cockroachdb.yaml (CockroachDB), production-cockroachdb-tls.yaml (TLS enabled), production-ha.yaml (HPA, PDB, affinity), postgres-external-secrets.yaml (ESO integration), cert-manager-integration.yaml (TLS cert generation), production-ingress-nginx.yaml (Ingress configuration). Document any required prerequisites or manual setup steps for each example.",
+            "status": "pending",
+            "testStrategy": "Automated validation: helm template for each example file must exit with code 0. Pipe output to 'kubectl apply --dry-run=client -f -' to validate Kubernetes API compliance. Run 'helm lint' with each example. Verify output contains expected resources (Deployment, Service, migrations for datastores, ServiceMonitor when enabled, HPA/PDB for HA examples)."
+          },
+          {
+            "id": 4,
+            "title": "Update Chart.yaml metadata and create .helmignore",
+            "description": "Update Chart.yaml with complete metadata for version 1.0.0 release including maintainers, keywords, sources, and Artifact Hub annotations. Create .helmignore to exclude test and development files from package.",
+            "dependencies": [
+              3
+            ],
+            "details": "Chart.yaml updates: Set version to '1.0.0', appVersion to latest stable SpiceDB version (check authzed/spicedb releases), description 'Production-grade Helm chart for SpiceDB with PostgreSQL/CockroachDB support, TLS, HA, and observability', home 'https://github.com/salekseev/helm-charts', sources array with GitHub repository and SpiceDB upstream, maintainers array with name/email, keywords array ['spicedb', 'authorization', 'permissions', 'zanzibar', 'postgres', 'cockroachdb'], annotations for artifacthub.io: category 'integration-delivery', license 'Apache-2.0', operator: false, prerelease: false, containsSecurityUpdates: false, recommendations. Create .helmignore: Exclude .git/, .github/, tests/, policies/, ci/, *.md (except README.md), .taskmaster/, .vscode/, .idea/, *.swp, *.bak, .DS_Store, OWNERS, CODEOWNERS.",
+            "status": "pending",
+            "testStrategy": "Verify Chart.yaml passes 'helm lint' validation. Validate semver format for version field. Check appVersion matches current SpiceDB stable release. Run 'helm package .' and verify .helmignore excludes correct files (inspect .tgz contents). Validate Artifact Hub annotations against schema."
+          },
+          {
+            "id": 5,
+            "title": "Create LICENSE file and CHANGELOG.md",
+            "description": "Add Apache 2.0 LICENSE file and create initial CHANGELOG.md documenting version 1.0.0 features and release notes.",
+            "dependencies": [
+              4
+            ],
+            "details": "LICENSE: Copy Apache License 2.0 full text, update copyright year to 2025, add copyright holder information. CHANGELOG.md: Follow Keep a Changelog format. Add [Unreleased] section placeholder. Add [1.0.0] section with release date. Document Added features: Full SpiceDB support with memory/PostgreSQL/CockroachDB datastores, Migration management with Jobs and optional cleanup, TLS support for gRPC/HTTP/dispatch/datastore endpoints, Dispatch cluster mode with Kubernetes service discovery, High availability with HPA/PDB/anti-affinity/topology spread, Observability with Prometheus ServiceMonitor and structured logging, Security features with NetworkPolicy/RBAC/SecurityContext, External Secrets Operator integration, cert-manager integration for TLS certificate management, Comprehensive examples and documentation. No Changed, Deprecated, Removed, Fixed, or Security sections for initial release.",
+            "status": "pending",
+            "testStrategy": "Verify LICENSE is byte-for-byte identical to official Apache 2.0 license text. Validate CHANGELOG.md follows Keep a Changelog format. Ensure all major features from Tasks 1-9 are documented in changelog. Review for accuracy and completeness against completed task list."
+          },
+          {
+            "id": 6,
+            "title": "Setup Google release-please GitHub Action for automated changelog and releases",
+            "description": "Configure release-please GitHub Action to automate version bumping, changelog generation from conventional commits, and GitHub release creation following semantic versioning.",
+            "dependencies": [
+              5
+            ],
+            "details": "Create .github/workflows/release-please.yaml: Configure release-please action with release-type 'helm', bump-minor-pre-major: true for 0.x versions, bump-patch-for-minor-pre-major: true, changelog-sections for feat/fix/docs/chore/refactor conventional commit types, extra-files to update (Chart.yaml for version/appVersion), pull-request-title-pattern 'chore: release ${version}'. Configure to run on push to master branch. Set up release-please-config.json: packages configuration for chart root, component name 'spicedb', include-v-in-tag: false for Helm compatibility, separate-pull-requests: true. Create .release-please-manifest.json with initial version '1.0.0'. Document conventional commit format in CONTRIBUTING.md: feat: (new features, minor bump), fix: (bug fixes, patch bump), BREAKING CHANGE: (major bump), docs:/chore:/refactor: (no version bump). Configure GitHub branch protection requiring conventional commit format in PR titles.\n<info added on 2025-11-09T04:22:28.091Z>\nI need to analyze the codebase first to understand the current structure and any existing GitHub Actions workflows, then provide an accurate update based on the user's request.\n</info added on 2025-11-09T04:22:28.091Z>\n<info added on 2025-11-09T04:23:35.545Z>\nConfiguration files should be moved to .github/ directory following GitHub Actions best practices. Updated structure places release-please-config.json and .release-please-manifest.json in .github/ alongside the workflow file, keeping all release automation configuration centralized. This improves repository organization by grouping GitHub Actions and release automation configuration together rather than scattering files across the repository root.\n</info added on 2025-11-09T04:23:35.545Z>",
+            "status": "pending",
+            "testStrategy": "Validate GitHub Action workflow syntax with 'actionlint' or GitHub workflow validator. Test workflow locally with 'act' if possible. Verify release-please-config.json and manifest are valid JSON. After first commit with conventional format, verify release-please creates pull request. Check PR updates Chart.yaml version and CHANGELOG.md correctly. Verify release is created when PR is merged."
+          },
+          {
+            "id": 7,
+            "title": "Run final validation suite and complete release readiness checklist",
+            "description": "Execute comprehensive validation including helm lint, helm unittest, conftest policy checks, and helm package. Verify all release criteria are met and document release readiness status.",
+            "dependencies": [
+              6
+            ],
+            "details": "Run validation commands: 'helm lint .' (must pass with no errors), 'helm unittest .' (verify all tests pass, check coverage for critical paths from Tasks 1-9), 'conftest verify' for policy checks, 'helm template . > /tmp/full-render.yaml' and validate with kubeval or kubectl dry-run, 'helm package .' to create .tgz file. Release readiness checklist: All tasks 1-9 marked done, all documentation files created and reviewed (README, QUICKSTART, PRODUCTION_GUIDE, TROUBLESHOOTING, UPGRADE_GUIDE, SECURITY), all example files validated, Chart.yaml metadata complete with correct versions, LICENSE and CHANGELOG.md created, .helmignore configured, release-please workflow functional, all tests passing (unit tests, policy tests, example validation), helm lint passes with no warnings, helm package creates valid .tgz, security review completed (no hardcoded secrets, proper RBAC, SecurityContext configured), performance review (appropriate resource limits in examples), compliance check (license headers, documentation completeness). Document any blockers or remaining work.",
+            "status": "pending",
+            "testStrategy": "All validation commands must exit with code 0. helm unittest must show 100% of defined tests passing. helm package must create valid .tgz file that can be installed with 'helm install test ./spicedb-1.0.0.tgz'. Checklist review by maintainer confirms all items complete. Post-validation test: Install chart from packaged .tgz in clean cluster, verify SpiceDB starts successfully, verify migration completes, verify service endpoints accessible."
+          },
+          {
+            "id": 8,
+            "title": "Create OCI registry publishing workflow triggered by releases",
+            "description": "Create GitHub Actions workflow that publishes Helm chart to OCI registry (ghcr.io) when a release is created by release-please, using octo-sts for secure authentication.",
+            "details": "Create .github/workflows/publish-chart.yaml workflow that:\n1. Triggers on 'release' event with types: [published]\n2. Uses octo-sts/action@6177b4481c00308b3839969c3eca88c96a91775f for federated token\n3. Sets permissions: id-token: write (for OIDC), contents: read, packages: write\n4. Configures scope: 'salekseev/helm-charts' and identity for chart publishing\n5. Extracts chart version from release tag (e.g., '1.0.0' from tag)\n6. Runs helm package to create .tgz file\n7. Uses helm push to publish to ghcr.io/salekseev/helm-charts/spicedb:${version}\n8. Logs in to ghcr.io using octo-sts token as password\n9. Adds job to verify chart is accessible after publishing\n10. Optionally updates Artifact Hub metadata\n\nThe workflow ensures every release automatically publishes the chart to the OCI registry without manual intervention, using secure federated authentication via octo-sts instead of long-lived tokens.",
+            "status": "pending",
+            "dependencies": [
+              6
+            ],
+            "parentTaskId": 10
+          }
+        ],
         "complexity": 4,
         "recommendedSubtasks": 6,
         "expansionPrompt": "Divide into: 1) Create comprehensive README.md with overview, features, quick start, installation guide, and configuration reference covering all values.yaml fields from completed tasks, 2) Create QUICKSTART.md, PRODUCTION_GUIDE.md with PostgreSQL/CockroachDB deployment steps, TROUBLESHOOTING.md and UPGRADE_GUIDE.md, 3) Create SECURITY.md documenting TLS, NetworkPolicy, RBAC features and compliance best practices, 4) Validate all example files (dev-memory.yaml, production-postgres.yaml, production-cockroachdb.yaml, production-ha.yaml, ingress examples) with helm template, 5) Update Chart.yaml metadata (version 1.0.0, maintainers, keywords, artifacthub annotations), create CHANGELOG.md and LICENSE, create .helmignore, 6) Run final validation suite: helm lint, helm unittest for coverage verification, conftest policy checks, helm package, and complete release readiness checklist"
