@@ -1,0 +1,14 @@
+# Chart Testing (ct) configuration
+# See: https://github.com/helm/chart-testing/blob/main/doc/ct_lint.md
+
+# Validate maintainers in Chart.yaml
+validate-maintainers: true
+
+# Check for version increment (disabled - release-please handles versioning)
+check-version-increment: false
+
+# Validate chart version follows semver
+validate-chart-schema: true
+
+# Validate values schema if present
+validate-yaml-schema: true
