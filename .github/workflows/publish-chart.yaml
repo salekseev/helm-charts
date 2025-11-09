@@ -5,7 +5,8 @@ on:
     types: [published]
 
 permissions:
-  id-token: write
+  contents: read
+  packages: write
 
 jobs:
   publish:
@@ -19,13 +20,6 @@ jobs:
         uses: azure/setup-helm@v4
         with:
           version: 'v3.14.0'
-
-      - name: Authenticate with octo-sts
-        uses: octo-sts/action@d6c70ad3b9ac85df6da6b9749014d7283987cfec # v1.0.3
-        id: octo-sts
-        with:
-          scope: salekseev/helm-charts
-          identity: chart-publisher
 
       - name: Extract version from release tag
         id: version
@@ -49,7 +43,7 @@ jobs:
 
       - name: Login to GitHub Container Registry
         run: |
-          echo "${{ steps.octo-sts.outputs.token }}" | helm registry login ghcr.io \
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
             --username ${{ github.actor }} \
             --password-stdin
 
