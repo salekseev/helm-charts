@@ -19,7 +19,7 @@ help:  ## Display this help message
 
 test-unit:  ## Run Helm unit tests with helm-unittest
 	@echo "Running Helm unit tests..."
-	@helm unittest .
+	@helm unittest -f 'tests/**/*_test.yaml' .
 
 test-integration:  ## Run integration tests with Kind cluster
 	@echo "Running integration tests..."
