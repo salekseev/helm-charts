@@ -91,7 +91,7 @@ tests:
           value: "5"
       - equal:
           path: metadata.annotations["helm.sh/hook-delete-policy"]
-          value: hook-succeeded
+          value: hook-succeeded,hook-failed
 
   # Job spec tests
   - it: should have correct job spec configuration
@@ -106,7 +106,7 @@ tests:
           value: 2
       - equal:
           path: spec.activeDeadlineSeconds
-          value: 120
+          value: 300
       - equal:
           path: spec.template.spec.restartPolicy
           value: OnFailure
@@ -150,7 +150,7 @@ tests:
           path: spec.template.spec.containers[0].name
           value: cleanup
 
-  - it: should use official Kubernetes kubectl image
+  - it: should use alpine kubectl image
     set:
       migrations.enabled: true
       config.datastoreEngine: postgres
@@ -159,7 +159,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: registry.k8s.io/kubectl:v1.31.0
+          value: alpine/kubectl:1.34.1
       - equal:
           path: spec.template.spec.containers[0].imagePullPolicy
           value: IfNotPresent
@@ -175,7 +175,7 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].command
           value:
-            - /bin/bash
+            - /bin/sh
             - -c
             - |
               # Wait briefly for migration job to fully complete and register success
