@@ -1,10 +1,17 @@
 name: Helm Chart CI
 
+# Run on pushes to main/master and on PR events
+# For PRs:
+#   - Lint, unittest, and policy checks run on all PRs (including drafts)
+#   - Integration tests only run when PR is ready for review (not draft)
+#   - This saves CI resources during development iterations
+
 on:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   lint:
@@ -92,6 +99,8 @@ jobs:
   chart-testing:
     name: Chart Testing
     runs-on: ubuntu-latest
+    # Skip chart-testing (ct install) for draft PRs
+    if: ${{ github.event_name == 'push' || github.event.pull_request.draft == false }}
     needs: [lint, unittest, policy]
     steps:
       - name: Checkout code
@@ -135,8 +144,8 @@ jobs:
   integration-test:
     name: Integration Tests
     runs-on: ubuntu-latest
-    # Skip integration tests when using act for local testing
-    if: ${{ github.event_name != 'act' }}
+    # Skip integration tests for draft PRs and when using act for local testing
+    if: ${{ github.event_name != 'act' && (github.event_name == 'push' || github.event.pull_request.draft == false) }}
     needs: [lint, unittest]
     strategy:
       matrix:
