@@ -125,8 +125,8 @@ deploy_postgres() {
     kubectl apply -f "$SCRIPT_DIR/postgres-deployment.yaml"
 
     log_info "Waiting for PostgreSQL StatefulSet to be ready..."
-    kubectl wait --for=condition=ready pod \
-        -l "app.kubernetes.io/name=postgres" \
+    kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 \
+        statefulset/postgres \
         -n "$NAMESPACE" \
         --timeout=300s
 
