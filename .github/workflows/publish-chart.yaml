@@ -24,11 +24,14 @@ jobs:
       - name: Extract version from release tag
         id: version
         run: |
+          # Extract version from tag (format: spicedb-1.0.0 or spicedb-v1.0.0)
+          TAG="${{ github.event.release.tag_name }}"
+          # Remove chart name prefix (spicedb-)
+          VERSION="${TAG#spicedb-}"
           # Remove 'v' prefix if present
-          VERSION="${{ github.event.release.tag_name }}"
           VERSION="${VERSION#v}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Extracted version: ${VERSION}"
+          echo "Extracted version from tag '${TAG}': ${VERSION}"
 
       - name: Update Chart version
         run: |
