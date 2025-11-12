@@ -162,6 +162,7 @@ install_chart() {
     helm install "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
         --set replicaCount=1 \
+        --set dispatch.enabled=false \
         --set config.autogenerateSecret=true \
         --set config.datastoreEngine=postgres \
         --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
@@ -214,6 +215,7 @@ upgrade_chart() {
     helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
         --set replicaCount=2 \
+        --set dispatch.enabled=true \
         --set config.autogenerateSecret=true \
         --set config.datastoreEngine=postgres \
         --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
@@ -274,6 +276,7 @@ test_idempotency() {
     helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
         --set replicaCount=2 \
+        --set dispatch.enabled=true \
         --set config.autogenerateSecret=true \
         --set config.datastoreEngine=postgres \
         --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
