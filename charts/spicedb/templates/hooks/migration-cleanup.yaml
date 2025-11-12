@@ -1,4 +1,4 @@
-{{- if and .Values.migrations.enabled (ne .Values.config.datastoreEngine "memory") -}}
+{{- if and .Values.migrations.enabled (ne .Values.config.datastoreEngine "memory") (or .Values.config.autogenerateSecret .Values.config.existingSecret) -}}
 {{- if ((.Values.migrations.cleanup).enabled | default true) -}}
 ---
 # Migration Cleanup Job
