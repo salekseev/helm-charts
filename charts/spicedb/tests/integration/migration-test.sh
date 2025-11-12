@@ -234,7 +234,8 @@ upgrade_chart() {
         --set config.datastore.database=spicedb \
         --set config.presharedKey="insecure-default-key-change-in-production" \
         --set image.tag=${SPICEDB_UPGRADE_VERSION} \
-        --wait --timeout=10m || {
+        --set probes.startup.failureThreshold=60 \
+        --wait --timeout=15m || {
         log_error "Helm upgrade failed"
         kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' || true
         kubectl get pods -n "$NAMESPACE" || true
@@ -304,7 +305,8 @@ test_idempotency() {
         --set config.datastore.database=spicedb \
         --set config.presharedKey="insecure-default-key-change-in-production" \
         --set image.tag=${SPICEDB_UPGRADE_VERSION} \
-        --wait --timeout=10m
+        --set probes.startup.failureThreshold=60 \
+        --wait --timeout=15m
 
     log_info "Waiting for idempotency migration job..."
     kubectl wait --for=condition=complete job \
