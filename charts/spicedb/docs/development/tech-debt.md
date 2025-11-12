@@ -2,26 +2,7 @@
 
 This document tracks known technical debt, limitations, and areas for improvement in the SpiceDB Helm chart.
 
-## Resolved Issues
-
-### Documentation Organization (AI Developer Guide Compliance)
-**Status:** ✅ Resolved in v1.1.2
-**Issue:** Root-level documentation scattered outside docs/ hierarchy violating AI Developer Guide
-**Resolution:** Moved all root documentation to docs/guides/: production.md, security.md, troubleshooting.md, upgrading.md, and CHANGELOG.md
-**Impact:** Improved documentation discoverability, consistent hierarchy, cleaner repository root
-**Tasks:** Documented in task #79 (template splitting) and #80 (doc splitting) for remaining work
-
-### Default Value Changes for Backward Compatibility
-**Status:** ✅ Resolved in v1.1.2
-**Issue:** Changed defaults (replicaCount=3, dispatch=true, PDB=true) broke backward compatibility
-**Resolution:** Reverted to conservative defaults (replicaCount=1, dispatch=false, PDB=false)
-**Impact:** Production defaults now opt-in via presets, maintaining 100% backward compatibility
-
-### Migration Hook Secret References
-**Status:** ✅ Resolved in v1.1.2
-**Issue:** Migration hooks failed when autogenerateSecret=false without existingSecret
-**Resolution:** Added conditional rendering: hooks only render when secret is available
-**Impact:** Prevents CreateContainerConfigError failures, all 113 migration tests pass
+> **Note:** Resolved issues are tracked in git history and [docs/CHANGELOG.md](../CHANGELOG.md). This document focuses on active issues and future improvements.
 
 ## Active Issues
 
