@@ -16,10 +16,10 @@ tests:
     asserts:
       - isKind:
           of: Deployment
-      # Should have 3 replicas for HA
+      # Should have 2 replicas for basic HA (operator minimal defaults)
       - equal:
           path: spec.replicas
-          value: 3
+          value: 2
       # Should use PostgreSQL datastore
       - contains:
           path: spec.template.spec.containers[0].env

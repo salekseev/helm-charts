@@ -3,7 +3,7 @@
 #
 # Features:
 #   - PostgreSQL datastore (requires external PostgreSQL instance)
-#   - 3 replicas for high availability
+#   - 2 replicas for basic HA (matches operator minimal production defaults)
 #   - Production resource limits
 #   - TLS enabled for secure communication
 #   - Pod Disruption Budget to maintain availability during voluntary disruptions
@@ -48,7 +48,7 @@
 #     -f values-presets/production-postgres.yaml \
 #     --set config.existingSecret=spicedb-secrets
 
-replicaCount: 3
+replicaCount: 2
 
 # SpiceDB configuration
 config:
@@ -102,7 +102,7 @@ tls:
 # Ensures availability during voluntary disruptions (node drains, upgrades)
 podDisruptionBudget:
   enabled: true
-  # Allow max 1 pod to be unavailable, ensuring at least 2 pods remain
+  # Allow max 1 pod to be unavailable, ensuring at least 1 pod remains
   maxUnavailable: 1
 
 # Autoscaling - disabled by default

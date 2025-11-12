@@ -2,8 +2,12 @@
 # This preset adds advanced high availability features to production deployments
 # It is designed to be layered on top of other production presets
 #
+# NOTE: Base production presets (production-postgres.yaml, production-cockroachdb.yaml)
+#       already provide basic HA with 2 replicas matching operator defaults.
+#       This preset is for high-scale scenarios requiring enhanced HA.
+#
 # Features:
-#   - 5 base replicas for maximum availability
+#   - 5 base replicas for enhanced availability (higher than operator minimal defaults)
 #   - Horizontal Pod Autoscaler (HPA) for dynamic scaling (5-10 replicas)
 #   - Pod Disruption Budget allowing 2 unavailable pods
 #   - Pod Anti-Affinity to spread pods across availability zones
@@ -59,7 +63,7 @@ autoscaling:
 
 # Pod Disruption Budget
 # Allows more disruptions than standard production (2 vs 1)
-# Since we have more replicas, we can tolerate more simultaneous failures
+# Since we have 5+ replicas, we can tolerate more simultaneous failures
 podDisruptionBudget:
   enabled: true
   # Allow max 2 pods to be unavailable, ensuring at least 3 pods remain

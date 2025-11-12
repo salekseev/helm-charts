@@ -48,9 +48,9 @@ helm install ha-spicedb charts/spicedb \
 ```
 
 **What this does**:
-1. Applies `production-postgres.yaml` (3 replicas, PostgreSQL, TLS, PDB)
+1. Applies `production-postgres.yaml` (2 replicas, PostgreSQL, TLS, PDB - matches operator defaults)
 2. Overlays `production-ha.yaml` (increases to 5 replicas, adds HPA, anti-affinity)
-3. Final result: PostgreSQL deployment with maximum availability features
+3. Final result: PostgreSQL deployment with enhanced availability features
 
 ### Example 2: CockroachDB with High Availability
 
@@ -381,7 +381,7 @@ Understanding Helm's value merge behavior is critical for customizing presets co
 ```bash
 # Example 1: Later -f files override earlier ones
 helm install spicedb charts/spicedb \
-  -f values-presets/production-postgres.yaml \  # Sets replicaCount: 3
+  -f values-presets/production-postgres.yaml \  # Sets replicaCount: 2
   -f values-presets/production-ha.yaml \        # Overrides to replicaCount: 5
   -f my-overrides.yaml                          # Overrides to replicaCount: 7
 
@@ -391,7 +391,7 @@ helm install spicedb charts/spicedb \
 ```bash
 # Example 2: --set overrides all files
 helm install spicedb charts/spicedb \
-  -f values-presets/production-postgres.yaml \  # Sets replicaCount: 3
+  -f values-presets/production-postgres.yaml \  # Sets replicaCount: 2
   -f values-presets/production-ha.yaml \        # Overrides to replicaCount: 5
   --set replicaCount=10                         # Final override
 

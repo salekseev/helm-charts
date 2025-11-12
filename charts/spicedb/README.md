@@ -72,8 +72,8 @@ This chart includes 4 production-ready presets:
 | Preset | Use Case | Replicas | Datastore | Features |
 |--------|----------|----------|-----------|----------|
 | `development.yaml` | Local development | 1 | Memory | Minimal resources |
-| `production-postgres.yaml` | Production PostgreSQL | 3 | PostgreSQL | TLS, PDB, dispatch |
-| `production-cockroachdb.yaml` | Production CockroachDB | 3 | CockroachDB | mTLS dispatch, distributed |
+| `production-postgres.yaml` | Production PostgreSQL | 2 | PostgreSQL | TLS, PDB, dispatch (matches operator defaults) |
+| `production-cockroachdb.yaml` | Production CockroachDB | 2 | CockroachDB | mTLS dispatch, distributed (matches operator defaults) |
 | `production-ha.yaml` | High availability add-on | 5 | Any | HPA, anti-affinity, topology spread |
 
 See [Configuration Presets](docs/configuration/presets.md) for detailed usage.
