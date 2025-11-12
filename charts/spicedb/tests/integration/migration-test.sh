@@ -174,6 +174,7 @@ install_chart() {
     log_info "Installing Helm chart: $RELEASE_NAME"
     helm install "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
+        --set config.autogenerateSecret=true \
         --set config.datastoreEngine=postgres \
         --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
         --set config.datastore.port=5432 \
@@ -224,6 +225,7 @@ upgrade_chart() {
     log_info "Upgrading Helm chart with modified values..."
     helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
+        --set config.autogenerateSecret=true \
         --set config.datastoreEngine=postgres \
         --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
         --set config.datastore.port=5432 \
@@ -283,6 +285,7 @@ test_idempotency() {
     log_info "Running second upgrade with same values..."
     helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
+        --set config.autogenerateSecret=true \
         --set config.datastoreEngine=postgres \
         --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
         --set config.datastore.port=5432 \
