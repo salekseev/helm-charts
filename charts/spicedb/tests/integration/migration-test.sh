@@ -95,22 +95,7 @@ setup_kind_cluster() {
     fi
 
     log_info "Creating Kind cluster: $CLUSTER_NAME"
-
-    cat <<EOF | kind create cluster --name "$CLUSTER_NAME" --config=-
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-nodes:
-- role: control-plane
-  extraPortMappings:
-  - containerPort: 30051
-    hostPort: 50051
-    protocol: TCP
-  - containerPort: 30443
-    hostPort: 8443
-    protocol: TCP
-- role: worker
-- role: worker
-EOF
+    kind create cluster --name "$CLUSTER_NAME" --config="$SCRIPT_DIR/kind-cluster-config.yaml"
 
     kubectl config use-context "kind-${CLUSTER_NAME}"
 
