@@ -176,7 +176,7 @@ probes:
 # Protects against maintenance operations and node drains
 podDisruptionBudget:
   # Enable PodDisruptionBudget for HA deployments
-  # Default: false for backward compatibility
+  # Default: false (matches operator parity - requires explicit enablement)
   # Production recommendation: Enable for HA deployments with 3+ replicas
   # Use values-presets/production-*.yaml for production-ready defaults
   enabled: false
@@ -452,14 +452,14 @@ tls:
 # Enables distributed permission checking across multiple SpiceDB instances
 # When enabled, SpiceDB instances can communicate with each other to distribute
 # permission checks across the cluster for improved performance
-# Default: enabled for high availability deployments (matches operator default)
+# Default: disabled (matches operator default - requires explicit enablement)
 dispatch:
   # Enable dispatch cluster mode
-  # When true, enables distributed permission checking between SpiceDB pods
-  # Requires multiple replicas to be effective (replicaCount > 1)
-  # Default: false for backward compatibility
+  # When enabled, distributes permission checks across multiple SpiceDB pods
+  # Technical note: Works with single replica but only beneficial with multiple replicas
+  # Default: false (matches operator parity)
   # Production recommendation: Enable for HA deployments with 3+ replicas
-  # Use values-presets/production-*.yaml for production-ready defaults
+  # Use values-presets/production-cockroachdb.yaml for dispatch-enabled configuration
   enabled: false
 
   # Name of the Kubernetes secret containing custom CA certificate for upstream dispatch connections
