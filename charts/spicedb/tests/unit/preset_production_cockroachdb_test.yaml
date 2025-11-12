@@ -1,0 +1,161 @@
+suite: Test Production CockroachDB Preset Configuration
+templates:
+  - deployment.yaml
+  - service.yaml
+  - poddisruptionbudget.yaml
+tests:
+  # Test that production-cockroachdb preset creates correct deployment
+  - it: should create deployment with production cockroachdb settings
+    template: deployment.yaml
+    values:
+      - ../../values-presets/production-cockroachdb.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+      tls.grpc.secretName: spicedb-tls
+      tls.http.secretName: spicedb-tls
+      tls.dispatch.secretName: spicedb-dispatch-tls
+      dispatch.upstreamCASecretName: spicedb-dispatch-ca
+    asserts:
+      - isKind:
+          of: Deployment
+      # Should have 3 replicas for HA
+      - equal:
+          path: spec.replicas
+          value: 3
+      # Should use CockroachDB datastore
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_ENGINE
+            value: cockroachdb
+      # Should have info logging for production
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_LOG_LEVEL
+            value: info
+      # Should have JSON log format
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_LOG_FORMAT
+            value: json
+      # Should have production resource limits
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 1Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2000m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+
+  # Test that dispatch cluster is enabled
+  - it: should enable dispatch cluster for distributed permission checking
+    template: deployment.yaml
+    values:
+      - ../../values-presets/production-cockroachdb.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+      tls.grpc.secretName: spicedb-tls
+      tls.dispatch.secretName: spicedb-dispatch-tls
+      dispatch.upstreamCASecretName: spicedb-dispatch-ca
+    asserts:
+      # Should enable dispatch cluster
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_CLUSTER_ENABLED
+            value: "true"
+      # Should have dispatch upstream CA certificate path
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_UPSTREAM_CA_CERT_PATH
+            value: /etc/dispatch-ca/ca.crt
+
+  # Test that dispatch TLS is configured
+  - it: should configure dispatch mTLS certificates
+    template: deployment.yaml
+    values:
+      - ../../values-presets/production-cockroachdb.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+      tls.grpc.secretName: spicedb-tls
+      tls.dispatch.secretName: spicedb-dispatch-tls
+      dispatch.upstreamCASecretName: spicedb-dispatch-ca
+    asserts:
+      # Should have dispatch TLS certificate path
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_CLUSTER_TLS_CERT_PATH
+            value: /etc/spicedb/tls/dispatch/tls.crt
+      # Should have dispatch TLS key path
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_CLUSTER_TLS_KEY_PATH
+            value: /etc/spicedb/tls/dispatch/tls.key
+
+  # Test that service includes dispatch port
+  - it: should expose dispatch port for cluster communication
+    template: service.yaml
+    values:
+      - ../../values-presets/production-cockroachdb.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+      dispatch.enabled: true
+    asserts:
+      - isKind:
+          of: Service
+      # Should expose dispatch port
+      - contains:
+          path: spec.ports
+          content:
+            name: dispatch
+            port: 50053
+            protocol: TCP
+            targetPort: dispatch
+
+  # Test that PDB is created
+  - it: should create PDB for high availability
+    template: poddisruptionbudget.yaml
+    values:
+      - ../../values-presets/production-cockroachdb.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+
+  # Test that TLS is enabled
+  - it: should configure TLS for all endpoints
+    template: deployment.yaml
+    values:
+      - ../../values-presets/production-cockroachdb.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+      tls.grpc.secretName: spicedb-tls
+      tls.http.secretName: spicedb-tls
+      tls.dispatch.secretName: spicedb-dispatch-tls
+    asserts:
+      # Should have gRPC TLS
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_GRPC_TLS_CERT_PATH
+            value: /etc/spicedb/tls/grpc/tls.crt
+      # Should have HTTP TLS
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_HTTP_TLS_CERT_PATH
+            value: /etc/spicedb/tls/http/tls.crt

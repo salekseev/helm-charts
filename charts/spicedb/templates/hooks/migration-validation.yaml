@@ -1,0 +1,123 @@
+{{- if and .Values.migrations.enabled .Values.migrations.validation.enabled (ne .Values.config.datastoreEngine "memory") -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "spicedb.fullname" . }}-migration-validation
+  labels:
+    {{- include "spicedb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration-validation
+  annotations:
+    # Run this hook before upgrades to validate migration state
+    # This prevents upgrades from proceeding if migrations are incomplete or failed
+    helm.sh/hook: pre-upgrade
+    # Run before migration status ConfigMap (-10) and migration job (0)
+    helm.sh/hook-weight: "-15"
+    # Delete previous validation jobs before creating new ones
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  # Don't retry on failure - validation should fail fast
+  backoffLimit: 0
+  # Set active deadline to 5 minutes
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      name: {{ include "spicedb.fullname" . }}-migration-validation
+      labels:
+        {{- include "spicedb.labels" . | nindent 8 }}
+        app.kubernetes.io/component: migration-validation
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "spicedb.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: validation
+        {{- with .Values.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+
+          echo "=== SpiceDB Migration Validation ==="
+          echo "Checking migration status from previous deployment..."
+
+          # ConfigMap name from previous deployment
+          CONFIGMAP_NAME="{{ include "spicedb.fullname" . }}-migration-status"
+          NAMESPACE="{{ .Release.Namespace }}"
+
+          # Function to validate migration status
+          validate_migration() {
+            # Check if ConfigMap exists (may not exist on first deployment)
+            if ! kubectl get configmap "$CONFIGMAP_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
+              echo "INFO: No previous migration status found (first deployment)"
+              echo "Proceeding with upgrade..."
+              return 0
+            fi
+
+            echo "Found migration status ConfigMap: $CONFIGMAP_NAME"
+
+            # Get migration data from ConfigMap
+            PREV_APP_VERSION=$(kubectl get configmap "$CONFIGMAP_NAME" -n "$NAMESPACE" -o jsonpath='{.data.appVersion}' 2>/dev/null || echo "unknown")
+            PREV_CHART_VERSION=$(kubectl get configmap "$CONFIGMAP_NAME" -n "$NAMESPACE" -o jsonpath='{.data.chartVersion}' 2>/dev/null || echo "unknown")
+            PREV_DATASTORE=$(kubectl get configmap "$CONFIGMAP_NAME" -n "$NAMESPACE" -o jsonpath='{.data.datastoreEngine}' 2>/dev/null || echo "unknown")
+            PREV_MIGRATION_HASH=$(kubectl get configmap "$CONFIGMAP_NAME" -n "$NAMESPACE" -o jsonpath='{.data.migrationHash}' 2>/dev/null || echo "")
+
+            echo "Previous deployment:"
+            echo "  Chart Version: $PREV_CHART_VERSION"
+            echo "  App Version: $PREV_APP_VERSION"
+            echo "  Datastore: $PREV_DATASTORE"
+            echo "  Migration Hash: $PREV_MIGRATION_HASH"
+
+            echo ""
+            echo "Current deployment:"
+            echo "  Chart Version: {{ .Chart.Version }}"
+            echo "  App Version: {{ .Chart.AppVersion }}"
+            echo "  Datastore: {{ include "spicedb.datastoreEngine" . }}"
+            echo "  Migration Hash: {{ include "spicedb.migrationHash" . }}"
+
+            # Validate datastore engine hasn't changed
+            if [ "$PREV_DATASTORE" != "{{ include "spicedb.datastoreEngine" . }}" ] && [ "$PREV_DATASTORE" != "unknown" ]; then
+              echo ""
+              echo "ERROR: Datastore engine change detected!"
+              echo "  Previous: $PREV_DATASTORE"
+              echo "  Current: {{ include "spicedb.datastoreEngine" . }}"
+              echo ""
+              echo "Changing datastore engines is not supported."
+              echo "Please restore the previous datastore engine configuration."
+              return 1
+            fi
+
+            echo ""
+            echo "✓ Migration validation passed"
+            echo "Proceeding with upgrade..."
+            return 0
+          }
+
+          # Run validation
+          validate_migration
+        env:
+        - name: SPICEDB_LOG_LEVEL
+          value: {{ .Values.migrations.logLevel | default "info" }}
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        {{- with .Values.migrations.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      volumes:
+      - name: tmp
+        emptyDir: {}
+{{- end }}

@@ -100,6 +100,163 @@ zed schema read
 
 See [QUICKSTART.md](./QUICKSTART.md) for a complete 5-minute guide.
 
+## Configuration Presets
+
+This chart provides ready-to-use configuration presets for common deployment scenarios, reducing configuration complexity from 50+ lines to just 10-15 lines. These presets are production-tested and can be used directly or as starting points for customization.
+
+### Available Presets
+
+#### 1. Development (`values-presets/development.yaml`)
+
+**Purpose**: Local development and testing with minimal resource requirements.
+
+**Key Features**:
+- Single replica with memory datastore (no database required)
+- Debug logging enabled
+- TLS disabled for simplified setup
+- Minimal resource requests (100m CPU, 256Mi memory)
+
+**Usage**:
+```bash
+helm install dev-spicedb charts/spicedb -f values-presets/development.yaml
+```
+
+**Warning**: Memory datastore is not persistent. All data is lost on pod restart.
+
+---
+
+#### 2. Production PostgreSQL (`values-presets/production-postgres.yaml`)
+
+**Purpose**: Production deployments with PostgreSQL backend and high availability.
+
+**Key Features**:
+- 3 replicas for redundancy
+- PostgreSQL datastore with SSL
+- TLS enabled for secure communication
+- Production resource limits (500m-2000m CPU, 1Gi-4Gi memory per pod)
+- Pod Disruption Budget
+- JSON logging for log aggregation
+
+**Prerequisites**:
+1. PostgreSQL instance (external or in-cluster)
+2. Kubernetes secret with datastore credentials
+
+**Usage**:
+```bash
+# Create secret with credentials
+kubectl create secret generic spicedb-secrets \
+  --from-literal=datastore-uri="postgresql://user:pass@host:5432/db?sslmode=require" \
+  --from-literal=preshared-key="your-secure-random-key"
+
+# Install with preset
+helm install prod-spicedb charts/spicedb \
+  -f values-presets/production-postgres.yaml \
+  --set config.existingSecret=spicedb-secrets
+```
+
+---
+
+#### 3. Production CockroachDB (`values-presets/production-cockroachdb.yaml`)
+
+**Purpose**: Production deployments with CockroachDB backend and dispatch cluster enabled.
+
+**Key Features**:
+- 3 replicas with CockroachDB datastore
+- Dispatch cluster enabled for distributed permission checking
+- TLS enabled for all endpoints (gRPC, HTTP, dispatch)
+- Production resource limits
+- Pod Disruption Budget
+- JSON logging
+
+**Prerequisites**:
+1. CockroachDB cluster
+2. Kubernetes secrets for credentials and TLS certificates
+
+**Usage**:
+```bash
+# Create secrets (see values-presets/production-cockroachdb.yaml for details)
+kubectl create secret generic spicedb-secrets \
+  --from-literal=datastore-uri="postgresql://user:pass@crdb:26257/db?sslmode=verify-full" \
+  --from-literal=preshared-key="your-secure-key"
+
+# Install with preset
+helm install prod-spicedb charts/spicedb \
+  -f values-presets/production-cockroachdb.yaml \
+  --set config.existingSecret=spicedb-secrets
+```
+
+---
+
+#### 4. High Availability (`values-presets/production-ha.yaml`)
+
+**Purpose**: Maximum availability enhancement layer for production deployments.
+
+**Key Features**:
+- 5 base replicas
+- Horizontal Pod Autoscaler (scales 5-10 replicas)
+- Enhanced Pod Disruption Budget (allows 2 unavailable)
+- Pod Anti-Affinity for zone spreading
+- Topology Spread Constraints
+
+**Prerequisites**:
+- Kubernetes cluster with multiple availability zones (recommended)
+- Metrics Server installed (required for HPA)
+- Must be combined with a production preset (postgres or cockroachdb)
+
+**Usage** (layered with base preset):
+```bash
+# PostgreSQL with HA
+helm install ha-spicedb charts/spicedb \
+  -f values-presets/production-postgres.yaml \
+  -f values-presets/production-ha.yaml \
+  --set config.existingSecret=spicedb-secrets
+
+# CockroachDB with HA
+helm install ha-spicedb charts/spicedb \
+  -f values-presets/production-cockroachdb.yaml \
+  -f values-presets/production-ha.yaml \
+  --set config.existingSecret=spicedb-secrets
+```
+
+---
+
+### Combining Presets with Custom Overrides
+
+Presets can be layered and customized using Helm's value precedence system. Values are applied in order: default values.yaml → preset files (in `-f` order) → `--set` flags.
+
+**Example: Combine multiple presets and override specific values**:
+```bash
+helm install spicedb charts/spicedb \
+  -f values-presets/production-postgres.yaml \
+  -f values-presets/production-ha.yaml \
+  --set logging.level=debug \
+  --set resources.limits.memory=8Gi
+```
+
+**Example: Layer custom configuration on top of preset**:
+```bash
+# Create custom overrides file
+cat > my-overrides.yaml <<EOF
+monitoring:
+  serviceMonitor:
+    enabled: true
+    additionalLabels:
+      prometheus: kube-prometheus
+networkPolicy:
+  enabled: true
+EOF
+
+# Apply preset + custom overrides
+helm install spicedb charts/spicedb \
+  -f values-presets/production-postgres.yaml \
+  -f my-overrides.yaml \
+  --set config.existingSecret=spicedb-secrets
+```
+
+For more advanced customization patterns, see [values-presets/README.md](./values-presets/README.md).
+
+---
+
 ## Installation
 
 ### Prerequisites
@@ -789,6 +946,41 @@ helm upgrade spicedb charts/spicedb \
 ### Migration Job Failures
 
 See [Migration Configuration](#migration-configuration) section for detailed troubleshooting.
+
+## Migration and Conversion Tools
+
+### Migrating Between Helm Chart and Operator
+
+This chart provides comprehensive migration support for teams transitioning between the Helm chart and the SpiceDB Operator.
+
+**Documentation:**
+- [OPERATOR_COMPARISON.md](./OPERATOR_COMPARISON.md) - Feature comparison between Helm chart and operator
+- [MIGRATION_HELM_TO_OPERATOR.md](./MIGRATION_HELM_TO_OPERATOR.md) - Step-by-step guide for migrating from Helm to Operator
+- [MIGRATION_OPERATOR_TO_HELM.md](./MIGRATION_OPERATOR_TO_HELM.md) - Step-by-step guide for migrating from Operator to Helm
+
+**Conversion Scripts:**
+
+The `scripts/` directory contains automated conversion tools:
+
+**Helm → Operator:**
+```bash
+# Convert Helm values to SpiceDBCluster CRD
+./scripts/convert-helm-to-operator.sh -i values.yaml -o spicedb-cluster.yaml
+```
+
+**Operator → Helm:**
+```bash
+# Convert SpiceDBCluster CRD to Helm values
+./scripts/convert-operator-to-helm.sh -i spicedb-cluster.yaml -o values.yaml
+```
+
+See [scripts/README.md](./scripts/README.md) for detailed usage and examples.
+
+**When to Use Each:**
+- **Helm Chart**: Need NetworkPolicy, Ingress, fine-grained control, or using existing Helm workflows
+- **Operator**: Want automated updates, prefer CRD-based config, or need reduced operational complexity
+
+---
 
 ## Contributing
 

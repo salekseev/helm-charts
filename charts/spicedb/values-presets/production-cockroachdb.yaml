@@ -1,0 +1,158 @@
+# Production CockroachDB Preset Configuration
+# This preset is optimized for production deployments with CockroachDB backend
+# and dispatch cluster enabled for distributed permission checking
+#
+# Features:
+#   - CockroachDB datastore (requires external CockroachDB cluster)
+#   - 3 replicas for high availability
+#   - Dispatch cluster enabled for distributed permission checks
+#   - Production resource limits
+#   - TLS enabled for all endpoints (gRPC, HTTP, dispatch)
+#   - Pod Disruption Budget to maintain availability during voluntary disruptions
+#   - Structured JSON logging for log aggregation
+#
+# Prerequisites:
+#   1. CockroachDB cluster (external or in-cluster)
+#   2. Kubernetes secret with connection credentials
+#   3. TLS certificates for gRPC and HTTP endpoints
+#   4. mTLS certificates for dispatch cluster communication
+#
+# Required Secret Format:
+#   The existingSecret must contain the following keys:
+#     - datastore-uri: CockroachDB connection string
+#       Format: postgresql://username:password@hostname:port/database?sslmode=verify-full
+#       Note: CockroachDB uses PostgreSQL wire protocol, so URI starts with 'postgresql://'
+#     - preshared-key: SpiceDB preshared key for authentication
+#
+#   Example secret creation:
+#     kubectl create secret generic spicedb-secrets \
+#       --from-literal=datastore-uri="postgresql://spicedb:password@cockroachdb:26257/spicedb?sslmode=verify-full" \
+#       --from-literal=preshared-key="your-secure-random-key"
+#
+# TLS Certificate Requirements:
+#   1. gRPC/HTTP TLS certificates (for client connections):
+#      kubectl create secret tls spicedb-tls \
+#        --cert=path/to/tls.crt \
+#        --key=path/to/tls.key
+#
+#   2. Dispatch cluster mTLS certificates (for inter-pod communication):
+#      kubectl create secret tls spicedb-dispatch-tls \
+#        --cert=path/to/dispatch-tls.crt \
+#        --key=path/to/dispatch-tls.key
+#
+#      kubectl create secret generic spicedb-dispatch-ca \
+#        --from-file=ca.crt=path/to/dispatch-ca.crt
+#
+#   Or use cert-manager to automate certificate management.
+#
+# Dispatch Cluster:
+#   When enabled, SpiceDB instances communicate via mTLS on port 50053 to
+#   distribute permission checks across the cluster. This improves performance
+#   for deep permission graphs.
+#
+# Usage:
+#   helm install prod-spicedb . \
+#     -f values-presets/production-cockroachdb.yaml \
+#     --set config.existingSecret=spicedb-secrets \
+#     --set tls.grpc.secretName=spicedb-tls \
+#     --set tls.dispatch.secretName=spicedb-dispatch-tls \
+#     --set dispatch.upstreamCASecretName=spicedb-dispatch-ca
+
+replicaCount: 3
+
+# SpiceDB configuration
+config:
+  # CockroachDB datastore
+  # CockroachDB provides distributed SQL with strong consistency
+  datastoreEngine: cockroachdb
+
+  # Reference to existing secret containing:
+  #   - datastore-uri: CockroachDB connection string
+  #   - preshared-key: SpiceDB authentication key
+  # REQUIRED: You must create this secret before deployment
+  existingSecret: ""  # Set this to your secret name (e.g., "spicedb-secrets")
+
+# Logging configuration - structured JSON for production
+logging:
+  # Info level is recommended for production
+  level: info
+  # JSON format is ideal for log aggregation (Elasticsearch, Loki, etc.)
+  format: json
+
+# Production resource limits
+# CockroachDB can handle higher loads, adjust based on your workload
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+
+# TLS configuration
+# REQUIRED for production CockroachDB deployments
+tls:
+  # Enable TLS for all endpoints
+  enabled: true
+
+  # gRPC endpoint TLS (client connections)
+  grpc:
+    # Name of the TLS secret (must exist before deployment)
+    secretName: spicedb-tls
+    certPath: /etc/spicedb/tls/grpc/tls.crt
+    keyPath: /etc/spicedb/tls/grpc/tls.key
+    caPath: /etc/spicedb/tls/grpc/ca.crt
+
+  # HTTP endpoint TLS (dashboard, health checks)
+  http:
+    secretName: spicedb-tls
+    certPath: /etc/spicedb/tls/http/tls.crt
+    keyPath: /etc/spicedb/tls/http/tls.key
+
+  # Dispatch cluster mTLS (inter-pod communication)
+  # REQUIRED when dispatch cluster is enabled
+  dispatch:
+    secretName: spicedb-dispatch-tls
+    certPath: /etc/spicedb/tls/dispatch/tls.crt
+    keyPath: /etc/spicedb/tls/dispatch/tls.key
+    caPath: /etc/spicedb/tls/dispatch/ca.crt
+
+# Dispatch cluster configuration
+# Enables distributed permission checking across SpiceDB pods
+dispatch:
+  # Enable dispatch cluster mode
+  enabled: true
+
+  # CA certificate for verifying upstream SpiceDB instances
+  # All SpiceDB pods must use certificates signed by this CA
+  upstreamCASecretName: spicedb-dispatch-ca
+
+  # Optional cluster name for metrics and logging
+  clusterName: "production"
+
+# Pod Disruption Budget
+# Ensures availability during voluntary disruptions (node drains, upgrades)
+podDisruptionBudget:
+  enabled: true
+  # Allow max 1 pod to be unavailable, ensuring at least 2 pods remain
+  maxUnavailable: 1
+
+# Autoscaling - disabled by default
+# Enable via values-presets/production-ha.yaml for autoscaling
+autoscaling:
+  enabled: false
+
+# Database migrations
+# Automatically run migrations before SpiceDB starts
+migrations:
+  enabled: true
+  logLevel: info
+
+# Monitoring
+monitoring:
+  enabled: true
+  # Enable ServiceMonitor if using Prometheus Operator
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s

@@ -1,0 +1,40 @@
+{{- if and .Values.migrations.enabled .Values.migrations.tracking.enabled (ne .Values.config.datastoreEngine "memory") -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "spicedb.fullname" . }}-migration-status
+  labels:
+    {{- include "spicedb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration-tracking
+  annotations:
+    # Run this hook before install and upgrade operations
+    # This ensures migration status is tracked before migrations run
+    helm.sh/hook: pre-install,pre-upgrade
+    # Set hook weight lower than migration job (weight 0) to ensure this runs first
+    helm.sh/hook-weight: "-10"
+    # Delete the previous ConfigMap before creating a new one
+    # This allows updating the migration status on each deployment
+    helm.sh/hook-delete-policy: before-hook-creation
+data:
+  # Chart version that is being deployed
+  chartVersion: {{ .Chart.Version | quote }}
+
+  # Application version (SpiceDB version) being deployed
+  appVersion: {{ .Chart.AppVersion | quote }}
+
+  # Datastore engine type (postgres, cockroachdb, etc.)
+  datastoreEngine: {{ .Values.config.datastoreEngine | quote }}
+
+  # Target migration version (empty means latest/head)
+  targetMigration: {{ .Values.migrations.targetMigration | default "" | quote }}
+
+  # Target migration phase (empty means all phases)
+  targetPhase: {{ .Values.migrations.targetPhase | default "" | quote }}
+
+  # SHA256 hash of migration configuration for change detection
+  # This hash changes when migration settings are modified
+  migrationHash: {{ include "spicedb.migrationHash" . | quote }}
+
+  # Timestamp of when this migration status was recorded
+  timestamp: {{ now | date "2006-01-02T15:04:05Z07:00" | quote }}
+{{- end }}

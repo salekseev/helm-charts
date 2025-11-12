@@ -255,6 +255,74 @@
           "description": "Datastore engine to use",
           "enum": ["memory", "postgres", "cockroachdb"],
           "default": "memory"
+        },
+        "presharedKey": {
+          "type": "string",
+          "description": "gRPC preshared key for authentication",
+          "minLength": 1
+        },
+        "autogenerateSecret": {
+          "type": "boolean",
+          "description": "Auto-generate secure random preshared key if not explicitly set. Recommended for production to avoid using default insecure keys.",
+          "default": true
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Reference to an existing secret containing datastore credentials. Mutually exclusive with autogenerateSecret when both contain values."
+        },
+        "datastoreURI": {
+          "type": "string",
+          "description": "Explicit datastore connection URI (overrides generated connection string)"
+        },
+        "datastore": {
+          "type": "object",
+          "description": "Datastore connection configuration (used when datastoreURI is not set)",
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "Hostname of the database server",
+              "default": "localhost"
+            },
+            "port": {
+              "type": "integer",
+              "description": "Port number",
+              "minimum": 1,
+              "maximum": 65535,
+              "default": 5432
+            },
+            "username": {
+              "type": "string",
+              "description": "Database username",
+              "default": "spicedb"
+            },
+            "password": {
+              "type": "string",
+              "description": "Database password (only used if existingSecret is not set)"
+            },
+            "database": {
+              "type": "string",
+              "description": "Database name",
+              "default": "spicedb"
+            },
+            "sslMode": {
+              "type": "string",
+              "description": "SSL mode for database connections",
+              "enum": ["disable", "allow", "prefer", "require", "verify-ca", "verify-full"],
+              "default": "disable"
+            },
+            "sslRootCert": {
+              "type": "string",
+              "description": "Path to SSL root certificate"
+            },
+            "sslCert": {
+              "type": "string",
+              "description": "Path to SSL client certificate"
+            },
+            "sslKey": {
+              "type": "string",
+              "description": "Path to SSL client key"
+            }
+          }
         }
       }
     },
@@ -460,6 +528,193 @@
         "egress": {
           "type": "array",
           "description": "Custom egress rules for additional outbound traffic",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "default": []
+        }
+      }
+    },
+    "operatorCompatibility": {
+      "type": "object",
+      "description": "Operator compatibility configuration for adding version tracking annotations to Deployment",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable operator-compatible annotations on the Deployment",
+          "default": false
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Controls which annotations are added to the pod template",
+          "properties": {
+            "version": {
+              "type": "boolean",
+              "description": "Add spicedb.authzed.com/version annotation with SpiceDB version",
+              "default": true
+            },
+            "chartVersion": {
+              "type": "boolean",
+              "description": "Add spicedb.authzed.com/chart-version annotation with Helm chart version",
+              "default": true
+            },
+            "datastoreEngine": {
+              "type": "boolean",
+              "description": "Add spicedb.authzed.com/datastore-engine annotation with datastore type",
+              "default": true
+            },
+            "migrationHash": {
+              "type": "boolean",
+              "description": "Add spicedb.authzed.com/migration-hash annotation for tracking migration state changes",
+              "default": true
+            }
+          },
+          "default": {
+            "version": true,
+            "chartVersion": true,
+            "datastoreEngine": true,
+            "migrationHash": true
+          }
+        }
+      }
+    },
+    "operatorStyle": {
+      "type": "object",
+      "description": "Simplified operator-compatible configuration section",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable operator-style configuration mode",
+          "default": false
+        },
+        "secretName": {
+          "type": "string",
+          "description": "Name of existing Kubernetes secret containing preshared-key and datastore-uri"
+        },
+        "replicas": {
+          "type": "integer",
+          "description": "Number of SpiceDB replicas",
+          "minimum": 1,
+          "default": 3
+        },
+        "tlsSecretName": {
+          "type": "string",
+          "description": "Single TLS secret for all endpoints (gRPC, HTTP, dispatch)"
+        },
+        "dispatchUpstreamCASecretName": {
+          "type": "string",
+          "description": "Dispatch cluster upstream CA certificate secret name"
+        },
+        "datastoreEngine": {
+          "type": "string",
+          "description": "Datastore engine selection",
+          "enum": ["memory", "postgres", "cockroachdb"],
+          "default": "postgres"
+        }
+      },
+      "if": {
+        "properties": {
+          "enabled": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": ["secretName"]
+      }
+    },
+    "migrations": {
+      "type": "object",
+      "description": "Database migration configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Run database migrations as a pre-install/pre-upgrade Job",
+          "default": true
+        },
+        "logLevel": {
+          "type": "string",
+          "description": "Log level for migration operations",
+          "enum": ["debug", "info", "warn", "error"],
+          "default": "info"
+        },
+        "targetMigration": {
+          "type": "string",
+          "description": "Target a specific migration version (leave empty for latest)",
+          "default": ""
+        },
+        "targetPhase": {
+          "type": "string",
+          "description": "Target a specific migration phase",
+          "enum": ["", "write", "read", "complete"],
+          "default": ""
+        },
+        "tracking": {
+          "type": "object",
+          "description": "Migration tracking configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable migration state tracking",
+              "default": true
+            }
+          }
+        },
+        "validation": {
+          "type": "object",
+          "description": "Migration validation configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable migration validation checks",
+              "default": false
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resource limits and requests for the migration Job",
+          "default": {}
+        },
+        "cleanup": {
+          "type": "object",
+          "description": "Cleanup configuration for migration jobs",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable automatic cleanup of completed migration jobs",
+              "default": false
+            }
+          }
+        }
+      }
+    },
+    "patches": {
+      "type": "object",
+      "description": "Strategic merge patches for customizing resources",
+      "properties": {
+        "deployment": {
+          "type": "array",
+          "description": "Patches for Deployment resource using strategic merge semantics",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "default": []
+        },
+        "service": {
+          "type": "array",
+          "description": "Patches for Service resource using strategic merge semantics",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "default": []
+        },
+        "ingress": {
+          "type": "array",
+          "description": "Patches for Ingress resource (only applied when ingress.enabled is true)",
           "items": {
             "type": "object",
             "additionalProperties": true

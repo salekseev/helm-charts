@@ -1,0 +1,106 @@
+suite: test pod anti-affinity
+templates:
+  - deployment.yaml
+tests:
+  # Default anti-affinity behavior
+  - it: should not configure anti-affinity for single replica
+    set:
+      replicaCount: 1
+    asserts:
+      - isNull:
+          path: spec.template.spec.affinity
+
+  - it: should configure anti-affinity automatically for HA (3 replicas)
+    set:
+      replicaCount: 3
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.affinity
+      - isNotEmpty:
+          path: spec.template.spec.affinity.podAntiAffinity
+      - isNotEmpty:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
+
+  # Zone anti-affinity
+  - it: should prefer spreading pods across zones with weight 100
+    set:
+      replicaCount: 3
+    asserts:
+      - contains:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
+          content:
+            weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: spicedb
+                  app.kubernetes.io/instance: RELEASE-NAME
+              topologyKey: topology.kubernetes.io/zone
+
+  # Node anti-affinity
+  - it: should prefer spreading pods across nodes with weight 50
+    set:
+      replicaCount: 3
+    asserts:
+      - contains:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
+          content:
+            weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: spicedb
+                  app.kubernetes.io/instance: RELEASE-NAME
+              topologyKey: kubernetes.io/hostname
+
+  # Both zone and node anti-affinity
+  - it: should configure both zone and node anti-affinity rules
+    set:
+      replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
+          value:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: spicedb
+                    app.kubernetes.io/instance: RELEASE-NAME
+                topologyKey: topology.kubernetes.io/zone
+            - weight: 50
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: spicedb
+                    app.kubernetes.io/instance: RELEASE-NAME
+                topologyKey: kubernetes.io/hostname
+
+  # Custom affinity override
+  - it: should allow custom affinity configuration to override defaults
+    set:
+      replicaCount: 3
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: custom
+              topologyKey: custom-key
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
+      - isNull:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
+
+  # Operator style replicas
+  - it: should configure anti-affinity with operator-style replicas
+    set:
+      operatorStyle.enabled: true
+      operatorStyle.replicas: 5
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.affinity
+      - equal:
+          path: spec.replicas
+          value: 5

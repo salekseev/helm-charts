@@ -1,0 +1,332 @@
+suite: test migration validation hook
+templates:
+  - hooks/migration-validation.yaml
+tests:
+  # Basic rendering tests
+  - it: should create validation job when migrations and validation enabled
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Job
+      - equal:
+          path: apiVersion
+          value: batch/v1
+
+  - it: should NOT create validation job when migrations disabled
+    set:
+      migrations.enabled: false
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should NOT create validation job when validation disabled
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: false
+      config.datastoreEngine: postgres
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should NOT create validation job when using memory datastore
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: memory
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # Metadata tests
+  - it: should have correct metadata name and labels
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb-migration-validation
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: spicedb
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: migration-validation
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+
+  # Hook annotations tests
+  - it: should have correct hook annotations
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-upgrade
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-15"
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation,hook-succeeded
+
+  # Job spec tests
+  - it: should have correct job spec configuration
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: spec.backoffLimit
+          value: 0
+      - equal:
+          path: spec.activeDeadlineSeconds
+          value: 300
+      - equal:
+          path: spec.template.spec.restartPolicy
+          value: Never
+
+  # ServiceAccount tests
+  - it: should use correct service account
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: RELEASE-NAME-spicedb
+
+  - it: should use custom service account when provided
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+      serviceAccount.create: true
+      serviceAccount.name: custom-sa
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: custom-sa
+
+  # Image configuration tests
+  - it: should use default image repository and tag
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: ^authzed/spicedb:v
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: IfNotPresent
+
+  - it: should use custom image repository and tag
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+      image.repository: custom/spicedb
+      image.tag: custom-tag
+      image.pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: custom/spicedb:custom-tag
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+
+  # Image pull secrets tests
+  - it: should not set imagePullSecrets by default
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - isNull:
+          path: spec.template.spec.imagePullSecrets
+
+  - it: should set imagePullSecrets when provided
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+      imagePullSecrets:
+        - name: my-registry-secret
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets
+          value:
+            - name: my-registry-secret
+
+  # Container configuration tests
+  - it: should have correct container name
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: validation
+
+  - it: should use shell command for validation script
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command[0]
+          value: /bin/sh
+      - equal:
+          path: spec.template.spec.containers[0].command[1]
+          value: -c
+
+  # Environment variables tests
+  - it: should set log level from migrations.logLevel
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+      migrations.logLevel: debug
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_LOG_LEVEL
+            value: debug
+
+  - it: should use default info log level when not specified
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_LOG_LEVEL
+            value: info
+
+  # Resources tests
+  - it: should not set resources by default
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].resources
+
+  - it: should set resource limits when migrations.resources provided
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+      migrations.resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 128Mi
+
+  # Security context tests
+  - it: should apply pod security context
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+
+  - it: should apply container security context
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+
+  # Volume mounts tests
+  - it: should mount tmp volume
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+
+  - it: should create tmp emptyDir volume
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tmp
+            emptyDir: {}
+
+  # Datastore engine tests
+  - it: should work with postgres datastore
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: should work with cockroachdb datastore
+    set:
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: cockroachdb
+    asserts:
+      - hasDocuments:
+          count: 1

@@ -1,0 +1,37 @@
+suite: test graceful shutdown
+templates:
+  - deployment.yaml
+tests:
+  - it: should set default terminationGracePeriodSeconds to 60
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 60
+
+  - it: should allow customizing terminationGracePeriodSeconds
+    set:
+      terminationGracePeriodSeconds: 120
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 120
+
+  - it: should allow setting terminationGracePeriodSeconds to 30 for faster shutdown
+    set:
+      terminationGracePeriodSeconds: 30
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 30
+
+  - it: should work with high availability deployment
+    set:
+      replicaCount: 3
+      terminationGracePeriodSeconds: 90
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 90

@@ -1,0 +1,363 @@
+suite: test patches strategic merge system
+templates:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+tests:
+  # Basic patch validation tests
+  - it: should render deployment without patches
+    template: deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb
+
+  - it: should render service without patches
+    template: service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb
+
+  # Deployment patches tests
+  - it: should add custom environment variable via patch
+    template: deployment.yaml
+    set:
+      patches:
+        deployment:
+          - spec:
+              template:
+                spec:
+                  containers:
+                  - name: spicedb
+                    env:
+                    - name: CUSTOM_VAR
+                      value: "custom-value"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CUSTOM_VAR
+            value: "custom-value"
+
+  - it: should add sidecar container via patch
+    template: deployment.yaml
+    set:
+      patches:
+        deployment:
+          - spec:
+              template:
+                spec:
+                  containers:
+                  - name: log-forwarder
+                    image: fluent/fluent-bit:latest
+                    volumeMounts:
+                    - name: varlog
+                      mountPath: /var/log
+                  volumes:
+                  - name: varlog
+                    emptyDir: {}
+    asserts:
+      - contains:
+          path: spec.template.spec.containers
+          content:
+            name: log-forwarder
+            image: fluent/fluent-bit:latest
+            volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: varlog
+            emptyDir: {}
+
+  - it: should modify resource limits via patch
+    template: deployment.yaml
+    set:
+      patches:
+        deployment:
+          - spec:
+              template:
+                spec:
+                  containers:
+                  - name: spicedb
+                    resources:
+                      limits:
+                        cpu: 4000m
+                        memory: 8Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 4000m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 8Gi
+
+  - it: should add custom labels via patch
+    template: deployment.yaml
+    set:
+      patches:
+        deployment:
+          - metadata:
+              labels:
+                custom-label: custom-value
+    asserts:
+      - equal:
+          path: metadata.labels.custom-label
+          value: custom-value
+
+  - it: should add custom annotations via patch
+    template: deployment.yaml
+    set:
+      patches:
+        deployment:
+          - spec:
+              template:
+                metadata:
+                  annotations:
+                    custom-annotation: custom-value
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.custom-annotation
+          value: custom-value
+
+  - it: should add init container via patch
+    template: deployment.yaml
+    set:
+      patches:
+        deployment:
+          - spec:
+              template:
+                spec:
+                  initContainers:
+                  - name: wait-for-db
+                    image: busybox:latest
+                    command: ['sh', '-c', 'until nc -z postgres 5432; do sleep 1; done']
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-db
+            image: busybox:latest
+            command: ['sh', '-c', 'until nc -z postgres 5432; do sleep 1; done']
+
+  - it: should modify replicas via patch
+    template: deployment.yaml
+    set:
+      patches:
+        deployment:
+          - spec:
+              replicas: 5
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 5
+
+  # Service patches tests
+  - it: should add custom service annotations via patch
+    template: service.yaml
+    set:
+      patches:
+        service:
+          - metadata:
+              annotations:
+                cloud.google.com/load-balancer-type: "Internal"
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            cloud.google.com/load-balancer-type: "Internal"
+
+  - it: should add custom service port via patch
+    template: service.yaml
+    set:
+      patches:
+        service:
+          - spec:
+              ports:
+              - name: custom
+                port: 8080
+                protocol: TCP
+                targetPort: custom
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: custom
+            port: 8080
+            protocol: TCP
+            targetPort: custom
+
+  - it: should modify service type via patch
+    template: service.yaml
+    set:
+      patches:
+        service:
+          - spec:
+              type: LoadBalancer
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+
+  # Ingress patches tests
+  - it: should add custom ingress path via patch
+    template: ingress.yaml
+    set:
+      ingress:
+        enabled: true
+        hosts:
+          - host: spicedb.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+                servicePort: grpc
+      patches:
+        ingress:
+          - spec:
+              rules:
+              - host: admin.spicedb.example.com
+                http:
+                  paths:
+                  - path: /admin
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: RELEASE-NAME-spicedb
+                        port:
+                          name: http
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            host: admin.spicedb.example.com
+            http:
+              paths:
+              - path: /admin
+                pathType: Prefix
+                backend:
+                  service:
+                    name: RELEASE-NAME-spicedb
+                    port:
+                      name: http
+
+  - it: should add custom ingress annotations via patch
+    template: ingress.yaml
+    set:
+      ingress:
+        enabled: true
+        hosts:
+          - host: spicedb.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+      patches:
+        ingress:
+          - metadata:
+              annotations:
+                cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+  # Ensure patches don't break existing functionality
+  - it: should preserve default values when patches are applied
+    template: deployment.yaml
+    set:
+      patches:
+        deployment:
+          - metadata:
+              labels:
+                custom: "label"
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: metadata.labels.custom
+          value: "label"
+      - isNotEmpty:
+          path: metadata.labels["app.kubernetes.io/name"]
+
+  # Volume and volume mount patches
+  - it: should add additional volume and volume mount via patch
+    template: deployment.yaml
+    set:
+      patches:
+        deployment:
+          - spec:
+              template:
+                spec:
+                  containers:
+                  - name: spicedb
+                    volumeMounts:
+                    - name: custom-config
+                      mountPath: /etc/custom-config
+                      readOnly: true
+                  volumes:
+                  - name: custom-config
+                    configMap:
+                      name: custom-config
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom-config
+            mountPath: /etc/custom-config
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: custom-config
+            configMap:
+              name: custom-config
+
+  # Test that patches properly override values
+  - it: should override replica count with patch
+    template: deployment.yaml
+    set:
+      replicaCount: 1
+      patches:
+        deployment:
+          - spec:
+              replicas: 7
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 7
+
+  # Test multiple patches applied sequentially
+  - it: should apply multiple patches with last patch winning for scalars
+    template: deployment.yaml
+    set:
+      patches:
+        deployment:
+          - spec:
+              replicas: 5
+          - metadata:
+              labels:
+                patch-order: "first"
+          - metadata:
+              labels:
+                patch-order: "second"
+                additional: "label"
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 5
+      - equal:
+          path: metadata.labels.patch-order
+          value: "second"
+      - equal:
+          path: metadata.labels.additional
+          value: "label"

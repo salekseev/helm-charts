@@ -1,0 +1,129 @@
+suite: test topology spread constraints
+templates:
+  - deployment.yaml
+tests:
+  # Default topology spread behavior
+  - it: should not configure topology spread for single replica
+    set:
+      replicaCount: 1
+    asserts:
+      - isNull:
+          path: spec.template.spec.topologySpreadConstraints
+
+  - it: should configure topology spread automatically for HA (3 replicas)
+    set:
+      replicaCount: 3
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.topologySpreadConstraints
+      - lengthEqual:
+          path: spec.template.spec.topologySpreadConstraints
+          count: 2
+
+  # Zone topology spread
+  - it: should spread pods evenly across zones with maxSkew 1
+    set:
+      replicaCount: 3
+    asserts:
+      - contains:
+          path: spec.template.spec.topologySpreadConstraints
+          content:
+            maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: spicedb
+                app.kubernetes.io/instance: RELEASE-NAME
+
+  # Node topology spread
+  - it: should spread pods evenly across nodes with maxSkew 1
+    set:
+      replicaCount: 3
+    asserts:
+      - contains:
+          path: spec.template.spec.topologySpreadConstraints
+          content:
+            maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: spicedb
+                app.kubernetes.io/instance: RELEASE-NAME
+
+  # Both zone and node topology spread
+  - it: should configure both zone and node topology spread constraints
+    set:
+      replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints
+          value:
+            - maxSkew: 1
+              topologyKey: topology.kubernetes.io/zone
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: spicedb
+                  app.kubernetes.io/instance: RELEASE-NAME
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: spicedb
+                  app.kubernetes.io/instance: RELEASE-NAME
+
+  # Works with different replica counts
+  - it: should configure topology spread for 2 replicas
+    set:
+      replicaCount: 2
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.topologySpreadConstraints
+      - lengthEqual:
+          path: spec.template.spec.topologySpreadConstraints
+          count: 2
+
+  - it: should configure topology spread for 5 replicas
+    set:
+      replicaCount: 5
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.topologySpreadConstraints
+      - lengthEqual:
+          path: spec.template.spec.topologySpreadConstraints
+          count: 2
+
+  # Operator style replicas
+  - it: should configure topology spread with operator-style replicas
+    set:
+      operatorStyle.enabled: true
+      operatorStyle.replicas: 5
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.topologySpreadConstraints
+      - lengthEqual:
+          path: spec.template.spec.topologySpreadConstraints
+          count: 2
+      - equal:
+          path: spec.replicas
+          value: 5
+
+  # Interaction with custom affinity
+  - it: should work with custom affinity configuration
+    set:
+      replicaCount: 3
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: custom
+              topologyKey: custom-key
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.topologySpreadConstraints
+      - isNotEmpty:
+          path: spec.template.spec.affinity

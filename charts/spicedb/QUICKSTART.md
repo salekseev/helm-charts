@@ -26,7 +26,26 @@ zed version
 
 ## Step 1: Install SpiceDB
 
-Install the chart with default settings (memory datastore):
+### Option A: Quick Install with Development Preset (Recommended for Testing)
+
+The easiest way to get started is using the development preset:
+
+```bash
+# Install with development preset (memory datastore, debug logging)
+helm install spicedb charts/spicedb -f values-presets/development.yaml
+```
+
+**What this does:**
+- Single replica with in-memory datastore (no database needed)
+- Debug logging enabled
+- Minimal resource requirements
+- Perfect for local development and testing
+
+**Warning:** Memory datastore is not persistent. Data is lost when pods restart.
+
+### Option B: Standard Install with Default Values
+
+Install the chart with default settings:
 
 ```bash
 # Install from local charts directory
@@ -50,6 +69,28 @@ SpiceDB has been installed!
 
 ...
 ```
+
+### Option C: Production-Ready Install (PostgreSQL)
+
+For a more production-like setup with persistent storage:
+
+```bash
+# Create secrets first
+kubectl create secret generic spicedb-secrets \
+  --from-literal=datastore-uri="postgresql://user:pass@postgres-host:5432/spicedb?sslmode=require" \
+  --from-literal=preshared-key="$(openssl rand -base64 32)"
+
+# Install with production preset
+helm install spicedb charts/spicedb \
+  -f values-presets/production-postgres.yaml \
+  --set config.existingSecret=spicedb-secrets
+```
+
+**Note:** Requires a PostgreSQL instance. See [PRODUCTION_GUIDE.md](./PRODUCTION_GUIDE.md) for database setup.
+
+---
+
+**For this quickstart, we'll continue with Option A (development preset).**
 
 ## Step 2: Verify Deployment
 

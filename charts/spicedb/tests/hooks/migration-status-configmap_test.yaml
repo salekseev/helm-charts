@@ -1,0 +1,180 @@
+suite: test migration status configmap
+templates:
+  - hooks/migration-status-configmap.yaml
+tests:
+  # Basic rendering tests
+  - it: should create ConfigMap when migrations and tracking enabled
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: apiVersion
+          value: v1
+
+  - it: should NOT create ConfigMap when migrations disabled
+    set:
+      migrations.enabled: false
+      migrations.tracking.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should NOT create ConfigMap when tracking disabled
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: false
+      config.datastoreEngine: postgres
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should NOT create ConfigMap when using memory datastore
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+      config.datastoreEngine: memory
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # Metadata tests
+  - it: should have correct metadata name and labels
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb-migration-status
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: spicedb
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: migration-tracking
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+
+  # Hook annotations tests
+  - it: should have correct hook annotations
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-install,pre-upgrade
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-10"
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation
+
+  # Data fields tests
+  - it: should have all required metadata fields with default values
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - isNotEmpty:
+          path: data.chartVersion
+      - isNotEmpty:
+          path: data.appVersion
+      - equal:
+          path: data.datastoreEngine
+          value: postgres
+      - equal:
+          path: data.targetMigration
+          value: ""
+      - equal:
+          path: data.targetPhase
+          value: ""
+      - isNotEmpty:
+          path: data.migrationHash
+      - isNotEmpty:
+          path: data.timestamp
+
+  - it: should set targetMigration when provided
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+      config.datastoreEngine: postgres
+      migrations.targetMigration: "2024-01-15T10:00:00Z"
+    asserts:
+      - equal:
+          path: data.targetMigration
+          value: "2024-01-15T10:00:00Z"
+
+  - it: should set targetPhase when provided
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+      config.datastoreEngine: postgres
+      migrations.targetPhase: write
+    asserts:
+      - equal:
+          path: data.targetPhase
+          value: write
+
+  - it: should handle cockroachdb datastore engine
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+      config.datastoreEngine: cockroachdb
+    asserts:
+      - equal:
+          path: data.datastoreEngine
+          value: cockroachdb
+
+  # Migration hash tests
+  - it: should include migration hash in data
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+      config.datastoreEngine: postgres
+      migrations.targetMigration: "head"
+      migrations.targetPhase: complete
+    asserts:
+      - isNotEmpty:
+          path: data.migrationHash
+
+  # Complex scenario tests
+  - it: should handle all migration features together
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+      config.datastoreEngine: postgres
+      migrations.targetMigration: "2024-02-01T00:00:00Z"
+      migrations.targetPhase: complete
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: data.datastoreEngine
+          value: postgres
+      - equal:
+          path: data.targetMigration
+          value: "2024-02-01T00:00:00Z"
+      - equal:
+          path: data.targetPhase
+          value: complete
+      - isNotEmpty:
+          path: data.chartVersion
+      - isNotEmpty:
+          path: data.appVersion
+      - isNotEmpty:
+          path: data.migrationHash
+      - isNotEmpty:
+          path: data.timestamp

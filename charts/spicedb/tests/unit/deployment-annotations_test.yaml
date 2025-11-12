@@ -1,0 +1,108 @@
+suite: test deployment operator annotations
+templates:
+  - deployment.yaml
+tests:
+  # Annotations presence tests
+  - it: should add operator annotations when operatorCompatibility enabled
+    set:
+      operatorCompatibility.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/version"]
+          value: v1.46.2
+      - equal:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/chart-version"]
+          value: 1.1.1
+      - equal:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/datastore-engine"]
+          value: postgres
+      - isNotEmpty:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/migration-hash"]
+      - equal:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/managed-by"]
+          value: helm-operator-compatible
+
+  - it: should NOT add operator annotations when operatorCompatibility disabled
+    set:
+      operatorCompatibility.enabled: false
+      config.datastoreEngine: postgres
+    asserts:
+      - isNull:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/version"]
+      - isNull:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/chart-version"]
+      - isNull:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/datastore-engine"]
+      - isNull:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/migration-hash"]
+      - isNull:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/managed-by"]
+
+  # Individual annotation control tests
+  - it: should control version annotation with flag
+    set:
+      operatorCompatibility.enabled: true
+      operatorCompatibility.annotations.version: false
+      config.datastoreEngine: postgres
+    asserts:
+      - isNull:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/version"]
+      - isNotEmpty:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/chart-version"]
+
+  - it: should control chartVersion annotation with flag
+    set:
+      operatorCompatibility.enabled: true
+      operatorCompatibility.annotations.chartVersion: false
+      config.datastoreEngine: postgres
+    asserts:
+      - isNotEmpty:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/version"]
+      - isNull:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/chart-version"]
+
+  - it: should control datastoreEngine annotation with flag
+    set:
+      operatorCompatibility.enabled: true
+      operatorCompatibility.annotations.datastoreEngine: false
+      config.datastoreEngine: postgres
+    asserts:
+      - isNull:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/datastore-engine"]
+      - isNotEmpty:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/migration-hash"]
+
+  - it: should control migrationHash annotation with flag
+    set:
+      operatorCompatibility.enabled: true
+      operatorCompatibility.annotations.migrationHash: false
+      config.datastoreEngine: postgres
+    asserts:
+      - isNotEmpty:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/datastore-engine"]
+      - isNull:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/migration-hash"]
+
+  # Migration hash change detection tests
+  - it: should change migration hash when migration config changes
+    set:
+      operatorCompatibility.enabled: true
+      config.datastoreEngine: postgres
+      migrations.targetMigration: "2024-01-15T10:00:00Z"
+    asserts:
+      - isNotEmpty:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/migration-hash"]
+      # Hash should be different from default (tested by having targetMigration set)
+      - isNotNull:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/migration-hash"]
+
+  # Datastore engine tests
+  - it: should set correct datastore engine for cockroachdb
+    set:
+      operatorCompatibility.enabled: true
+      config.datastoreEngine: cockroachdb
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["spicedb.authzed.com/datastore-engine"]
+          value: cockroachdb

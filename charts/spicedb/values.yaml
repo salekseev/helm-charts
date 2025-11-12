@@ -2,7 +2,11 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 1
+# Number of SpiceDB replicas
+# Default: 3 for high availability (matches operator default)
+# Production recommendation: Use 3+ replicas across multiple availability zones
+# Development: Can use 1 replica to reduce resource usage
+replicaCount: 3
 
 image:
   repository: authzed/spicedb
@@ -31,6 +35,11 @@ rbac:
 
 podAnnotations: {}
 podLabels: {}
+
+# Graceful shutdown configuration
+# Ensures SpiceDB has enough time to finish in-flight requests and clean up before termination
+# Important for zero-downtime deployments and proper connection draining
+terminationGracePeriodSeconds: 60
 
 # Pod-level security context
 # Implements Kubernetes Pod Security Standards restricted profile
@@ -91,11 +100,71 @@ updateStrategy:
     # 1 allows one extra pod during updates to maintain availability
     maxSurge: 1
 
+# Health probe configuration
+# Liveness and readiness probes ensure SpiceDB pods are healthy and ready to serve traffic
+# Both probes use gRPC health checks which work natively with Kubernetes 1.23+
+probes:
+  # Startup probe - determines when the container has started
+  # Protects slow-starting containers from being killed by liveness probe
+  # Once startup succeeds, liveness probe takes over
+  startup:
+    # Enable startup probe
+    enabled: true
+    # Initial delay before first probe (start checking immediately)
+    initialDelaySeconds: 0
+    # How often to perform the probe
+    periodSeconds: 5
+    # Timeout for each probe attempt
+    timeoutSeconds: 3
+    # Number of consecutive successes required to mark as started
+    successThreshold: 1
+    # Number of consecutive failures before giving up (150s = 30 * 5s)
+    # With periodSeconds=5 and failureThreshold=30, allows up to 150s for startup
+    failureThreshold: 30
+
+  # Liveness probe - determines if container needs to be restarted
+  # If this fails, Kubernetes will restart the container automatically
+  # Only starts checking after startup probe succeeds
+  liveness:
+    # Enable liveness probe
+    enabled: true
+    # Initial delay before first probe (allows SpiceDB to start up)
+    # Recommended: 30s for production to allow for initialization
+    initialDelaySeconds: 30
+    # How often to perform the probe
+    periodSeconds: 10
+    # Timeout for each probe attempt
+    timeoutSeconds: 5
+    # Number of consecutive successes required to mark as healthy
+    successThreshold: 1
+    # Number of consecutive failures before restart (30s of failures = 3 * 10s)
+    # With periodSeconds=10 and failureThreshold=3, pod restarts after 30s of failures
+    failureThreshold: 3
+
+  # Readiness probe - determines if container should receive traffic
+  # If this fails, pod is removed from Service endpoints
+  readiness:
+    # Enable readiness probe
+    enabled: true
+    # Initial delay before first probe (shorter than liveness)
+    # Readiness can be checked sooner since it doesn't restart the pod
+    initialDelaySeconds: 10
+    # How often to perform the probe (more frequent than liveness)
+    periodSeconds: 5
+    # Timeout for each probe attempt
+    timeoutSeconds: 3
+    # Number of consecutive successes required to mark as ready
+    successThreshold: 1
+    # Number of consecutive failures before marking unready (10s = 2 * 5s)
+    # With periodSeconds=5 and failureThreshold=2, pod marked unready after 10s
+    failureThreshold: 2
+
 # PodDisruptionBudget ensures availability during voluntary disruptions
-# Automatically enabled when replicaCount > 1, or can be explicitly enabled
+# Automatically enabled by default for production HA deployments
+# Protects against maintenance operations and node drains
 podDisruptionBudget:
-  # Explicitly enable PDB (auto-enables when replicaCount > 1)
-  enabled: false
+  # Explicitly enable PDB (enabled by default for HA)
+  enabled: true
   # Maximum number of unavailable pods during disruption
   # With 3 replicas and maxUnavailable=1, at least 2 pods remain running
   maxUnavailable: 1
@@ -133,6 +202,60 @@ logging:
   format: json
 
 # Config for SpiceDB
+
+# Operator-style configuration
+# Simplified operator-compatible configuration section
+# When enabled, provides a streamlined configuration experience similar to Kubernetes operators
+# This translates to the full Helm configuration automatically
+operatorStyle:
+  # Enable operator-style configuration mode
+  # When true, settings below override corresponding values in config section
+  # Mutually exclusive with some detailed config options
+  enabled: false
+
+  # External secret reference (required if enabled)
+  # Name of existing Kubernetes secret containing:
+  #   - preshared-key: gRPC preshared key for authentication
+  #   - datastore-uri: Database connection string
+  # Example:
+  #   apiVersion: v1
+  #   kind: Secret
+  #   metadata:
+  #     name: spicedb-secrets
+  #   data:
+  #     preshared-key: <base64-encoded-key>
+  #     datastore-uri: <base64-encoded-connection-string>
+  secretName: ""
+
+  # Number of SpiceDB replicas
+  # Overrides replicaCount when operatorStyle.enabled is true
+  # Recommended: >= 3 for production high availability
+  replicas: 3
+
+  # Single TLS secret for all endpoints (gRPC, HTTP, dispatch)
+  # When set, enables TLS on all endpoints using the same certificate
+  # The secret should contain:
+  #   - tls.crt: Server certificate
+  #   - tls.key: Server private key
+  #   - ca.crt: CA certificate (optional, for mTLS)
+  # This simplifies TLS configuration compared to per-endpoint secrets
+  tlsSecretName: ""
+
+  # Dispatch cluster upstream CA certificate secret
+  # Name of Kubernetes secret containing CA cert for verifying upstream dispatch connections
+  # The secret should contain:
+  #   - ca.crt: CA certificate
+  # Used when dispatch cluster uses custom CA certificates
+  dispatchUpstreamCASecretName: ""
+
+  # Datastore engine selection
+  # Overrides config.datastoreEngine when operatorStyle.enabled is true
+  # Valid values: postgres, cockroachdb, memory
+  # Note: memory is only for development/testing, not production
+  datastoreEngine: postgres
+
+
+# Config for SpiceDB
 config:
   # Datastore engine: memory, postgres, cockroachdb
   datastoreEngine: memory
@@ -141,6 +264,12 @@ config:
   # This is required for SpiceDB to start
   # In production, this should be set via an existing secret
   presharedKey: "insecure-default-key-change-in-production"
+
+  # Auto-generate secure random preshared key if not explicitly set
+  # When enabled, a cryptographically secure random key is generated on first install
+  # Recommended for production to avoid using default insecure keys
+  # Note: The key persists across upgrades in the generated secret
+  autogenerateSecret: true
 
   # Reference to an existing secret containing datastore credentials
   # If set, the chart will not create a secret and will use this instead
@@ -308,11 +437,13 @@ tls:
 # Enables distributed permission checking across multiple SpiceDB instances
 # When enabled, SpiceDB instances can communicate with each other to distribute
 # permission checks across the cluster for improved performance
+# Default: enabled for high availability deployments (matches operator default)
 dispatch:
   # Enable dispatch cluster mode
   # When true, enables distributed permission checking between SpiceDB pods
   # Requires multiple replicas to be effective (replicaCount > 1)
-  enabled: false
+  # Production recommendation: Enable for HA deployments with 3+ replicas
+  enabled: true
 
   # Name of the Kubernetes secret containing custom CA certificate for upstream dispatch connections
   # The secret should contain the following key:
@@ -339,6 +470,7 @@ migrations:
   # Specifies whether to run database migrations as a pre-install/pre-upgrade Job
   # When enabled, migrations will run automatically before SpiceDB starts
   # Disable this if you want to manage migrations separately
+  # Default: enabled (matches operator default for automated deployments)
   enabled: true
 
   # Log level for migration operations
@@ -360,6 +492,23 @@ migrations:
   #   - complete: Migration fully complete, old code support removed
   # Leave empty to run all phases
   targetPhase: ""
+
+  # Migration tracking configuration
+  # Enables tracking of migration state for better observability
+  tracking:
+    # Enable migration state tracking
+    # When enabled, migrations record their state for monitoring and rollback
+    # Recommended for production to track migration history
+    enabled: true
+
+  # Migration validation configuration
+  # Enables validation of migration state before upgrades
+  validation:
+    # Enable pre-upgrade migration validation
+    # When enabled, checks migration status before upgrade
+    # Prevents upgrades if migrations failed or datastore engine changed
+    # Recommended for production to prevent upgrade issues
+    enabled: true
 
   # Resource limits and requests for the migration Job
   # These are independent from the main SpiceDB deployment resources
@@ -592,6 +741,30 @@ tolerations: []
 
 affinity: {}
 
+# Operator compatibility configuration
+# Adds annotations to the Deployment for operator-style version tracking
+# This enables better integration with Kubernetes operators and GitOps workflows
+operatorCompatibility:
+  # Enable operator-compatible annotations on the Deployment
+  # When enabled, adds spicedb.authzed.com/* annotations to pod template
+  enabled: false
+
+  # Annotation configuration
+  # Controls which annotations are added to the pod template
+  annotations:
+    # Add spicedb.authzed.com/version annotation with SpiceDB version
+    version: true
+
+    # Add spicedb.authzed.com/chart-version annotation with Helm chart version
+    chartVersion: true
+
+    # Add spicedb.authzed.com/datastore-engine annotation with datastore type
+    datastoreEngine: true
+
+    # Add spicedb.authzed.com/migration-hash annotation
+    # Hash of migration configuration for tracking migration state changes
+    migrationHash: true
+
 # NetworkPolicy configuration for network isolation
 # Implements zero-trust security by restricting network traffic to/from SpiceDB
 # When enabled, only explicitly allowed traffic patterns are permitted
@@ -678,3 +851,105 @@ networkPolicy:
   #     - protocol: TCP
   #       port: 443
   egress: []
+
+# Strategic merge patches for advanced customization
+# Allows patching Deployment, Service, and Ingress resources using Kubernetes
+# strategic merge patch semantics without forking the chart
+#
+# Patches are applied in order and merged with the base resource definition
+# Use this for advanced customizations that aren't covered by standard values
+#
+# Common use cases:
+# - Adding custom environment variables
+# - Mounting additional volumes
+# - Adding sidecar containers
+# - Modifying resource limits
+# - Adding custom labels or annotations
+# - Configuring init containers
+#
+# Example: Add custom environment variable
+#   patches:
+#     deployment:
+#       - spec:
+#           template:
+#             spec:
+#               containers:
+#               - name: spicedb
+#                 env:
+#                 - name: CUSTOM_VAR
+#                   value: "custom-value"
+#
+# Example: Add sidecar container
+#   patches:
+#     deployment:
+#       - spec:
+#           template:
+#             spec:
+#               containers:
+#               - name: log-forwarder
+#                 image: fluent/fluent-bit:latest
+#                 volumeMounts:
+#                 - name: varlog
+#                   mountPath: /var/log
+#               volumes:
+#               - name: varlog
+#                 emptyDir: {}
+#
+# Example: Modify resource limits
+#   patches:
+#     deployment:
+#       - spec:
+#           template:
+#             spec:
+#               containers:
+#               - name: spicedb
+#                 resources:
+#                   limits:
+#                     cpu: 4000m
+#                     memory: 8Gi
+#
+# Example: Add custom service annotations
+#   patches:
+#     service:
+#       - metadata:
+#           annotations:
+#             cloud.google.com/load-balancer-type: "Internal"
+#
+# Example: Add custom ingress path
+#   patches:
+#     ingress:
+#       - spec:
+#           rules:
+#           - host: admin.spicedb.example.com
+#             http:
+#               paths:
+#               - path: /admin
+#                 pathType: Prefix
+#                 backend:
+#                   service:
+#                     name: RELEASE-NAME-spicedb
+#                     port:
+#                       name: http
+patches:
+  # Patches for Deployment resource
+  # Applied using strategic merge semantics
+  deployment: []
+
+  # Patches for Service resource
+  # Applied using strategic merge semantics
+  service: []
+
+  # Patches for Ingress resource
+  # Applied using strategic merge semantics
+  # Only applied when ingress.enabled is true
+  ingress: []
+
+# Operator compatibility mode
+# Enables behavior that matches the SpiceDB Kubernetes operator defaults
+# When enabled, provides production-ready defaults aligned with operator patterns
+operatorCompatibility:
+  # Enable operator-compatible defaults
+  # When true, chart uses the same defaults as the SpiceDB Kubernetes operator
+  # This includes: 3 replicas, dispatch enabled, PDB enabled, migration tracking
+  # Recommended: true for production deployments
+  enabled: true
