@@ -3,10 +3,10 @@
 # Declare variables to be passed into your templates.
 
 # Number of SpiceDB replicas
-# Default: 1 for minimal resource usage
+# Default: 2 (matches operator parity for high availability)
 # Production recommendation: Use 3+ replicas across multiple availability zones
 # Use values-presets/production-*.yaml for production-ready defaults
-replicaCount: 1
+replicaCount: 2
 
 image:
   repository: authzed/spicedb
@@ -453,15 +453,15 @@ tls:
 # Enables distributed permission checking across multiple SpiceDB instances
 # When enabled, SpiceDB instances can communicate with each other to distribute
 # permission checks across the cluster for improved performance
-# Default: disabled (matches operator default - requires explicit enablement)
+# Default: enabled (matches operator parity)
 dispatch:
   # Enable dispatch cluster mode
   # When enabled, distributes permission checks across multiple SpiceDB pods
-  # Technical note: Works with single replica but only beneficial with multiple replicas
-  # Default: false (matches operator parity)
-  # Production recommendation: Enable for HA deployments with 3+ replicas
-  # Use values-presets/production-cockroachdb.yaml for dispatch-enabled configuration
-  enabled: false
+  # Note: Automatically disabled for memory datastore (operator behavior)
+  # Default: true (matches operator default)
+  # Technical note: Works with single replica but beneficial with 2+ replicas
+  # Production recommendation: Keep enabled for all persistent datastores
+  enabled: true
 
   # Name of the Kubernetes secret containing custom CA certificate for upstream dispatch connections
   # The secret should contain the following key:
@@ -493,8 +493,9 @@ migrations:
 
   # Log level for migration operations
   # Valid values: debug, info, warn, error
+  # Default: debug (matches operator default for detailed migration logging)
   # Use 'debug' for troubleshooting migration issues
-  logLevel: info
+  logLevel: debug
 
   # Target a specific migration version (optional)
   # Leave empty to migrate to the latest version

@@ -16,6 +16,7 @@
 # WARNING: Memory datastore is not persistent - all data is lost on pod restart!
 # This configuration is suitable for development and testing only.
 
+# Single replica for development (overrides default of 2)
 replicaCount: 1
 
 # SpiceDB configuration
@@ -61,7 +62,7 @@ autoscaling:
 podDisruptionBudget:
   enabled: false
 
-# Dispatch cluster - disabled for single replica
+# Dispatch cluster - disabled for single replica development (overrides default of true)
 dispatch:
   enabled: false
 

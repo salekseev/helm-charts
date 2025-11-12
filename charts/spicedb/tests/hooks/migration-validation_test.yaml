@@ -216,7 +216,7 @@ tests:
             name: SPICEDB_LOG_LEVEL
             value: debug
 
-  - it: should use default info log level when not specified
+  - it: should use default debug log level when not specified (operator parity)
     set:
       migrations.enabled: true
       migrations.validation.enabled: true
@@ -226,7 +226,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SPICEDB_LOG_LEVEL
-            value: info
+            value: debug
 
   # Resources tests
   - it: should not set resources by default

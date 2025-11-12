@@ -26,11 +26,11 @@ tests:
           value: Helm
 
   # Replica count tests
-  - it: should set default replica count to 1
+  - it: should set default replica count to 2 (operator parity)
     asserts:
       - equal:
           path: spec.replicas
-          value: 1
+          value: 2
 
   - it: should allow custom replica count
     set:
@@ -352,13 +352,18 @@ tests:
       - isNotEmpty:
           path: spec.template.metadata.annotations["checksum/migration-config"]
   # Dispatch cluster configuration tests
-  - it: should have dispatch disabled by default (matches operator parity)
+  - it: should have dispatch enabled by default (matches operator parity)
     asserts:
-      - notContains:
+      - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: SPICEDB_DISPATCH_CLUSTER_ENABLED
             value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_UPSTREAM_ADDR
+            value: "RELEASE-NAME-spicedb.NAMESPACE.svc.cluster.local:50053"
 
   - it: should not set dispatch environment variables when dispatch is disabled
     set:
