@@ -4,6 +4,13 @@ This document tracks known technical debt, limitations, and areas for improvemen
 
 ## Resolved Issues
 
+### Documentation Organization (AI Developer Guide Compliance)
+**Status:** ✅ Resolved in v1.1.2
+**Issue:** Root-level documentation scattered outside docs/ hierarchy violating AI Developer Guide
+**Resolution:** Moved all root documentation to docs/guides/: production.md, security.md, troubleshooting.md, upgrading.md, and CHANGELOG.md
+**Impact:** Improved documentation discoverability, consistent hierarchy, cleaner repository root
+**Tasks:** Documented in task #79 (template splitting) and #80 (doc splitting) for remaining work
+
 ### Default Value Changes for Backward Compatibility
 **Status:** ✅ Resolved in v1.1.2
 **Issue:** Changed defaults (replicaCount=3, dispatch=true, PDB=true) broke backward compatibility
@@ -17,6 +24,46 @@ This document tracks known technical debt, limitations, and areas for improvemen
 **Impact:** Prevents CreateContainerConfigError failures, all 113 migration tests pass
 
 ## Active Issues
+
+### Template File Length Violations (AI Developer Guide)
+**Priority:** Medium
+**Issue:** templates/_helpers.tpl exceeds AI Developer Guide 500-line recommendation at 638 lines (128% over limit)
+**Root Cause:** Single file contains all helper functions including 280-line deployment template
+**Impact:** Difficult to navigate, hard to maintain, violates "short and simple" principle
+**Proposed Solution:**
+- Split into focused helper files by concern:
+  - `_helpers.tpl` - Core naming helpers (~100 lines)
+  - `_helpers-deployment.tpl` - Deployment base template (~280 lines)
+  - `_helpers-labels.tpl` - Labels and selectors (~50 lines)
+  - `_helpers-datastore.tpl` - Datastore connection helpers (~80 lines)
+  - `_helpers-tls.tpl` - TLS configuration (~100 lines)
+  - `_helpers-operator.tpl` - Operator compatibility (~80 lines)
+  - `_helpers-patches.tpl` - Patch validation (~60 lines)
+- Run full test suite after split to verify no regressions
+
+**Effort Estimate:** 2-3 hours
+**Dependencies:** None
+**Tracked in:** Task #79
+
+### Documentation File Length Violations (AI Developer Guide)
+**Priority:** Low
+**Issue:** Migration documentation files exceed 500-line AI Developer Guide recommendation
+**Files:**
+- `docs/migration/helm-to-operator.md` - 1,455 lines (291% over limit)
+- `docs/migration/operator-to-helm.md` - 1,395 lines (279% over limit)
+**Impact:** Difficult to navigate, overwhelming for users, violates "short and simple" principle
+**Proposed Solution:**
+- Split each into subdirectories:
+  - `overview.md` - Introduction and decision guide (~200 lines)
+  - `preparation.md` - Prerequisites and planning (~300 lines)
+  - `execution.md` - Step-by-step migration (~400 lines)
+  - `validation.md` - Testing and verification (~200 lines)
+- Create index file with table of contents
+- Update cross-references
+
+**Effort Estimate:** 1-2 hours
+**Dependencies:** None
+**Tracked in:** Task #80
 
 ### Integration Test Coverage with Live Databases
 **Priority:** Medium
