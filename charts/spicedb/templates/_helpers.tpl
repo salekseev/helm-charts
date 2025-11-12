@@ -112,17 +112,17 @@ spec:
   replicas: {{ include "spicedb.replicas" . }}
   {{- if .Values.updateStrategy }}
   strategy:
-    {{- if and .Values.dispatch.enabled (gt (include "spicedb.replicas" . | int) 1) }}
-    # Use Recreate strategy when dispatch is enabled with multiple replicas
-    # This prevents readiness check failures during rolling updates where new pods
-    # try to connect to the dispatch cluster while old pods are still terminating
-    type: Recreate
-    {{- else }}
     type: RollingUpdate
     rollingUpdate:
+      {{- if and .Values.dispatch.enabled (gt (include "spicedb.replicas" . | int) 1) }}
+      # When dispatch is enabled with multiple replicas, ensure at least one pod
+      # stays running during updates so new pods can connect to the dispatch cluster
+      maxUnavailable: 0
+      maxSurge: {{ .Values.updateStrategy.rollingUpdate.maxSurge }}
+      {{- else }}
       maxUnavailable: {{ .Values.updateStrategy.rollingUpdate.maxUnavailable }}
       maxSurge: {{ .Values.updateStrategy.rollingUpdate.maxSurge }}
-    {{- end }}
+      {{- end }}
   {{- end }}
   selector:
     matchLabels:
