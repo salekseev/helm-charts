@@ -187,6 +187,15 @@ install_chart() {
         -n "$NAMESPACE" \
         --timeout=300s
 
+    log_info "Waiting for post-install hooks (cleanup job) to complete..."
+    sleep 5  # Give hooks time to start
+    kubectl wait --for=condition=complete job \
+        -l "app.kubernetes.io/component=migration-cleanup" \
+        -n "$NAMESPACE" \
+        --timeout=120s || {
+        log_warn "Cleanup job wait timed out or failed (non-fatal)"
+    }
+
     log_info "[PASS] SpiceDB chart installed successfully"
 }
 
@@ -239,6 +248,15 @@ upgrade_chart() {
         -l "app.kubernetes.io/name=spicedb" \
         -n "$NAMESPACE" \
         --timeout=300s
+
+    log_info "Waiting for post-upgrade hooks (cleanup job) to complete..."
+    sleep 5  # Give hooks time to start
+    kubectl wait --for=condition=complete job \
+        -l "app.kubernetes.io/component=migration-cleanup" \
+        -n "$NAMESPACE" \
+        --timeout=120s || {
+        log_warn "Cleanup job wait timed out or failed (non-fatal)"
+    }
 
     log_info "[PASS] Helm upgrade and migration verification complete"
 }
