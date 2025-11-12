@@ -263,8 +263,8 @@
         },
         "autogenerateSecret": {
           "type": "boolean",
-          "description": "Auto-generate secure random preshared key if not explicitly set. Recommended for production to avoid using default insecure keys.",
-          "default": true
+          "description": "Auto-generate secure random preshared key if not explicitly set. For production, use existingSecret instead.",
+          "default": false
         },
         "existingSecret": {
           "type": "string",
