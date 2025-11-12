@@ -44,6 +44,7 @@ This chart implements all production features needed for running SpiceDB at scal
 - **cert-manager integration**: Automated certificate management
 - **NetworkPolicy**: Network isolation and segmentation
 - **RBAC**: Kubernetes role-based access control
+- **Cloud Workload Identity**: Support for AWS EKS Pod Identity, GCP Workload Identity, and Azure Workload Identity via ServiceAccount annotations
 - **Security contexts**: Non-root execution, read-only filesystem, dropped capabilities
 - **Pod Security Standards**: Implements restricted profile
 

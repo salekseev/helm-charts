@@ -3,10 +3,10 @@
 # Declare variables to be passed into your templates.
 
 # Number of SpiceDB replicas
-# Default: 3 for high availability (matches operator default)
+# Default: 1 for minimal resource usage
 # Production recommendation: Use 3+ replicas across multiple availability zones
-# Development: Can use 1 replica to reduce resource usage
-replicaCount: 3
+# Use values-presets/production-*.yaml for production-ready defaults
+replicaCount: 1
 
 image:
   repository: authzed/spicedb
@@ -24,6 +24,18 @@ serviceAccount:
   # Automatically mount a ServiceAccount's API credentials?
   automount: true
   # Annotations to add to the service account
+  # Use this for cloud workload identity integration:
+  #
+  # AWS EKS Pod Identity:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME
+  #
+  # GCP Workload Identity:
+  #   iam.gke.io/gcp-service-account: SERVICE_ACCOUNT@PROJECT_ID.iam.gserviceaccount.com
+  #
+  # Azure Workload Identity:
+  #   azure.workload.identity/client-id: CLIENT_ID
+  #   azure.workload.identity/tenant-id: TENANT_ID
+  #
   annotations: {}
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
@@ -163,8 +175,11 @@ probes:
 # Automatically enabled by default for production HA deployments
 # Protects against maintenance operations and node drains
 podDisruptionBudget:
-  # Explicitly enable PDB (enabled by default for HA)
-  enabled: true
+  # Enable PodDisruptionBudget for HA deployments
+  # Default: false for backward compatibility
+  # Production recommendation: Enable for HA deployments with 3+ replicas
+  # Use values-presets/production-*.yaml for production-ready defaults
+  enabled: false
   # Maximum number of unavailable pods during disruption
   # With 3 replicas and maxUnavailable=1, at least 2 pods remain running
   maxUnavailable: 1
@@ -442,8 +457,10 @@ dispatch:
   # Enable dispatch cluster mode
   # When true, enables distributed permission checking between SpiceDB pods
   # Requires multiple replicas to be effective (replicaCount > 1)
+  # Default: false for backward compatibility
   # Production recommendation: Enable for HA deployments with 3+ replicas
-  enabled: true
+  # Use values-presets/production-*.yaml for production-ready defaults
+  enabled: false
 
   # Name of the Kubernetes secret containing custom CA certificate for upstream dispatch connections
   # The secret should contain the following key:
@@ -943,13 +960,3 @@ patches:
   # Applied using strategic merge semantics
   # Only applied when ingress.enabled is true
   ingress: []
-
-# Operator compatibility mode
-# Enables behavior that matches the SpiceDB Kubernetes operator defaults
-# When enabled, provides production-ready defaults aligned with operator patterns
-operatorCompatibility:
-  # Enable operator-compatible defaults
-  # When true, chart uses the same defaults as the SpiceDB Kubernetes operator
-  # This includes: 3 replicas, dispatch enabled, PDB enabled, migration tracking
-  # Recommended: true for production deployments
-  enabled: true
