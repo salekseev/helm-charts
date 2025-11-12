@@ -24,7 +24,13 @@ config:
   # All data is stored in memory and lost on restart
   datastoreEngine: memory
 
+  # Auto-generate secure random preshared key for development
+  # This avoids using the insecure default key and provides
+  # a unique key for each installation
+  autogenerateSecret: true
+
   # Preshared key for authentication (change this for your environment)
+  # Note: This is only used if autogenerateSecret is disabled
   presharedKey: "dev-insecure-key-change-me"
 
 # Logging configuration - verbose for development

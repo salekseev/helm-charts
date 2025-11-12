@@ -1,6 +1,10 @@
 suite: test migration validation hook
 templates:
   - hooks/migration-validation.yaml
+values:
+  - ../../values.yaml
+set:
+  config.autogenerateSecret: true
 tests:
   # Basic rendering tests
   - it: should create validation job when migrations and validation enabled

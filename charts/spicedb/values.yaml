@@ -282,9 +282,10 @@ config:
 
   # Auto-generate secure random preshared key if not explicitly set
   # When enabled, a cryptographically secure random key is generated on first install
-  # Recommended for production to avoid using default insecure keys
+  # Security best practice: Explicitly opt-in to auto-generation (matches operator parity)
+  # For production, use existingSecret with externally managed credentials
   # Note: The key persists across upgrades in the generated secret
-  autogenerateSecret: true
+  autogenerateSecret: false
 
   # Reference to an existing secret containing datastore credentials
   # If set, the chart will not create a secret and will use this instead

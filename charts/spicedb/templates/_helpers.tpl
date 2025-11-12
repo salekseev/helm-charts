@@ -605,11 +605,11 @@ Fails template rendering if patches contain invalid data
 
 {{/*
 Generate a cryptographically secure random preshared key
-Returns a 64-character random alphanumeric string
-This meets SpiceDB's minimum requirement of 32 characters
+Returns a base64-encoded 32-byte random value
+This meets SpiceDB's minimum requirement and uses cryptographically secure random bytes
 */}}
 {{- define "spicedb.generatePresharedKey" -}}
-{{- randAlphaNum 64 -}}
+{{- randBytes 32 | b64enc -}}
 {{- end -}}
 
 {{/*

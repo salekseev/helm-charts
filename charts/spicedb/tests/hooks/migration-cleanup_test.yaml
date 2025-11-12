@@ -1,6 +1,10 @@
 suite: test migration cleanup job
 templates:
   - hooks/migration-cleanup.yaml
+values:
+  - ../../values.yaml
+set:
+  config.autogenerateSecret: true
 tests:
   # Basic rendering tests
   - it: should create cleanup job when migrations enabled and cleanup enabled

@@ -1,6 +1,10 @@
 suite: test datastore connection string generation
 templates:
   - secret.yaml
+values:
+  - ../../values.yaml
+set:
+  config.autogenerateSecret: true
 tests:
   # Test PostgreSQL connection string generation
   - it: should generate PostgreSQL connection string with minimal parameters

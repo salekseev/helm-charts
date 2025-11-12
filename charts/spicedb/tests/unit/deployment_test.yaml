@@ -26,11 +26,11 @@ tests:
           value: Helm
 
   # Replica count tests
-  - it: should set default replica count to 3 for HA
+  - it: should set default replica count to 1
     asserts:
       - equal:
           path: spec.replicas
-          value: 3
+          value: 1
 
   - it: should allow custom replica count
     set:
@@ -352,18 +352,13 @@ tests:
       - isNotEmpty:
           path: spec.template.metadata.annotations["checksum/migration-config"]
   # Dispatch cluster configuration tests
-  - it: should enable dispatch by default for HA deployments
+  - it: should have dispatch disabled by default (matches operator parity)
     asserts:
-      - contains:
+      - notContains:
           path: spec.template.spec.containers[0].env
           content:
             name: SPICEDB_DISPATCH_CLUSTER_ENABLED
             value: "true"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: SPICEDB_DISPATCH_UPSTREAM_ADDR
-            value: "RELEASE-NAME-spicedb.NAMESPACE.svc.cluster.local:50053"
 
   - it: should not set dispatch environment variables when dispatch is disabled
     set:
