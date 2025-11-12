@@ -1,99 +1,34 @@
-# High Availability Preset Configuration
-# This preset adds advanced high availability features to production deployments
-# It is designed to be layered on top of other production presets
-#
-# NOTE: Base production presets (production-postgres.yaml, production-cockroachdb.yaml)
-#       already provide basic HA with 2 replicas matching operator defaults.
-#       This preset is for high-scale scenarios requiring enhanced HA.
-#
-# Features:
-#   - 5 base replicas for enhanced availability (higher than operator minimal defaults)
-#   - Horizontal Pod Autoscaler (HPA) for dynamic scaling (5-10 replicas)
-#   - Pod Disruption Budget allowing 2 unavailable pods
-#   - Pod Anti-Affinity to spread pods across availability zones
-#   - Topology Spread Constraints for even distribution
-#
-# Usage:
-#   Layer this preset on top of a production preset for maximum availability:
-#
-#   PostgreSQL HA:
-#     helm install ha-spicedb . \
-#       -f values-presets/production-postgres.yaml \
-#       -f values-presets/production-ha.yaml \
-#       --set config.existingSecret=spicedb-secrets
-#
-#   CockroachDB HA:
-#     helm install ha-spicedb . \
-#       -f values-presets/production-cockroachdb.yaml \
-#       -f values-presets/production-ha.yaml \
-#       --set config.existingSecret=spicedb-secrets \
-#       --set tls.grpc.secretName=spicedb-tls \
-#       --set tls.dispatch.secretName=spicedb-dispatch-tls \
-#       --set dispatch.upstreamCASecretName=spicedb-dispatch-ca
-#
-# Prerequisites:
-#   1. Kubernetes cluster with multiple availability zones (recommended)
-#   2. Metrics Server installed in cluster (required for HPA)
-#   3. Sufficient cluster capacity for 5-10 replicas
-#   4. A production preset (production-postgres.yaml or production-cockroachdb.yaml)
-#
-# Topology Spread Constraints:
-#   Ensures pods are distributed evenly across availability zones
-#   Helps protect against zone-level failures
-#
-# Pod Anti-Affinity:
-#   Prefers to schedule pods in different availability zones
-#   Provides additional resilience against zone outages
+# High Availability: HPA (2-5 replicas), PDB, pod anti-affinity, topology spread constraints
+# Prerequisites: multi-zone K8s cluster, Metrics Server, sufficient capacity, base production preset (see README)
+# Usage: helm install NAME . -f values-presets/production-postgres.yaml -f values-presets/production-ha.yaml --set config.existingSecret=SECRET
 
-# Replica configuration
-replicaCount: 5
+replicaCount: 2
 
-# Horizontal Pod Autoscaler
-# Automatically scales based on CPU and memory utilization
 autoscaling:
   enabled: true
-  # Minimum replicas - maintains baseline capacity
-  minReplicas: 5
-  # Maximum replicas - caps scaling to prevent resource exhaustion
-  maxReplicas: 10
-  # CPU threshold - scale up when average CPU exceeds 70%
+  minReplicas: 2
+  maxReplicas: 5
   targetCPUUtilizationPercentage: 70
-  # Memory threshold - scale up when average memory exceeds 80%
   targetMemoryUtilizationPercentage: 80
 
-# Pod Disruption Budget
-# Allows more disruptions than standard production (2 vs 1)
-# Since we have 5+ replicas, we can tolerate more simultaneous failures
 podDisruptionBudget:
   enabled: true
-  # Allow max 2 pods to be unavailable, ensuring at least 3 pods remain
-  maxUnavailable: 2
+  maxUnavailable: 1
 
-# Pod Anti-Affinity
-# Spreads pods across availability zones for maximum availability
 affinity:
   podAntiAffinity:
-    # Preferred (not required) to allow scheduling in single-zone clusters
     preferredDuringSchedulingIgnoredDuringExecution:
       - weight: 100
         podAffinityTerm:
-          # Spread across availability zones
           topologyKey: topology.kubernetes.io/zone
           labelSelector:
             matchLabels:
               app.kubernetes.io/name: spicedb
 
-# Topology Spread Constraints
-# Ensures even distribution across availability zones
-# Complements pod anti-affinity with more fine-grained control
 topologySpreadConstraints:
   - maxSkew: 1
-    # Spread across availability zones
     topologyKey: topology.kubernetes.io/zone
-    # Schedule anyway if constraint can't be met (graceful degradation)
     whenUnsatisfiable: ScheduleAnyway
     labelSelector:
       matchLabels:
         app.kubernetes.io/name: spicedb
-        # The instance label is automatically added by the chart
-        # It will be populated at deployment time with the release name

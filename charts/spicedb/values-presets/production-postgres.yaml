@@ -1,75 +1,17 @@
-# Production PostgreSQL Preset Configuration
-# This preset is optimized for production deployments with PostgreSQL backend
-#
-# Features:
-#   - PostgreSQL datastore (requires external PostgreSQL instance)
-#   - 2 replicas for basic HA (matches operator minimal production defaults)
-#   - Production resource limits
-#   - TLS enabled for secure communication
-#   - Pod Disruption Budget to maintain availability during voluntary disruptions
-#   - Structured JSON logging for log aggregation
-#
-# Prerequisites:
-#   1. PostgreSQL instance (external or in-cluster)
-#   2. Kubernetes secret with connection credentials
-#   3. TLS certificates for gRPC endpoint (optional but recommended)
-#
-# Required Secret Format:
-#   The existingSecret must contain the following keys:
-#     - datastore-uri: PostgreSQL connection string
-#       Format: postgresql://username:password@hostname:port/database?sslmode=require
-#     - preshared-key: SpiceDB preshared key for authentication
-#
-#   Example secret creation:
-#     kubectl create secret generic spicedb-secrets \
-#       --from-literal=datastore-uri="postgresql://spicedb:password@postgres:5432/spicedb?sslmode=require" \
-#       --from-literal=preshared-key="your-secure-random-key"
-#
-# TLS Certificate Requirements:
-#   Create a TLS secret for the gRPC endpoint:
-#     kubectl create secret tls spicedb-tls \
-#       --cert=path/to/tls.crt \
-#       --key=path/to/tls.key
-#
-#   Or use cert-manager:
-#     apiVersion: cert-manager.io/v1
-#     kind: Certificate
-#     metadata:
-#       name: spicedb-grpc-tls
-#     spec:
-#       secretName: spicedb-tls
-#       dnsNames:
-#         - spicedb.example.com
-#       issuerRef:
-#         name: my-issuer
-#
-# Usage:
-#   helm install prod-spicedb . \
-#     -f values-presets/production-postgres.yaml \
-#     --set config.existingSecret=spicedb-secrets
+# Production PostgreSQL: 2 replicas, TLS enabled, PDB, JSON logging
+# Prerequisites: PostgreSQL instance, K8s secret (datastore-uri, preshared-key), TLS certificates (see README)
+# Usage: helm install NAME . -f values-presets/production-postgres.yaml --set config.existingSecret=SECRET
 
 replicaCount: 2
 
-# SpiceDB configuration
 config:
-  # PostgreSQL datastore
   datastoreEngine: postgres
+  existingSecret: ""
 
-  # Reference to existing secret containing:
-  #   - datastore-uri: PostgreSQL connection string
-  #   - preshared-key: SpiceDB authentication key
-  # REQUIRED: You must create this secret before deployment
-  existingSecret: ""  # Set this to your secret name (e.g., "spicedb-secrets")
-
-# Logging configuration - structured JSON for production
 logging:
-  # Info level is recommended for production
   level: info
-  # JSON format is ideal for log aggregation (Elasticsearch, Loki, etc.)
   format: json
 
-# Production resource limits
-# Adjust based on your workload and cluster capacity
 resources:
   requests:
     cpu: 500m
@@ -78,48 +20,31 @@ resources:
     cpu: 2000m
     memory: 4Gi
 
-# TLS configuration
-# Strongly recommended for production deployments
 tls:
-  # Enable TLS for secure communication
   enabled: true
-
-  # gRPC endpoint TLS
   grpc:
-    # Name of the TLS secret (must exist before deployment)
     secretName: spicedb-tls
     certPath: /etc/spicedb/tls/grpc/tls.crt
     keyPath: /etc/spicedb/tls/grpc/tls.key
     caPath: /etc/spicedb/tls/grpc/ca.crt
-
-  # HTTP endpoint TLS (uses same certificate as gRPC)
   http:
     secretName: spicedb-tls
     certPath: /etc/spicedb/tls/http/tls.crt
     keyPath: /etc/spicedb/tls/http/tls.key
 
-# Pod Disruption Budget
-# Ensures availability during voluntary disruptions (node drains, upgrades)
 podDisruptionBudget:
   enabled: true
-  # Allow max 1 pod to be unavailable, ensuring at least 1 pod remains
   maxUnavailable: 1
 
-# Autoscaling - disabled by default
-# Enable via values-presets/production-ha.yaml for autoscaling
 autoscaling:
   enabled: false
 
-# Database migrations
-# Automatically run migrations before SpiceDB starts
 migrations:
   enabled: true
   logLevel: info
 
-# Monitoring
 monitoring:
   enabled: true
-  # Enable ServiceMonitor if using Prometheus Operator
   serviceMonitor:
     enabled: false
     interval: 30s

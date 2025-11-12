@@ -1,47 +1,18 @@
-# Development Preset Configuration
-# This preset is optimized for local development with minimal resource requirements
-# and no external dependencies.
-#
-# Features:
-#   - Memory datastore (no database required)
-#   - Single replica (no high availability)
-#   - Debug logging enabled
-#   - Minimal resource limits for laptop/desktop development
-#   - TLS disabled for simplified local setup
-#   - No autoscaling or pod disruption budgets
-#
-# Usage:
-#   helm install dev-spicedb . -f values-presets/development.yaml
-#
-# WARNING: Memory datastore is not persistent - all data is lost on pod restart!
-# This configuration is suitable for development and testing only.
+# Development: minimal resources, memory datastore, debug logging, single replica
+# WARNING: Memory datastore is not persistent - all data is lost on pod restart
+# Usage: helm install NAME . -f values-presets/development.yaml
 
-# Single replica for development (overrides default of 2)
 replicaCount: 1
 
-# SpiceDB configuration
 config:
-  # Memory datastore - no external database required
-  # All data is stored in memory and lost on restart
   datastoreEngine: memory
-
-  # Auto-generate secure random preshared key for development
-  # This avoids using the insecure default key and provides
-  # a unique key for each installation
   autogenerateSecret: true
-
-  # Preshared key for authentication (change this for your environment)
-  # Note: This is only used if autogenerateSecret is disabled
   presharedKey: "dev-insecure-key-change-me"
 
-# Logging configuration - verbose for development
 logging:
-  # Debug level provides detailed logs for troubleshooting
   level: debug
-  # Console format is easier to read during development
   format: console
 
-# Minimal resource limits for local development
 resources:
   requests:
     cpu: 100m
@@ -50,28 +21,22 @@ resources:
     cpu: 500m
     memory: 512Mi
 
-# TLS configuration - disabled for simplified local setup
 tls:
   enabled: false
 
-# Autoscaling - disabled for single replica setup
 autoscaling:
   enabled: false
 
-# Pod disruption budget - disabled for single replica
 podDisruptionBudget:
   enabled: false
 
-# Dispatch cluster - disabled for single replica development (overrides default of true)
 dispatch:
   enabled: false
 
-# Migrations - enabled to ensure schema is ready
 migrations:
   enabled: true
   logLevel: debug
 
-# Monitoring - enabled with basic Prometheus annotations
 monitoring:
   enabled: true
   serviceMonitor:

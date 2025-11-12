@@ -12,10 +12,10 @@ tests:
     asserts:
       - isKind:
           of: Deployment
-      # Should have 5 replicas for HA
+      # Should have 2 base replicas for HA (with HPA scaling to 5)
       - equal:
           path: spec.replicas
-          value: 5
+          value: 2
 
   # Test that HPA is created
   - it: should create HPA for autoscaling
@@ -28,11 +28,11 @@ tests:
       # Should have correct min replicas
       - equal:
           path: spec.minReplicas
-          value: 5
+          value: 2
       # Should have correct max replicas
       - equal:
           path: spec.maxReplicas
-          value: 10
+          value: 5
       # Should have CPU target
       - contains:
           path: spec.metrics
@@ -54,18 +54,18 @@ tests:
                 type: Utilization
                 averageUtilization: 80
 
-  # Test that PDB allows more unavailable pods
-  - it: should create PDB allowing 2 unavailable pods
+  # Test that PDB configuration
+  - it: should create PDB with maxUnavailable 1
     template: poddisruptionbudget.yaml
     values:
       - ../../values-presets/production-ha.yaml
     asserts:
       - isKind:
           of: PodDisruptionBudget
-      # Should allow 2 unavailable for higher replica count
+      # Should allow 1 unavailable
       - equal:
           path: spec.maxUnavailable
-          value: 2
+          value: 1
 
   # Test pod anti-affinity configuration
   - it: should configure pod anti-affinity for zone spreading
@@ -123,7 +123,7 @@ tests:
       # HA preset should override replica count
       - equal:
           path: spec.replicas
-          value: 5
+          value: 2
       # Should still use postgres datastore from production preset
       - contains:
           path: spec.template.spec.containers[0].env
@@ -152,4 +152,4 @@ tests:
       # Should have HA min replicas
       - equal:
           path: spec.minReplicas
-          value: 5
+          value: 2

@@ -1,0 +1,397 @@
+# Strategic Merge Patches Examples for SpiceDB Helm Chart
+#
+# These examples demonstrate how to use strategic merge patches to customize
+# SpiceDB deployments without forking the chart or modifying values.yaml.
+#
+# The patches are applied to Kubernetes resources (Deployment, Service, Ingress)
+# using strategic merge patch semantics, allowing you to:
+# - Add custom environment variables
+# - Add sidecar containers
+# - Mount additional volumes
+# - Modify resource limits
+# - Add init containers
+# - And much more
+#
+# Patch Types:
+# - JSON Merge Patch: Simple, non-recursive merging
+# - Strategic Merge Patch: Kubectl-native patching with merge strategies
+#
+# This chart uses strategic merge patches for intelligent resource merging.
+
+# ============================================================================
+# Example 1: Add Custom Environment Variables
+# ============================================================================
+# Add additional environment variables to SpiceDB container without
+# modifying the main values.yaml
+# ============================================================================
+---
+# Deploy with: helm install spicedb ./charts/spicedb -f this-file.yaml
+patches:
+  deployment:
+    # Strategic merge patch for Deployment
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: SPICEDB_GRPC_SHUTDOWN_GRACE_PERIOD
+        value: "15s"
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: SPICEDB_GRPC_DISPATCH_TIMEOUT
+        value: "5s"
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: SPICEDB_LOG_LEVEL
+        value: debug
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: CUSTOM_METRIC_PREFIX
+        value: "app_"
+
+# ============================================================================
+# Example 2: Add Sidecar Container for Logging
+# ============================================================================
+# Add a fluent-bit or similar logging sidecar to collect SpiceDB logs
+# and forward them to a centralized logging system
+# ============================================================================
+---
+patches:
+  deployment:
+    # Add fluent-bit sidecar container
+    - op: add
+      path: /spec/template/spec/containers/-
+      value:
+        name: log-forwarder
+        image: fluent/fluent-bit:2.0
+        volumeMounts:
+          - name: spicedb-logs
+            mountPath: /var/log/spicedb
+          - name: fluent-bit-config
+            mountPath: /fluent-bit/etc/
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+    # Add volumes required by sidecar
+    - op: add
+      path: /spec/template/spec/volumes/-
+      value:
+        name: spicedb-logs
+        emptyDir: {}
+
+    - op: add
+      path: /spec/template/spec/volumes/-
+      value:
+        name: fluent-bit-config
+        configMap:
+          name: fluent-bit-config
+
+# ============================================================================
+# Example 3: Mount Additional Volume for Data Persistence
+# ============================================================================
+# Add a persistent volume for caching or backup data
+# ============================================================================
+---
+patches:
+  deployment:
+    # Add volume mount to SpiceDB container
+    - op: add
+      path: /spec/template/spec/containers/0/volumeMounts/-
+      value:
+        name: cache-volume
+        mountPath: /var/cache/spicedb
+
+    # Add persistent volume to deployment
+    - op: add
+      path: /spec/template/spec/volumes/-
+      value:
+        name: cache-volume
+        persistentVolumeClaim:
+          claimName: spicedb-cache-pvc
+
+---
+# Additionally, create the PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: spicedb-cache-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 10Gi
+
+# ============================================================================
+# Example 4: Modify Resource Limits
+# ============================================================================
+# Increase or decrease CPU and memory limits for SpiceDB containers
+# ============================================================================
+---
+patches:
+  deployment:
+    # Modify resource requests
+    - op: replace
+      path: /spec/template/spec/containers/0/resources/requests/cpu
+      value: 1000m
+    - op: replace
+      path: /spec/template/spec/containers/0/resources/requests/memory
+      value: 2Gi
+
+    # Modify resource limits
+    - op: replace
+      path: /spec/template/spec/containers/0/resources/limits/cpu
+      value: 2000m
+    - op: replace
+      path: /spec/template/spec/containers/0/resources/limits/memory
+      value: 4Gi
+
+# ============================================================================
+# Example 5: Add Init Container for Database Migration
+# ============================================================================
+# Add an init container to run database migrations before SpiceDB starts
+# ============================================================================
+---
+patches:
+  deployment:
+    - op: add
+      path: /spec/template/spec/initContainers/-
+      value:
+        name: db-migrate
+        image: myregistry/spicedb-migrate:latest
+        env:
+          - name: DATASTORE_URI
+            valueFrom:
+              secretKeyRef:
+                name: spicedb-datastore
+                key: uri
+        volumeMounts:
+          - name: migration-scripts
+            mountPath: /migrations
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          capabilities:
+            drop:
+              - ALL
+
+    # Add volume for migration scripts
+    - op: add
+      path: /spec/template/spec/volumes/-
+      value:
+        name: migration-scripts
+        configMap:
+          name: spicedb-migrations
+
+# ============================================================================
+# Example 6: Add Security Context and Pod Security Standards
+# ============================================================================
+# Apply pod security standards and restrict container capabilities
+# ============================================================================
+---
+patches:
+  deployment:
+    # Set pod-level security context
+    - op: add
+      path: /spec/template/spec/securityContext
+      value:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 3000
+        fsGroup: 2000
+        seccompProfile:
+          type: RuntimeDefault
+
+    # Set container-level security context
+    - op: add
+      path: /spec/template/spec/containers/0/securityContext
+      value:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+
+# ============================================================================
+# Example 7: Add Node Affinity for Hardware Requirements
+# ============================================================================
+# Ensure SpiceDB pods run on nodes with specific hardware or labels
+# ============================================================================
+---
+patches:
+  deployment:
+    - op: add
+      path: /spec/template/spec/affinity
+      value:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  # Run only on nodes with SSD storage
+                  - key: disk-type
+                    operator: In
+                    values:
+                      - ssd
+                  # Run only on nodes with sufficient CPU
+                  - key: node-type
+                    operator: In
+                    values:
+                      - compute
+          preferredDuringSchedulingIgnoredDuringExecution:
+            # Prefer nodes in specific zones
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values:
+                      - us-east-1a
+                      - us-east-1b
+
+        # Pod anti-affinity to spread replicas across nodes
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - spicedb
+                topologyKey: kubernetes.io/hostname
+
+# ============================================================================
+# Example 8: Add Service Patch for Custom Labels and Annotations
+# ============================================================================
+# Add custom labels and annotations to the Service resource
+# ============================================================================
+---
+patches:
+  service:
+    # Add custom labels
+    - op: add
+      path: /metadata/labels/team
+      value: platform
+    - op: add
+      path: /metadata/labels/cost-center
+      value: engineering
+
+    # Add custom annotations
+    - op: add
+      path: /metadata/annotations/prometheus.io~1scrape
+      value: "true"
+    - op: add
+      path: /metadata/annotations/prometheus.io~1port
+      value: "9090"
+    - op: add
+      path: /metadata/annotations/prometheus.io~1path
+      value: "/metrics"
+
+# ============================================================================
+# Example 9: Add Ingress Patch for Custom Headers
+# ============================================================================
+# Add custom response headers through ingress annotations
+# ============================================================================
+---
+patches:
+  ingress:
+    # Add NGINX-specific headers
+    - op: add
+      path: /metadata/annotations/nginx.ingress.kubernetes.io~1configuration-snippet
+      value: |
+        more_set_headers "X-Custom-Header: spicedb";
+        more_set_headers "X-Frame-Options: DENY";
+        more_set_headers "X-Content-Type-Options: nosniff";
+
+    # Add rate limiting
+    - op: add
+      path: /metadata/annotations/nginx.ingress.kubernetes.io~1limit-rps
+      value: "1000"
+
+# ============================================================================
+# Example 10: Complex Patch - Add Monitoring Sidecar with Configuration
+# ============================================================================
+# Add a comprehensive monitoring setup with Prometheus exporter sidecar
+# ============================================================================
+---
+patches:
+  deployment:
+    # Add prometheus exporter sidecar
+    - op: add
+      path: /spec/template/spec/containers/-
+      value:
+        name: prometheus-exporter
+        image: prom/json-exporter:latest
+        ports:
+          - name: exporter
+            containerPort: 7979
+            protocol: TCP
+        volumeMounts:
+          - name: exporter-config
+            mountPath: /etc/json-exporter
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: exporter
+          initialDelaySeconds: 10
+          periodSeconds: 30
+
+    # Add exporter configuration
+    - op: add
+      path: /spec/template/spec/volumes/-
+      value:
+        name: exporter-config
+        configMap:
+          name: prometheus-exporter-config
+
+    # Add service monitor label for Prometheus Operator
+    - op: add
+      path: /spec/template/metadata/labels/prometheus
+      value: "true"
+
+# ============================================================================
+# Patch Application Tips
+# ============================================================================
+#
+# 1. Path Notation:
+#    - Use / to denote path hierarchy: /spec/template/spec/containers/0/env
+#    - Use ~ to escape special characters: /metadata/annotations/key~1value
+#    - Use - to append to arrays: /spec/template/spec/containers/-
+#
+# 2. Operations:
+#    - add: Add a new field or array element
+#    - remove: Remove a field or array element
+#    - replace: Replace existing field value
+#
+# 3. Best Practices:
+#    - Keep patches minimal and focused
+#    - Document complex patches with comments
+#    - Test patches in non-production first
+#    - Use container indices carefully (0 = first container)
+#    - Verify patches don't conflict with chart updates
+#
+# 4. Validation:
+#    - Use `helm template` to preview patches: helm template spicedb ./charts/spicedb -f patches.yaml
+#    - Check rendered manifests before applying
+#    - Use `kubectl diff` to preview changes: kubectl diff -f manifest.yaml
+#
+# 5. Debugging:
+#    - Use `helm get values` to see applied values
+#    - Use `kubectl describe` to see final resource state
+#    - Check pod logs for configuration issues
