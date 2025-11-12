@@ -53,9 +53,16 @@ See the [Quick Start Guide](docs/quickstart.md) for detailed setup instructions.
 ### Operations
 - [Status Monitoring](docs/operations/status-script.md) - Check deployment health with scripts/status.sh
 
+### Guides
+- [Production Guide](docs/guides/production.md) - Production deployment best practices
+- [Security Guide](docs/guides/security.md) - Security hardening and compliance
+- [Troubleshooting Guide](docs/guides/troubleshooting.md) - Common issues and solutions
+- [Upgrade Guide](docs/guides/upgrading.md) - Version upgrade procedures
+
 ### Development
 - [Testing Guide](docs/development/testing.md) - Running unit and integration tests
 - [Technical Debt](docs/development/tech-debt.md) - Known issues and improvements
+- [Changelog](docs/CHANGELOG.md) - Release history and changes
 
 ## Configuration Presets
 
