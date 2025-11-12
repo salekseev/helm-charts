@@ -15,12 +15,6 @@ helm install spicedb oci://ghcr.io/salekseev/helm-charts/spicedb \
 helm install spicedb oci://ghcr.io/salekseev/helm-charts/spicedb \
   -f values-presets/production-postgres.yaml \
   --set config.existingSecret=spicedb-config
-
-# Production High Availability
-helm install spicedb oci://ghcr.io/salekseev/helm-charts/spicedb \
-  -f values-presets/production-postgres.yaml \
-  -f values-presets/production-ha.yaml \
-  --set config.existingSecret=spicedb-config
 ```
 
 See the [Quick Start Guide](docs/quickstart.md) for detailed setup instructions.
@@ -29,7 +23,7 @@ See the [Quick Start Guide](docs/quickstart.md) for detailed setup instructions.
 
 - **Operator Parity**: Feature-complete with the SpiceDB Kubernetes operator (validated against source)
 - **HA by Default**: 2 replicas with dispatch enabled (basic HA, matches operator)
-- **Configuration Presets**: 4 production-ready presets (development, production-postgres, production-cockroachdb, production-ha)
+- **Configuration Presets**: 3 production-ready presets (development, production-postgres, production-cockroachdb)
 - **Migration Tracking**: Automatic migration state tracking with validation hooks
 - **Cloud Integration**: AWS EKS Pod Identity, GCP Workload Identity, Azure Workload Identity support
 - **High Availability**: Auto-scaling, pod anti-affinity, topology spread constraints
@@ -67,14 +61,13 @@ See the [Quick Start Guide](docs/quickstart.md) for detailed setup instructions.
 
 ## Configuration Presets
 
-This chart includes 4 production-ready presets:
+This chart includes 3 production-ready presets:
 
 | Preset | Use Case | Replicas | Datastore | Features |
 |--------|----------|----------|-----------|----------|
 | `development.yaml` | Local development | 1 | Memory | Minimal resources |
-| `production-postgres.yaml` | Production PostgreSQL | 2 | PostgreSQL | TLS, PDB, dispatch (matches operator defaults) |
+| `production-postgres.yaml` | Production PostgreSQL | 2-5 (HPA) | PostgreSQL | TLS, PDB, HPA, anti-affinity, topology spread |
 | `production-cockroachdb.yaml` | Production CockroachDB | 2 | CockroachDB | mTLS dispatch, distributed (matches operator defaults) |
-| `production-ha.yaml` | High availability add-on | 5 | Any | HPA, anti-affinity, topology spread |
 
 See [Configuration Presets](docs/configuration/presets.md) for detailed usage.
 

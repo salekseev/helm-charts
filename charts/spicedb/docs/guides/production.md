@@ -986,7 +986,7 @@ kubectl get pods -n spicedb \
 
 ### Complete HA Example
 
-For a comprehensive HA configuration with all features enabled, see [examples/production-ha.yaml](examples/production-ha.yaml).
+The production-postgres preset now includes HA features by default (HPA, anti-affinity, topology spread). For CockroachDB configurations, see [examples/production-cockroachdb-tls.yaml](examples/production-cockroachdb-tls.yaml).
 
 ## Post-Deployment Verification
 

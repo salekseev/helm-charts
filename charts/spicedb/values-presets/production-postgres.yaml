@@ -1,5 +1,5 @@
-# Production PostgreSQL: 2 replicas, TLS enabled, PDB, JSON logging
-# Prerequisites: PostgreSQL instance, K8s secret (datastore-uri, preshared-key), TLS certificates (see README)
+# Production PostgreSQL: HPA (2-5 replicas), TLS, PDB, anti-affinity, topology spread, JSON logging
+# Prerequisites: PostgreSQL instance, K8s secret (datastore-uri, preshared-key), TLS certificates, Metrics Server (see README)
 # Usage: helm install NAME . -f values-presets/production-postgres.yaml --set config.existingSecret=SECRET
 
 replicaCount: 2
@@ -37,7 +37,29 @@ podDisruptionBudget:
   maxUnavailable: 1
 
 autoscaling:
-  enabled: false
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: topology.kubernetes.io/zone
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: spicedb
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: spicedb
 
 migrations:
   enabled: true

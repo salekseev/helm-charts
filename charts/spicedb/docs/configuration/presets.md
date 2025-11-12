@@ -28,9 +28,8 @@ Configuration presets are pre-configured values files that represent common depl
 
 **Available Presets**:
 - `development.yaml` - Local development with memory datastore
-- `production-postgres.yaml` - Production with PostgreSQL
+- `production-postgres.yaml` - Production with PostgreSQL, TLS, HPA, anti-affinity
 - `production-cockroachdb.yaml` - Production with CockroachDB and dispatch
-- `production-ha.yaml` - High availability enhancements (layer only)
 
 ---
 
@@ -38,35 +37,37 @@ Configuration presets are pre-configured values files that represent common depl
 
 Presets can be layered to combine configurations. This is useful for building complex deployments from modular components.
 
-### Example 1: PostgreSQL with High Availability
+### Example: PostgreSQL Production Deployment
 
 ```bash
-helm install ha-spicedb charts/spicedb \
+helm install spicedb charts/spicedb \
   -f values-presets/production-postgres.yaml \
-  -f values-presets/production-ha.yaml \
   --set config.existingSecret=spicedb-secrets
 ```
 
-**What this does**:
-1. Applies `production-postgres.yaml` (2 replicas, PostgreSQL, TLS, PDB - matches operator defaults)
-2. Overlays `production-ha.yaml` (increases to 5 replicas, adds HPA, anti-affinity)
-3. Final result: PostgreSQL deployment with enhanced availability features
+**What this includes**:
+1. PostgreSQL datastore configuration
+2. TLS enabled for gRPC and HTTP
+3. HPA with 2-5 replicas (autoscaling enabled)
+4. Pod anti-affinity for zone distribution
+5. Topology spread constraints
+6. Pod disruption budget
+7. JSON logging
 
-### Example 2: CockroachDB with High Availability
+### Example: CockroachDB Production Deployment
 
 ```bash
-helm install ha-crdb-spicedb charts/spicedb \
+helm install crdb-spicedb charts/spicedb \
   -f values-presets/production-cockroachdb.yaml \
-  -f values-presets/production-ha.yaml \
   --set config.existingSecret=spicedb-secrets
 ```
 
-**What this does**:
-1. Applies `production-cockroachdb.yaml` (CockroachDB, dispatch cluster, TLS)
-2. Overlays `production-ha.yaml` (HA enhancements)
-3. Final result: CockroachDB deployment with dispatch cluster and HA
-
-**Key Point**: The order of `-f` flags matters. Later files override values from earlier files.
+**What this includes**:
+1. CockroachDB datastore configuration
+2. Dispatch cluster enabled with mTLS
+3. TLS for gRPC and HTTP
+4. Pod disruption budget
+5. JSON logging
 
 ---
 
@@ -231,6 +232,8 @@ resources:
 
 ### Example 3: Adjust HPA Targets
 
+If you need different autoscaling thresholds than the defaults in production-postgres.yaml:
+
 ```yaml
 # custom-hpa.yaml
 autoscaling:
@@ -241,12 +244,11 @@ autoscaling:
   targetMemoryUtilizationPercentage: 75
 ```
 
-Apply with HA preset:
+Apply with preset:
 
 ```bash
 helm install spicedb charts/spicedb \
   -f values-presets/production-postgres.yaml \
-  -f values-presets/production-ha.yaml \
   -f custom-hpa.yaml \
   --set config.existingSecret=spicedb-secrets
 ```
@@ -381,8 +383,7 @@ Understanding Helm's value merge behavior is critical for customizing presets co
 ```bash
 # Example 1: Later -f files override earlier ones
 helm install spicedb charts/spicedb \
-  -f values-presets/production-postgres.yaml \  # Sets replicaCount: 2
-  -f values-presets/production-ha.yaml \        # Overrides to replicaCount: 5
+  -f values-presets/production-postgres.yaml \  # Sets replicaCount: 2, autoscaling.minReplicas: 2
   -f my-overrides.yaml                          # Overrides to replicaCount: 7
 
 # Final result: replicaCount = 7
@@ -391,8 +392,7 @@ helm install spicedb charts/spicedb \
 ```bash
 # Example 2: --set overrides all files
 helm install spicedb charts/spicedb \
-  -f values-presets/production-postgres.yaml \  # Sets replicaCount: 2
-  -f values-presets/production-ha.yaml \        # Overrides to replicaCount: 5
+  -f values-presets/production-postgres.yaml \  # Sets replicaCount: 2, autoscaling.maxReplicas: 5
   --set replicaCount=10                         # Final override
 
 # Final result: replicaCount = 10
@@ -462,21 +462,14 @@ extraEnv:
 Start simple, add features incrementally:
 
 ```bash
-# Step 1: Start with base preset
+# Step 1: Start with production preset (includes HA features)
 helm install spicedb charts/spicedb \
   -f values-presets/production-postgres.yaml \
   --set config.existingSecret=spicedb-secrets
 
-# Step 2: Add high availability
+# Step 2: Add monitoring and network policy
 helm upgrade spicedb charts/spicedb \
   -f values-presets/production-postgres.yaml \
-  -f values-presets/production-ha.yaml \
-  --set config.existingSecret=spicedb-secrets
-
-# Step 3: Add monitoring and network policy
-helm upgrade spicedb charts/spicedb \
-  -f values-presets/production-postgres.yaml \
-  -f values-presets/production-ha.yaml \
   -f monitoring.yaml \
   -f network-policy.yaml \
   --set config.existingSecret=spicedb-secrets
@@ -511,7 +504,6 @@ Deploy to production:
 ```bash
 helm install spicedb charts/spicedb \
   -f values-presets/production-postgres.yaml \
-  -f values-presets/production-ha.yaml \
   -f config/base/spicedb-base.yaml \
   -f config/production/production-overrides.yaml \
   --set config.existingSecret=spicedb-secrets-production
@@ -546,7 +538,6 @@ helm install spicedb charts/spicedb \
 # Full-featured production
 helm install spicedb charts/spicedb \
   -f values-presets/production-postgres.yaml \
-  -f values-presets/production-ha.yaml \
   -f features/monitoring.yaml \
   -f features/network-policy.yaml \
   -f features/ingress-tls.yaml \
@@ -617,11 +608,9 @@ helm install spicedb charts/spicedb \
 ```bash
 # View preset contents
 cat values-presets/production-postgres.yaml
-cat values-presets/production-ha.yaml
+cat values-presets/production-cockroachdb.yaml
 
-# Understand what each preset configures
-# Only production-ha.yaml is designed as a layer
-# Other presets are standalone
+# All presets are now standalone with HA features included where appropriate
 ```
 
 ### Issue: Can't find where a value is set

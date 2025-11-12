@@ -276,11 +276,15 @@ See [examples/production-postgres.yaml](./examples/production-postgres.yaml) for
 
 ### High Availability Setup
 
-Deploy with autoscaling, pod disruption budgets, and topology spread:
+The production-postgres preset now includes HA features by default:
 
 ```bash
-helm install spicedb charts/spicedb -f examples/production-ha.yaml
+helm install spicedb charts/spicedb \
+  -f values-presets/production-postgres.yaml \
+  --set config.existingSecret=spicedb-config
 ```
+
+This includes HPA (2-5 replicas), pod anti-affinity, and topology spread constraints.
 
 ### Enable Monitoring
 

@@ -1,7 +1,7 @@
-# Cloud Workload Identity Examples for SpiceDB Helm Chart
+# Cloud Workload Identity Integration
 #
-# These examples demonstrate how to configure SpiceDB pods to authenticate
-# with cloud provider identity systems without managing static credentials.
+# Shows how to configure cloud provider annotations for SpiceDB's ServiceAccount
+# to enable workload identity (IRSA, GCP Workload Identity, Azure Workload Identity).
 #
 # Benefits:
 # - No credential distribution or rotation needed
@@ -10,230 +10,139 @@
 # - Compliance with zero-trust security principles
 
 # ============================================================================
-# AWS EKS Pod Identity
+# AWS EKS - IAM Roles for Service Accounts (IRSA)
 # ============================================================================
-# AWS EKS Pod Identity provides temporary credentials to pods using IRSA
-# (IAM Roles for Service Accounts).
 #
 # Prerequisites:
-# 1. EKS cluster with IRSA enabled
-# 2. IAM role created for SpiceDB with appropriate permissions
-# 3. Trust relationship configured between IAM role and service account
+# 1. EKS cluster with OIDC provider enabled
+# 2. IAM role with trust policy for OIDC provider
+# 3. IAM policies attached for required AWS services (RDS, Secrets Manager, etc.)
 #
-# Setup:
+# Setup IAM role:
 # aws iam create-role --role-name spicedb-role \
 #   --assume-role-policy-document file://trust-policy.json
-#
 # aws iam attach-role-policy --role-name spicedb-role \
 #   --policy-arn arn:aws:iam::ACCOUNT_ID:policy/spicedb-policy
-# ============================================================================
----
-# ServiceAccount with Pod Identity annotation
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: spicedb
-  namespace: default
-  annotations:
-    # EKS Pod Identity annotation
-    # Format: arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME
-    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/spicedb-role"
-
----
-# SpiceDB Helm values for AWS EKS Pod Identity
-# Apply with: helm install spicedb ./charts/spicedb -f this-file.yaml
+#
+# Helm values (values.yaml or custom file):
 serviceAccount:
-  create: false
-  name: spicedb
-  # Service account is configured above
+  create: true
+  name: ""  # Auto-generated
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/spicedb-role
 
-# Pod annotations (if needed for additional AWS configuration)
-podAnnotations:
-  # Optional: Configure AWS SDK behavior
-  # See: https://github.com/aws/amazon-eks-pod-identity-webhook
-  {}
-
-# Environment variables for SpiceDB to use AWS services
-# Example: if using S3 for backups or DynamoDB for sessions
+# Optional environment variables for SpiceDB to use AWS services
 # env:
 #   - name: AWS_REGION
 #     value: us-east-1
-#   - name: AWS_ROLE_ARN
-#     value: arn:aws:iam::123456789012:role/spicedb-role
-#   - name: AWS_WEB_IDENTITY_TOKEN_FILE
-#     value: /var/run/secrets/eks.amazonaws.com/serviceaccount/token
+
+# Install with:
+# helm install spicedb authzed/spicedb -f values.yaml
 
 # ============================================================================
-# GCP Workload Identity
+# GCP - Workload Identity
 # ============================================================================
-# GCP Workload Identity allows Kubernetes service accounts to impersonate
-# Google Cloud service accounts.
 #
 # Prerequisites:
-# 1. Workload Identity enabled on GKE cluster
-# 2. Google Cloud service account created
-# 3. Workload identity binding configured
+# 1. GKE cluster with Workload Identity enabled
+# 2. GCP service account created
+# 3. IAM binding between Kubernetes SA and GCP SA
 #
-# Setup:
+# Setup GCP service account:
 # gcloud iam service-accounts create spicedb
-#
-# gcloud iam service-accounts add-iam-policy-binding spicedb@PROJECT.iam.gserviceaccount.com \
+# gcloud iam service-accounts add-iam-policy-binding \
+#   spicedb@PROJECT.iam.gserviceaccount.com \
 #   --role roles/iam.workloadIdentityUser \
-#   --member serviceAccount:PROJECT.svc.id.goog[default/spicedb]
-# ============================================================================
----
-# ServiceAccount with Workload Identity annotation
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: spicedb-gcp
-  namespace: default
-  annotations:
-    # GCP Workload Identity annotation
-    # Format: PROJECT.svc.id.goog[NAMESPACE/KSA_NAME]
-    iam.gke.io/gcp-service-account: "spicedb@PROJECT.iam.gserviceaccount.com"
-
----
-# SpiceDB Helm values for GCP Workload Identity
+#   --member serviceAccount:PROJECT.svc.id.goog[NAMESPACE/spicedb]
+#
+# Helm values:
 serviceAccount:
-  create: false
-  name: spicedb-gcp
+  create: true
+  name: ""
+  annotations:
+    iam.gke.io/gcp-service-account: spicedb@PROJECT.iam.gserviceaccount.com
 
-# Pod annotations for GCP configuration
-podAnnotations:
-  # GCP Workload Identity requires metadata service access
-  # Generally automatic on GKE
-  {}
-
-# Environment variables for GCP
+# Optional environment variables
 # env:
-#   - name: GOOGLE_APPLICATION_CREDENTIALS
-#     value: /var/run/secrets/workload-identity/key.json
 #   - name: GCLOUD_PROJECT
 #     value: your-project-id
 
+# Install with:
+# helm install spicedb authzed/spicedb -f values.yaml
+
 # ============================================================================
-# Azure Workload Identity
+# Azure - Workload Identity
 # ============================================================================
-# Azure Workload Identity allows Kubernetes pods to authenticate to Azure
-# using managed identities without storing credentials.
 #
 # Prerequisites:
-# 1. Azure Workload Identity enabled on AKS cluster
+# 1. AKS cluster with Workload Identity enabled
 # 2. Azure managed identity created
-# 3. Service account annotations configured
-# 4. Pod identity binding created
+# 3. Federated credential configured for service account
 #
-# Setup:
+# Setup Azure managed identity:
 # az identity create -g MY_RESOURCE_GROUP -n spicedb-identity
-#
 # IDENTITY_CLIENT_ID=$(az identity show -g MY_RESOURCE_GROUP \
 #   -n spicedb-identity --query clientId -otsv)
-#
 # az identity federated-credential create \
 #   --name spicedb-federated-credential \
 #   --identity-name spicedb-identity \
-#   --issuer https://oidcToken.blob.core.windows.net/ \
-#   --subject system:serviceaccount:default:spicedb
-# ============================================================================
----
-# ServiceAccount with Azure Workload Identity annotations
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: spicedb-azure
-  namespace: default
+#   --issuer OIDC_ISSUER_URL \
+#   --subject system:serviceaccount:NAMESPACE:spicedb
+#
+# Helm values:
+serviceAccount:
+  create: true
+  name: ""
   annotations:
-    # Azure Workload Identity requires these annotations
-    # Client ID of the Azure managed identity
     azure.workload.identity/client-id: "00000000-0000-0000-0000-000000000000"
-    # Tenant ID of Azure AD tenant
     azure.workload.identity/tenant-id: "00000000-0000-0000-0000-000000000000"
 
----
-# SpiceDB Helm values for Azure Workload Identity
-serviceAccount:
-  create: false
-  name: spicedb-azure
-
-# Pod labels required for Azure Workload Identity
+# Required pod label for Azure Workload Identity
 podLabels:
   azure.workload.identity/use: "true"
 
-# Pod annotations for Azure
-podAnnotations:
-  # Optional: Additional Azure configuration
-  {}
-
-# Environment variables for Azure SDK
-# env:
-#   - name: AZURE_CLIENT_ID
-#     value: "00000000-0000-0000-0000-000000000000"
-#   - name: AZURE_TENANT_ID
-#     value: "00000000-0000-0000-0000-000000000000"
-#   - name: AZURE_FEDERATED_TOKEN_FILE
-#     value: /var/run/secrets/azure/tokens/azure-identity-token
+# Install with:
+# helm install spicedb authzed/spicedb -f values.yaml
 
 # ============================================================================
-# Multi-Cloud Setup Example
+# Multi-Cloud Configuration
 # ============================================================================
-# This example shows how to configure SpiceDB to work in a multi-cloud
-# or hybrid environment by supporting multiple identity providers.
-# ============================================================================
----
-# ServiceAccount supporting multiple cloud providers
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: spicedb-multi-cloud
-  namespace: default
+#
+# For multi-cloud or hybrid deployments, combine annotations:
+serviceAccount:
+  create: true
+  name: ""
   annotations:
     # AWS IRSA
-    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/spicedb-role"
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/spicedb-role
     # GCP Workload Identity
-    iam.gke.io/gcp-service-account: "spicedb@PROJECT.iam.gserviceaccount.com"
+    iam.gke.io/gcp-service-account: spicedb@PROJECT.iam.gserviceaccount.com
     # Azure Workload Identity
     azure.workload.identity/client-id: "00000000-0000-0000-0000-000000000000"
     azure.workload.identity/tenant-id: "00000000-0000-0000-0000-000000000000"
 
----
-# SpiceDB Helm values for multi-cloud deployment
-serviceAccount:
-  create: false
-  name: spicedb-multi-cloud
-
-# Pod labels for multiple identity systems
 podLabels:
   azure.workload.identity/use: "true"
-
-podAnnotations:
-  # Multi-cloud pod annotations
-  {}
 
 # ============================================================================
 # Summary
 # ============================================================================
 #
-# AWS EKS Pod Identity:
-# - Uses IRSA with temporary credentials
-# - Credentials automatically rotated by EKS
-# - Service account annotation: eks.amazonaws.com/role-arn
+# AWS (IRSA):
+#   - Annotation: eks.amazonaws.com/role-arn
+#   - Token location: /var/run/secrets/eks.amazonaws.com/serviceaccount/token
 #
-# GCP Workload Identity:
-# - Uses Google Cloud service account impersonation
-# - OIDC federation for token exchange
-# - Service account annotation: iam.gke.io/gcp-service-account
+# GCP (Workload Identity):
+#   - Annotation: iam.gke.io/gcp-service-account
+#   - Automatic metadata service integration
 #
-# Azure Workload Identity:
-# - Uses Azure managed identities
-# - Federated credential for token exchange
-# - Service account annotations: azure.workload.identity/*
-# - Pod label: azure.workload.identity/use: "true"
+# Azure (Workload Identity):
+#   - Annotations: azure.workload.identity/client-id, azure.workload.identity/tenant-id
+#   - Pod label: azure.workload.identity/use: "true"
+#   - Token location: /var/run/secrets/azure/tokens/azure-identity-token
 #
 # Best Practices:
-# 1. Use namespace-scoped service accounts for isolation
-# 2. Grant least-privilege IAM roles to cloud service accounts
-# 3. Enable audit logging in cloud providers
-# 4. Regularly review and rotate service account access
-# 5. Use service account federation instead of static credentials
-# 6. Implement network policies alongside identity controls
+# - Use chart's built-in serviceAccount (create: true)
+# - Grant least-privilege IAM roles
+# - Enable audit logging in cloud providers
+# - Regularly review service account access

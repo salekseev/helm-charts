@@ -7,9 +7,8 @@ Ready-to-use value presets for common SpiceDB deployment scenarios.
 | Preset | Use Case | Datastore | Replicas | Key Features |
 |--------|----------|-----------|----------|--------------|
 | `development.yaml` | Local dev/testing | Memory | 1 | Minimal resources, debug logging |
-| `production-postgres.yaml` | Production PostgreSQL | PostgreSQL | 3 | TLS, PDB, dispatch enabled |
-| `production-cockroachdb.yaml` | Production CockroachDB | CockroachDB | 3 | mTLS dispatch, distributed |
-| `production-ha.yaml` | High availability add-on | Any | 5 | HPA, anti-affinity, topology spread |
+| `production-postgres.yaml` | Production PostgreSQL | PostgreSQL | 2-5 (HPA) | TLS, PDB, HPA, anti-affinity, topology spread |
+| `production-cockroachdb.yaml` | Production CockroachDB | CockroachDB | 2 | mTLS dispatch, distributed |
 
 ## Quick Start
 
@@ -17,19 +16,13 @@ Ready-to-use value presets for common SpiceDB deployment scenarios.
 # Development
 helm install spicedb . -f values-presets/development.yaml
 
-# Production PostgreSQL
+# Production PostgreSQL (includes HA features)
 kubectl create secret generic spicedb-config \
   --from-literal=preshared-key="$(openssl rand -base64 32)" \
   --from-literal=datastore-uri="postgresql://user:pass@host:5432/spicedb"
 
 helm install spicedb . \
   -f values-presets/production-postgres.yaml \
-  --set config.existingSecret=spicedb-config
-
-# Production HA (layered on PostgreSQL)
-helm install spicedb . \
-  -f values-presets/production-postgres.yaml \
-  -f values-presets/production-ha.yaml \
   --set config.existingSecret=spicedb-config
 ```
 

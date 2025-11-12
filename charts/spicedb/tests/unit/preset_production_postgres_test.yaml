@@ -3,6 +3,7 @@ templates:
   - deployment.yaml
   - service.yaml
   - poddisruptionbudget.yaml
+  - hpa.yaml
 tests:
   # Test that production-postgres preset creates correct deployment
   - it: should create deployment with production postgres settings
@@ -127,3 +128,90 @@ tests:
               secretKeyRef:
                 name: spicedb-secrets
                 key: datastore-uri
+
+  # Test that HPA is created with autoscaling enabled
+  - it: should create HPA for autoscaling
+    template: hpa.yaml
+    values:
+      - ../../values-presets/production-postgres.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+    asserts:
+      - isKind:
+          of: HorizontalPodAutoscaler
+      # Should have correct min replicas
+      - equal:
+          path: spec.minReplicas
+          value: 2
+      # Should have correct max replicas
+      - equal:
+          path: spec.maxReplicas
+          value: 5
+      # Should have CPU target
+      - contains:
+          path: spec.metrics
+          content:
+            type: Resource
+            resource:
+              name: cpu
+              target:
+                type: Utilization
+                averageUtilization: 70
+      # Should have memory target
+      - contains:
+          path: spec.metrics
+          content:
+            type: Resource
+            resource:
+              name: memory
+              target:
+                type: Utilization
+                averageUtilization: 80
+
+  # Test pod anti-affinity configuration
+  - it: should configure pod anti-affinity for zone spreading
+    template: deployment.yaml
+    values:
+      - ../../values-presets/production-postgres.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+      tls.grpc.secretName: spicedb-tls
+      tls.http.secretName: spicedb-tls
+    asserts:
+      # Should have pod anti-affinity
+      - isNotEmpty:
+          path: spec.template.spec.affinity.podAntiAffinity
+      # Should prefer zone spreading
+      - contains:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
+          content:
+            weight: 100
+            podAffinityTerm:
+              topologyKey: topology.kubernetes.io/zone
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: spicedb
+
+  # Test topology spread constraints
+  - it: should configure topology spread constraints
+    template: deployment.yaml
+    values:
+      - ../../values-presets/production-postgres.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+      tls.grpc.secretName: spicedb-tls
+      tls.http.secretName: spicedb-tls
+    asserts:
+      # Should have topology spread constraints
+      - isNotEmpty:
+          path: spec.template.spec.topologySpreadConstraints
+      # Should spread across zones (checking key fields)
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].maxSkew
+          value: 1
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].topologyKey
+          value: topology.kubernetes.io/zone
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].whenUnsatisfiable
+          value: ScheduleAnyway
