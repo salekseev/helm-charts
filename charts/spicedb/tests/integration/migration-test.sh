@@ -108,6 +108,8 @@ nodes:
   - containerPort: 30443
     hostPort: 8443
     protocol: TCP
+- role: worker
+- role: worker
 EOF
 
     kubectl config use-context "kind-${CLUSTER_NAME}"
@@ -174,6 +176,7 @@ install_chart() {
     log_info "Installing Helm chart: $RELEASE_NAME"
     helm install "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
+        --set replicaCount=1 \
         --set config.autogenerateSecret=true \
         --set config.datastoreEngine=postgres \
         --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
@@ -225,6 +228,7 @@ upgrade_chart() {
     log_info "Upgrading Helm chart with modified values..."
     helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
+        --set replicaCount=2 \
         --set config.autogenerateSecret=true \
         --set config.datastoreEngine=postgres \
         --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
@@ -234,7 +238,6 @@ upgrade_chart() {
         --set config.datastore.database=spicedb \
         --set config.presharedKey="insecure-default-key-change-in-production" \
         --set image.tag=${SPICEDB_UPGRADE_VERSION} \
-        --set replicaCount=2 \
         --wait --timeout=10m || {
         log_error "Helm upgrade failed"
         kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' || true
@@ -285,6 +288,7 @@ test_idempotency() {
     log_info "Running second upgrade with same values..."
     helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
+        --set replicaCount=2 \
         --set config.autogenerateSecret=true \
         --set config.datastoreEngine=postgres \
         --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
@@ -294,7 +298,6 @@ test_idempotency() {
         --set config.datastore.database=spicedb \
         --set config.presharedKey="insecure-default-key-change-in-production" \
         --set image.tag=${SPICEDB_UPGRADE_VERSION} \
-        --set replicaCount=2 \
         --wait --timeout=10m
 
     log_info "Waiting for idempotency migration job..."
