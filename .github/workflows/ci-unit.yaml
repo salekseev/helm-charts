@@ -90,7 +90,8 @@ jobs:
           echo "Testing production-postgres preset..."
           helm template test-postgres . \
             -f values-presets/production-postgres.yaml \
-            --set config.existingSecret=test-secret > /dev/null
+            --set config.existingSecret=test-secret \
+            --set config.autogenerateSecret=false > /dev/null
           echo "✓ Production PostgreSQL preset renders successfully"
 
       - name: Validate production-cockroachdb preset
@@ -99,7 +100,8 @@ jobs:
           echo "Testing production-cockroachdb preset..."
           helm template test-crdb . \
             -f values-presets/production-cockroachdb.yaml \
-            --set config.existingSecret=test-secret > /dev/null
+            --set config.existingSecret=test-secret \
+            --set config.autogenerateSecret=false > /dev/null
           echo "✓ Production CockroachDB preset renders successfully"
 
       - name: Validate production-ha preset (layered)
@@ -109,14 +111,16 @@ jobs:
           helm template test-ha-postgres . \
             -f values-presets/production-postgres.yaml \
             -f values-presets/production-ha.yaml \
-            --set config.existingSecret=test-secret > /dev/null
+            --set config.existingSecret=test-secret \
+            --set config.autogenerateSecret=false > /dev/null
           echo "✓ Production HA + PostgreSQL preset combination renders successfully"
 
           echo "Testing production-ha preset layered with production-cockroachdb..."
           helm template test-ha-crdb . \
             -f values-presets/production-cockroachdb.yaml \
             -f values-presets/production-ha.yaml \
-            --set config.existingSecret=test-secret > /dev/null
+            --set config.existingSecret=test-secret \
+            --set config.autogenerateSecret=false > /dev/null
           echo "✓ Production HA + CockroachDB preset combination renders successfully"
 
       - name: Validate preset value overrides
@@ -127,7 +131,8 @@ jobs:
             -f values-presets/production-postgres.yaml \
             --set replicaCount=7 \
             --set logging.level=debug \
-            --set config.existingSecret=test-secret > /dev/null
+            --set config.existingSecret=test-secret \
+            --set config.autogenerateSecret=false > /dev/null
           echo "✓ Preset value overrides work correctly"
 
 
