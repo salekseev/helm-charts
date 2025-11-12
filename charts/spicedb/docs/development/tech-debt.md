@@ -31,6 +31,25 @@ This document tracks known technical debt, limitations, and areas for improvemen
 **Effort Estimate:** 2-3 days
 **Dependencies:** None
 
+### Operator-to-Helm Migration Integration Test Coverage
+**Priority:** Medium
+**Issue:** No automated integration tests for migration from spicedb-operator to Helm chart
+**Current State:**
+- Comprehensive documentation exists (`docs/migration/operator-to-helm.md` - 35KB)
+- Integration tests only cover Helm-to-Helm upgrade scenarios
+- Manual verification required for operator migrations
+**Impact:** Cannot automatically validate operator-to-helm migration procedures work correctly
+**Proposed Solution:**
+- Create integration test that deploys SpiceDB using the operator
+- Test migration procedure documented in operator-to-helm.md
+- Verify configuration conversion (operator CR → Helm values)
+- Test resource ownership transfer
+- Validate data persistence during migration
+- Add to CI workflow for regression prevention
+
+**Effort Estimate:** 3-4 days
+**Dependencies:** Requires spicedb-operator test deployment infrastructure
+
 ### Pre-existing Unit Test Failures
 **Priority:** Low
 **Issue:** 4 tests failing in deployment-annotations, deployment, and patches test suites
