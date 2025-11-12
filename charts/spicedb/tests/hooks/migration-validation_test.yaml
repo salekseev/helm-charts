@@ -126,34 +126,18 @@ tests:
           value: custom-sa
 
   # Image configuration tests
-  - it: should use default image repository and tag
+  - it: should use kubectl image for validation
     set:
       migrations.enabled: true
       migrations.validation.enabled: true
       config.datastoreEngine: postgres
     asserts:
-      - matchRegex:
+      - equal:
           path: spec.template.spec.containers[0].image
-          pattern: ^authzed/spicedb:v
+          value: alpine/kubectl:1.34.1
       - equal:
           path: spec.template.spec.containers[0].imagePullPolicy
           value: IfNotPresent
-
-  - it: should use custom image repository and tag
-    set:
-      migrations.enabled: true
-      migrations.validation.enabled: true
-      config.datastoreEngine: postgres
-      image.repository: custom/spicedb
-      image.tag: custom-tag
-      image.pullPolicy: Always
-    asserts:
-      - equal:
-          path: spec.template.spec.containers[0].image
-          value: custom/spicedb:custom-tag
-      - equal:
-          path: spec.template.spec.containers[0].imagePullPolicy
-          value: Always
 
   # Image pull secrets tests
   - it: should not set imagePullSecrets by default
