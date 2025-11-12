@@ -110,22 +110,6 @@ This document tracks known technical debt, limitations, and areas for improvemen
 
 ## Potential Improvements
 
-### Automated Release Process
-**Priority:** Medium
-**Idea:** Implement automated releases with changelog generation
-**Benefits:**
-- Consistent release process
-- Automated version bumping
-- Generated changelogs
-- Automated GitHub releases
-
-**Tools to Consider:**
-- release-please for automated releases
-- semantic-release for version management
-- GitHub Actions for automation
-
-**Effort Estimate:** 1 day
-
 ### Helm Chart Best Practices Validation
 **Priority:** Low
 **Idea:** Add helm chart testing beyond ct lint
@@ -157,6 +141,16 @@ This document tracks known technical debt, limitations, and areas for improvemen
 **Status:** Working as Designed
 **Reason:** Secret has weight -1, migration has weight 0, ensures proper ordering
 **No Action Needed:** Hook ordering is correct and tested
+
+### Automated Release Process
+**Status:** Already Implemented
+**Implementation:**
+- Release Please workflow (`.github/workflows/release-please.yaml`)
+- Automated chart publishing (`.github/workflows/publish-chart.yaml`)
+- Conventional Commits for changelog generation
+- Automatic version bumping in Chart.yaml
+- OCI registry publishing to ghcr.io
+**No Action Needed:** Full release automation already in place
 
 ---
 
