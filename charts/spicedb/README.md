@@ -27,7 +27,8 @@ See the [Quick Start Guide](docs/quickstart.md) for detailed setup instructions.
 
 ## Features
 
-- **Operator Parity**: Feature-complete with the SpiceDB Kubernetes operator
+- **Operator Parity**: Feature-complete with the SpiceDB Kubernetes operator (validated against source)
+- **HA by Default**: 2 replicas with dispatch enabled (basic HA, matches operator)
 - **Configuration Presets**: 4 production-ready presets (development, production-postgres, production-cockroachdb, production-ha)
 - **Migration Tracking**: Automatic migration state tracking with validation hooks
 - **Cloud Integration**: AWS EKS Pod Identity, GCP Workload Identity, Azure Workload Identity support

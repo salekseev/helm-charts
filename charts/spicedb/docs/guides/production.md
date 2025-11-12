@@ -848,16 +848,29 @@ For a complete production-ready CockroachDB configuration with full TLS, see [ex
 
 ## High Availability Configuration
 
-This section covers advanced HA features for production deployments.
+This section covers HA features for production deployments.
 
 ### Multiple Replicas
 
-Run at least 3 replicas for production:
+**Important:** SpiceDB achieves consistency through the external datastore (PostgreSQL, CockroachDB, etc.), not through internal consensus between pods. This means:
+- **2 replicas = basic HA** (sufficient for most production use cases)
+- **3+ replicas = enhanced HA** (better load distribution and failover)
+- No quorum requirement - odd numbers not necessary
+
+**Recommendation by scale:**
 
 ```yaml
-replicaCount: 3  # Minimum for HA
-# Or 5 for better availability
+# Small-medium production (default)
+replicaCount: 2  # Basic HA, handles single pod failure
+
+# Medium-large production
+replicaCount: 3  # Better load distribution
+
+# Large-scale production
+replicaCount: 5  # High load distribution + rolling updates
 ```
+
+**Note:** The chart defaults to `replicaCount: 2` (matches operator parity), providing basic HA out of the box.
 
 ### Pod Disruption Budget
 

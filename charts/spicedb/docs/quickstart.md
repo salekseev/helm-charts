@@ -43,9 +43,9 @@ helm install spicedb charts/spicedb -f values-presets/development.yaml
 
 **Warning:** Memory datastore is not persistent. Data is lost when pods restart.
 
-### Option B: Standard Install with Default Values
+### Option B: Standard Install with Default Values (Basic HA)
 
-Install the chart with default settings:
+Install the chart with default settings (2 replicas, dispatch enabled):
 
 ```bash
 # Install from local charts directory
@@ -56,6 +56,14 @@ helm install spicedb charts/spicedb
 # helm repo update
 # helm install spicedb authzed/spicedb
 ```
+
+**What this does:**
+- 2 replicas for basic HA (handles single pod failure)
+- Dispatch cluster enabled for distributed permission checking
+- Memory datastore by default (suitable for testing)
+- Matches SpiceDB operator defaults
+
+**Note:** For production, use Option C with persistent datastore.
 
 **Expected output:**
 ```
