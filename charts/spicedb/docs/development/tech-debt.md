@@ -130,28 +130,6 @@ This document tracks known technical debt, limitations, and areas for improvemen
 
 **Effort Estimate:** 1 day
 
-## Non-Issues (Not Technical Debt)
-
-### Memory Datastore Warning
-**Status:** Intentional Design
-**Reason:** Memory datastore is for development only, warning is appropriate
-**No Action Needed:** Users should use PostgreSQL/CockroachDB for production
-
-### Hook Weight Dependencies
-**Status:** Working as Designed
-**Reason:** Secret has weight -1, migration has weight 0, ensures proper ordering
-**No Action Needed:** Hook ordering is correct and tested
-
-### Automated Release Process
-**Status:** Already Implemented
-**Implementation:**
-- Release Please workflow (`.github/workflows/release-please.yaml`)
-- Automated chart publishing (`.github/workflows/publish-chart.yaml`)
-- Conventional Commits for changelog generation
-- Automatic version bumping in Chart.yaml
-- OCI registry publishing to ghcr.io
-**No Action Needed:** Full release automation already in place
-
 ---
 
 **Last Updated:** 2025-11-12
