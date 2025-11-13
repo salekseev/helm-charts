@@ -9,6 +9,7 @@ Ready-to-use value presets for common SpiceDB deployment scenarios.
 | `development.yaml` | Local dev/testing | Memory | 1 | Minimal resources, debug logging |
 | `production-postgres.yaml` | Production PostgreSQL | PostgreSQL | 2-5 (HPA) | TLS, PDB, HPA, anti-affinity, topology spread |
 | `production-cockroachdb.yaml` | Production CockroachDB | CockroachDB | 2 | mTLS dispatch, distributed |
+| `production-ha.yaml` | High availability layer | Any | 5-10 (HPA) | Aggressive HPA, higher PDB, multi-zone spread |
 
 ## Quick Start
 
@@ -23,6 +24,12 @@ kubectl create secret generic spicedb-config \
 
 helm install spicedb . \
   -f values-presets/production-postgres.yaml \
+  --set config.existingSecret=spicedb-config
+
+# High availability PostgreSQL (layered presets)
+helm install spicedb . \
+  -f values-presets/production-postgres.yaml \
+  -f values-presets/production-ha.yaml \
   --set config.existingSecret=spicedb-config
 ```
 

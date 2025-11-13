@@ -5,6 +5,199 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1](https://github.com/salekseev/helm-charts/compare/spicedb-2.0.0...spicedb-2.0.1) (2025-11-13)
+
+### Bug Fixes
+
+* **docs:** correct CI badge workflow reference in SpiceDB README ([#22](https://github.com/salekseev/helm-charts/issues/22)) ([46e2731](https://github.com/salekseev/helm-charts/commit/46e27317bdea7e24306a87c5e7d7d7411c9e03a1))
+
+### Miscellaneous
+
+* release 2.0.1 ([6dbccb1](https://github.com/salekseev/helm-charts/commit/6dbccb14c7d5eb4c3bb4ad19c343f60ee38b7384))
+
+## [2.0.0](https://github.com/salekseev/helm-charts/compare/spicedb-1.1.2...spicedb-2.0.0) (2025-11-13)
+
+**This is a major release bringing SpiceDB Helm chart to feature parity with the SpiceDB Operator while maintaining full backward compatibility.**
+
+### BREAKING CHANGES
+
+**None** - Despite the major version bump, this release maintains 100% backward compatibility with v1.x configurations. All breaking changes planned for v2.0.0 were reverted based on community feedback to ensure smooth upgrades.
+
+### Added
+
+#### Operator Compatibility Mode
+- **Operator-style configuration support** (`operatorCompatibility.enabled`)
+  - Enables seamless migration from SpiceDB Operator to Helm chart
+  - Adds operator-compatible annotations and labels
+  - Reference: [Operator Comparison Guide](migration/operator-comparison.md)
+  - Reference: [Helm to Operator Migration](migration/helm-to-operator.md)
+  - Reference: [Operator to Helm Migration](migration/operator-to-helm.md)
+
+#### Production-Ready Presets
+- **Four comprehensive configuration presets** in `values-presets/` directory:
+  - `development.yaml` - Local development with memory datastore (1 replica, minimal resources)
+  - `production-postgres.yaml` - PostgreSQL production deployment (3 replicas, HA enabled)
+  - `production-cockroachdb.yaml` - CockroachDB production deployment (3 replicas, HA enabled)
+  - `production-ha.yaml` - High-availability multi-zone deployment (5 replicas, topology spread)
+- Usage: `helm install spicedb . -f values-presets/production-postgres.yaml`
+- Reference: [Preset Configuration Guide](configuration/presets.md)
+
+#### Strategic Merge Patch System
+- **Resource customization via patches** without modifying templates
+- Patch support for:
+  - Deployment patches (`deployment.patches[]`)
+  - Service patches (`service.patches[]`)
+  - Ingress patches (`ingress.patches[]`)
+- Enables advanced Kubernetes features not exposed via values.yaml
+- Reference: `examples/patches-examples.yaml`
+
+#### Self-Healing Features
+- **Enhanced health check configuration**:
+  - Startup probes with configurable failure thresholds (default: 30 attempts × 5s = 150s)
+  - Liveness probes with gRPC protocol support (Kubernetes 1.23+)
+  - Readiness probes with HTTP fallback for older clusters
+  - Per-probe protocol configuration (`grpc` or `http`)
+- **Graceful shutdown handling**:
+  - Configurable termination grace period (default: 60s)
+  - PreStop hooks to drain in-flight requests
+  - SIGTERM signal handling for clean shutdowns
+
+#### Migration Management
+- **Migration status tracking via ConfigMap**:
+  - Records migration history and completion status
+  - Enables rollback decision support
+  - Accessible via `kubectl get configmap spicedb-migration-status`
+- **Migration validation hooks**:
+  - Pre-upgrade validation of database connectivity
+  - Schema compatibility checks before applying migrations
+  - Automatic rollback on validation failures
+- **Automatic cleanup of migration resources**:
+  - Post-migration cleanup jobs remove completed migration Jobs
+  - Configurable retention via `migrations.cleanup.enabled`
+
+#### Auto-Secret Generation
+- **Automatic secret generation** (`config.autogenerateSecret`)
+  - Generates secure random preshared keys automatically
+  - Eliminates manual secret management for development
+  - Production deployments should use `config.existingSecret` or external secret managers
+
+#### Cloud Workload Identity Support
+- **ServiceAccount annotations for cloud IAM**:
+  - AWS EKS Pod Identity integration
+  - GCP Workload Identity Federation
+  - Azure Workload Identity
+- Reference: `examples/cloud-workload-identity.yaml`
+
+#### Enhanced Documentation
+- **Comprehensive migration guides**:
+  - SpiceDB Operator vs Helm Chart comparison (672 lines)
+  - Helm to Operator migration guide (1,455 lines)
+  - Operator to Helm migration guide (1,395 lines)
+- **Organized documentation structure** under `docs/`:
+  - `docs/configuration/` - Configuration guides and presets
+  - `docs/migration/` - Migration and comparison documentation
+  - `docs/guides/` - Production, security, troubleshooting, upgrading guides
+  - `docs/operations/` - Operational scripts and utilities
+  - `docs/development/` - Testing guide (310+ tests), tech debt tracking
+- **Development documentation**:
+  - Comprehensive testing guide covering 310+ unit tests
+  - Technical debt tracking in `docs/development/tech-debt.md`
+  - Integration test documentation
+
+### Changed
+
+#### Enhanced Default Values
+- **Improved resource defaults** aligned with operator:
+  - CPU requests: 500m (was: 100m)
+  - Memory requests: 1Gi (was: 256Mi)
+  - CPU limits: 2000m (was: 1000m)
+  - Memory limits: 4Gi (was: 1Gi)
+- **Better health check configurations**:
+  - Startup probe: 30 failures × 5s = 150s startup window (was: 10 × 10s = 100s)
+  - Liveness probe: gRPC protocol by default (was: HTTP only)
+  - Readiness probe: Enhanced with proper thresholds
+- **Rolling update strategy**:
+  - `maxUnavailable: 0` ensures zero-downtime upgrades (unchanged)
+  - `maxSurge: 1` allows one extra pod during updates (unchanged)
+
+#### Template Improvements
+- **Operator-aligned deployment annotations** when `operatorCompatibility.enabled: true`
+- **Enhanced secret validation**:
+  - Mutual exclusivity checks for `autogenerateSecret` and `existingSecret`
+  - Clear error messages for misconfiguration
+- **Migration hook improvements**:
+  - Skip migration hooks when using memory datastore (no migrations needed)
+  - Conditional secret mounting based on availability
+  - Better error handling and logging
+- **values.schema.json validation**:
+  - Extended schema for new fields
+  - Validation for patch syntax
+  - Type checking for operator compatibility options
+
+#### Documentation Reorganization
+- **README.md simplified**: 1031 lines → 166 lines (84% reduction)
+  - Focused on quick start and essential information
+  - Clear navigation to detailed documentation
+  - Removed redundant examples (preserved in dedicated docs)
+- **values-presets/README.md simplified**: 268 lines → 52 lines (81% reduction)
+  - Brief overview with links to comprehensive guide
+- **All documentation moved to `docs/` hierarchy**:
+  - Following AI Developer Guide "short and simple" principles
+  - Improved discoverability and organization
+  - Consistent formatting across all documents
+
+### Fixed
+
+- **Migration hook secret references**: Prevent failures when secrets are not available
+- **Migration job execution**: Skip migration jobs for memory datastore configurations
+- **Migration cleanup job**: Use `/bin/sh` instead of `/bin/bash` for compatibility
+- **Migration validation hook**: Use kubectl image with shell support
+- **Chart linting**: Removed duplicate `operatorCompatibility` key in values.yaml
+- **CI preset validation**: Explicitly disable `autogenerateSecret` when testing with `existingSecret`
+
+### Testing
+
+- **310+ comprehensive unit tests** covering:
+  - All template files with 90%+ coverage
+  - Migration hooks and cleanup (113 tests)
+  - Operator-style configuration (11 tests)
+  - Strategic merge patches (18 tests)
+  - Health probes (8 tests)
+  - High-availability features (18 tests)
+  - Preset validation tests for all four presets
+- **Integration test infrastructure**:
+  - Kind cluster-based integration tests
+  - PostgreSQL deployment testing
+  - Migration persistence verification
+  - Automated cleanup validation
+- **OPA policy validation**:
+  - Conftest policies for security compliance
+  - Automated policy checks in CI
+
+### Migration Notes
+
+**Upgrading from v1.x:**
+- No breaking changes - upgrade with `helm upgrade` using existing values.yaml
+- All v1.x configurations remain fully compatible
+- To adopt production-ready defaults, use presets: `helm upgrade spicedb . -f values-presets/production-postgres.yaml`
+- Review [Migration Guide](migration/v1-to-v2.md) for detailed upgrade procedures
+
+**Migrating from SpiceDB Operator:**
+- Follow [Operator to Helm Migration Guide](migration/operator-to-helm.md)
+- Use `operatorCompatibility.enabled: true` for seamless transition
+- Configuration conversion script available at `scripts/convert-operator-to-helm.sh`
+
+### Contributors
+
+Special thanks to all contributors who made v2.0.0 possible through testing, feedback, and code contributions.
+
+### See Also
+
+- [Operator Comparison Guide](migration/operator-comparison.md) - Detailed feature comparison
+- [Preset Configuration Guide](configuration/presets.md) - Production-ready configurations
+- [Upgrade Guide](guides/upgrading.md) - Version compatibility and upgrade procedures
+- [Production Guide](guides/production.md) - Best practices for production deployments
+
 ## [1.1.2](https://github.com/salekseev/helm-charts/compare/spicedb-1.1.1...spicedb-1.1.2) (2025-11-09)
 
 

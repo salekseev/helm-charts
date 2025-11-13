@@ -1,4 +1,4 @@
-.PHONY: help test-unit test-integration test-local test-all clean
+.PHONY: help test-unit test-integration test-self-healing test-local test-all clean
 
 # Variables
 KIND_CLUSTER_NAME ?= spicedb-test
@@ -29,10 +29,16 @@ test-integration:  ## Run integration tests with Kind cluster
 	export SPICEDB_UPGRADE_VERSION=$(SPICEDB_UPGRADE_VERSION) && \
 	./tests/integration/migration-test.sh
 
+test-self-healing:  ## Run self-healing E2E tests with Kind cluster
+	@echo "Running self-healing E2E tests..."
+	@export KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME)-selfhealing && \
+	export HELM_RELEASE_NAME=$(HELM_RELEASE_NAME) && \
+	./tests/integration/self-healing-test.sh
+
 test-local: test-unit  ## Run local tests (unit tests only)
 	@echo "Local tests complete!"
 
-test-all: test-unit test-integration  ## Run all tests (unit + integration)
+test-all: test-unit test-integration test-self-healing  ## Run all tests (unit + integration + self-healing)
 	@echo "All tests complete!"
 
 lint:  ## Run helm lint on chart

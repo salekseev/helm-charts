@@ -26,11 +26,11 @@ tests:
           value: Helm
 
   # Replica count tests
-  - it: should set default replica count to 2 (operator parity)
+  - it: should set default replica count to 3 (operator parity)
     asserts:
       - equal:
           path: spec.replicas
-          value: 2
+          value: 3
 
   - it: should allow custom replica count
     set:

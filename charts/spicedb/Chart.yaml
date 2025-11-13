@@ -2,19 +2,54 @@ apiVersion: v2
 name: spicedb
 description: >-
   A Helm chart for SpiceDB - an open source, Zanzibar-inspired permissions
-  database
+  database with operator parity features, production-ready presets, and
+  comprehensive migration support
 type: application
 version: 2.0.1
 appVersion: v1.46.2
+kubeVersion: ">=1.27.0-0"
 keywords:
   - spicedb
   - permissions
   - authorization
   - zanzibar
   - authz
+  - operator-compatible
+  - presets
+  - self-healing
+  - authzed
 home: https://github.com/authzed/spicedb
 sources:
   - https://github.com/authzed/spicedb
+  - https://github.com/salekseev/helm-charts
 maintainers:
   - name: salekseev
     url: https://github.com/salekseev
+annotations:
+  artifacthub.io/category: security
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://github.com/salekseev/helm-charts/tree/master/charts/spicedb/README.md
+    - name: SpiceDB Documentation
+      url: https://authzed.com/docs
+    - name: Operator Comparison
+      url: https://github.com/salekseev/helm-charts/blob/master/charts/spicedb/docs/migration/operator-comparison.md
+  artifacthub.io/changes: |
+    - kind: added
+      description: Operator compatibility mode for seamless operator migration
+    - kind: added
+      description: Four production-ready configuration presets
+    - kind: added
+      description: Strategic merge patch system for advanced customization
+    - kind: added
+      description: Enhanced health probes with gRPC protocol support
+    - kind: added
+      description: Migration status tracking and validation hooks
+    - kind: changed
+      description: Improved resource defaults aligned with operator
+    - kind: changed
+      description: Comprehensive documentation reorganization
+  artifacthub.io/containsSecurityUpdates: "false"
+  artifacthub.io/prerelease: "false"
+  artifacthub.io/signKey: ""

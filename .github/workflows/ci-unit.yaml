@@ -69,7 +69,7 @@ jobs:
       - name: Validate preset files exist
         run: |
           cd charts/spicedb
-          for preset in development production-postgres production-cockroachdb; do
+          for preset in development production-postgres production-cockroachdb production-ha; do
             if [ ! -f "values-presets/${preset}.yaml" ]; then
               echo "ERROR: Preset file values-presets/${preset}.yaml not found"
               exit 1
@@ -77,11 +77,23 @@ jobs:
             echo "✓ Found preset: values-presets/${preset}.yaml"
           done
 
+      - name: Lint all presets with helm lint
+        run: |
+          cd charts/spicedb
+          echo "Running helm lint on all presets..."
+
+          for preset in values-presets/*.yaml; do
+            preset_name=$(basename "$preset")
+            echo "Linting with preset: $preset_name"
+            helm lint . -f "$preset" --strict
+            echo "✓ Lint passed for $preset_name"
+          done
+
       - name: Validate development preset
         run: |
           cd charts/spicedb
           echo "Testing development preset..."
-          helm template test-dev . -f values-presets/development.yaml > /dev/null
+          helm template test-dev . -f values-presets/development.yaml --validate > /dev/null
           echo "✓ Development preset renders successfully"
 
       - name: Validate production-postgres preset
@@ -91,7 +103,8 @@ jobs:
           helm template test-postgres . \
             -f values-presets/production-postgres.yaml \
             --set config.existingSecret=test-secret \
-            --set config.autogenerateSecret=false > /dev/null
+            --set config.autogenerateSecret=false \
+            --validate > /dev/null
           echo "✓ Production PostgreSQL preset renders successfully"
 
       - name: Validate production-cockroachdb preset
@@ -101,18 +114,20 @@ jobs:
           helm template test-crdb . \
             -f values-presets/production-cockroachdb.yaml \
             --set config.existingSecret=test-secret \
-            --set config.autogenerateSecret=false > /dev/null
+            --set config.autogenerateSecret=false \
+            --validate > /dev/null
           echo "✓ Production CockroachDB preset renders successfully"
 
-      - name: Validate production-postgres HA features
+      - name: Validate production-ha preset
         run: |
           cd charts/spicedb
-          echo "Testing production-postgres preset (includes HA features)..."
-          helm template test-postgres-ha . \
-            -f values-presets/production-postgres.yaml \
+          echo "Testing production-ha preset..."
+          helm template test-ha . \
+            -f values-presets/production-ha.yaml \
             --set config.existingSecret=test-secret \
-            --set config.autogenerateSecret=false > /dev/null
-          echo "✓ Production PostgreSQL preset with HA renders successfully"
+            --set config.autogenerateSecret=false \
+            --validate > /dev/null
+          echo "✓ Production HA preset renders successfully"
 
       - name: Validate preset value overrides
         run: |
@@ -123,8 +138,27 @@ jobs:
             --set replicaCount=7 \
             --set logging.level=debug \
             --set config.existingSecret=test-secret \
-            --set config.autogenerateSecret=false > /dev/null
+            --set config.autogenerateSecret=false \
+            --validate > /dev/null
           echo "✓ Preset value overrides work correctly"
+
+      - name: Validate presets against values.schema.json
+        run: |
+          cd charts/spicedb
+          echo "Validating all presets against values.schema.json..."
+
+          # Helm's --validate flag checks against the schema automatically
+          # We also explicitly test schema validation by rendering with strict validation
+          for preset in values-presets/*.yaml; do
+            preset_name=$(basename "$preset")
+            echo "Schema validation for: $preset_name"
+            # Use helm template with --validate which checks against values.schema.json
+            helm template test-schema . -f "$preset" --validate > /dev/null 2>&1 || {
+              echo "✗ Schema validation failed for $preset_name"
+              exit 1
+            }
+            echo "✓ Schema validation passed for $preset_name"
+          done
 
 
   policy:

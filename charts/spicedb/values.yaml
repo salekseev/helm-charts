@@ -2,8 +2,9 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-# Number of SpiceDB replicas (use 3+ for production HA)
-replicaCount: 2
+# Number of SpiceDB replicas for high availability (operator default)
+# Use 3+ for production to ensure availability during rolling updates and node failures
+replicaCount: 3
 
 image:
   repository: authzed/spicedb
@@ -74,33 +75,56 @@ updateStrategy:
 
 # Health probes (gRPC health checks for Kubernetes 1.23+)
 probes:
+  # Startup probe protects slow-starting containers
+  # Total startup time: failureThreshold * periodSeconds = 30 * 5 = 150 seconds
   startup:
     enabled: true
     initialDelaySeconds: 0
     periodSeconds: 5
     timeoutSeconds: 3
     successThreshold: 1
-    failureThreshold: 30  # 150s total startup time
+    failureThreshold: 30
 
+  # Liveness probe restarts unhealthy containers
+  # Failure window: failureThreshold * periodSeconds = 3 * 10 = 30 seconds before restart
+  # Set initialDelaySeconds > 0 to allow startup probe to complete first
   liveness:
     enabled: true
+    # Protocol: grpc (default, requires K8s 1.23+) or http (fallback for older clusters)
+    protocol: grpc  # Valid: grpc, http
     initialDelaySeconds: 30
     periodSeconds: 10
     timeoutSeconds: 5
     successThreshold: 1
-    failureThreshold: 3  # 30s before restart
+    failureThreshold: 3
+    # HTTP probe configuration (used when protocol: http)
+    http:
+      path: /healthz
+      port: 8443
+      scheme: HTTPS
 
+  # Readiness probe controls Service endpoint membership
+  # Failure window: failureThreshold * periodSeconds = 2 * 5 = 10 seconds before marking unready
+  # More frequent checks (periodSeconds: 5) than liveness for faster traffic removal
   readiness:
     enabled: true
+    # Protocol: grpc (default, requires K8s 1.23+) or http (fallback for older clusters)
+    protocol: grpc  # Valid: grpc, http
     initialDelaySeconds: 10
     periodSeconds: 5
     timeoutSeconds: 3
     successThreshold: 1
-    failureThreshold: 2  # 10s before marking unready
+    failureThreshold: 2
+    # HTTP probe configuration (used when protocol: http)
+    http:
+      path: /healthz
+      port: 8443
+      scheme: HTTPS
 
-# PodDisruptionBudget protects against maintenance operations
+# PodDisruptionBudget protects against maintenance operations (operator default)
+# Ensures high availability during voluntary disruptions (node drains, cluster upgrades)
 podDisruptionBudget:
-  enabled: false
+  enabled: true
   maxUnavailable: 1
 
 # HPA (requires metrics-server, overrides replicaCount when enabled)
@@ -143,8 +167,10 @@ config:
 
   presharedKey: "insecure-default-key-change-in-production"
 
-  # Auto-generate secure random key on install (requires opt-in)
-  autogenerateSecret: false
+  # Auto-generate secure random key on install (operator default for security)
+  # Generates a cryptographically secure 32-byte random preshared key automatically
+  # When enabled, ignores the presharedKey value above and creates a unique secret
+  autogenerateSecret: true
 
   # Use existing secret instead of creating one
   existingSecret: ""
@@ -261,9 +287,11 @@ tolerations: []
 
 affinity: {}
 
-# Operator compatibility annotations for version tracking
+# Operator compatibility annotations for version tracking (enabled by default)
+# Adds operator-style annotations to deployments for enhanced observability and compatibility
+# Tracks version, chart version, datastore engine, and migration configuration changes
 operatorCompatibility:
-  enabled: false
+  enabled: true
   annotations:
     version: true
     chartVersion: true

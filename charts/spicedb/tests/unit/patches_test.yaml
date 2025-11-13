@@ -282,7 +282,7 @@ tests:
           value: RELEASE-NAME-spicedb
       - equal:
           path: spec.replicas
-          value: 2
+          value: 3
       - equal:
           path: metadata.labels.custom
           value: "label"
