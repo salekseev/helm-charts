@@ -143,13 +143,13 @@ jobs:
           cd charts/spicedb
           echo "Validating all presets against values.schema.json..."
 
-          # Helm's --validate flag checks against the schema automatically
-          # We also explicitly test schema validation by rendering with strict validation
+          # Helm's template rendering validates against schema automatically
+          # We test that all presets render successfully
           for preset in values-presets/*.yaml; do
             preset_name=$(basename "$preset")
             echo "Schema validation for: $preset_name"
-            # Use helm template with --validate which checks against values.schema.json
-            helm template test-schema . -f "$preset" --validate > /dev/null 2>&1 || {
+            # Render template - helm validates against values.schema.json during render
+            helm template test-schema . -f "$preset" > /dev/null 2>&1 || {
               echo "✗ Schema validation failed for $preset_name"
               exit 1
             }
