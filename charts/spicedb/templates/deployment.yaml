@@ -1,3 +1,8 @@
+{{/*
+Main deployment template using strategic merge patches.
+Base definition in templates/_helpers.tpl:spicedb.deployment.base
+Patches applied from .Values.patches.deployment
+*/}}
 {{- include "spicedb.validatePatches" . -}}
 {{- $deployment := include "spicedb.deployment.base" . | fromYaml -}}
 {{- range .Values.patches.deployment -}}

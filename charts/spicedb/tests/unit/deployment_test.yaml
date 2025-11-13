@@ -363,7 +363,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SPICEDB_DISPATCH_UPSTREAM_ADDR
-            value: "RELEASE-NAME-spicedb.NAMESPACE.svc.cluster.local:50053"
+            value: "kubernetes:///RELEASE-NAME-spicedb.NAMESPACE:dispatch"
 
   - it: should not set dispatch environment variables when dispatch is disabled
     set:
@@ -391,7 +391,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SPICEDB_DISPATCH_UPSTREAM_ADDR
-            value: "RELEASE-NAME-spicedb.NAMESPACE.svc.cluster.local:50053"
+            value: "kubernetes:///RELEASE-NAME-spicedb.NAMESPACE:dispatch"
 
   - it: should set dispatch upstream CA path when upstreamCASecretName is provided
     set:
