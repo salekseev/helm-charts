@@ -1,6 +1,6 @@
 # SpiceDB Upgrade Guide
 
-This guide provides procedures for upgrading SpiceDB deployments to new versions, including chart upgrades and SpiceDB version upgrades.
+This guide provides procedures for upgrading SpiceDB deployments to new versions.
 
 ## Table of Contents
 
@@ -13,100 +13,37 @@ This guide provides procedures for upgrading SpiceDB deployments to new versions
 
 ## Version Compatibility
 
-### Chart Version to SpiceDB Version Mapping
+### Kubernetes Version Compatibility
+
+| Chart Version | Minimum Kubernetes Version | Tested Kubernetes Versions | Notes |
+|---------------|---------------------------|---------------------------|-------|
+| 2.0.x+        | 1.27+                     | 1.27, 1.28, 1.29, 1.30    | gRPC probes require 1.23+ |
+
+### SpiceDB Version Compatibility
 
 The chart `appVersion` specifies the default SpiceDB version. You can override this with `image.tag`.
-
-| Chart Version | Default SpiceDB Version | Migration Required | Breaking Changes | Notes |
-|---------------|------------------------|-------------------|------------------|-------|
-| 1.0.0         | v1.39.0                | Yes               | None             | Initial release with PostgreSQL and CockroachDB |
-| 1.1.0         | v1.40.0                | Yes               | None             | Added dispatch mode, observability, Ingress, NetworkPolicy |
-| 1.1.1         | v1.40.0                | No                | None             | CI configuration fix |
-| 1.1.2         | v1.42.0                | Yes               | None             | PostgreSQL deployment fix |
-| 2.0.0         | v1.46.2                | Yes               | **None** (backward compatible) | Operator parity features, presets, patches |
-| 2.0.1         | v1.46.2                | No                | None             | Documentation fixes |
 
 **Important Notes:**
 - Always check the [SpiceDB changelog](https://github.com/authzed/spicedb/releases) for breaking changes
 - Test upgrades in a non-production environment first
 - Database schema upgrades are forward-only (no downgrades)
-- **v2.0.0 maintains 100% backward compatibility with v1.x** despite major version bump
 
-### Kubernetes Version Compatibility
+### Operator Compatibility
 
-| Chart Version | Minimum Kubernetes Version | Tested Kubernetes Versions | Notes |
-|---------------|---------------------------|---------------------------|-------|
-| 1.0.x - 1.1.x | 1.19+                     | 1.24, 1.25, 1.26, 1.27    | Basic features |
-| 2.0.x+        | 1.27+                     | 1.27, 1.28, 1.29, 1.30    | gRPC probes require 1.23+ |
+The chart supports operator compatibility mode for migration:
+- Use `operatorCompatibility.enabled: true` for seamless operator transition
+- See [Operator to Helm Migration Guide](../migration/operator-to-helm.md)
+- See [Helm to Operator Migration Guide](../migration/helm-to-operator.md)
 
-### Breaking Changes Between Versions
+### SpiceDB Version Breaking Changes
 
-#### Chart v2.0.x
-
-**Breaking Changes:**
-- **None** - v2.0 maintains full backward compatibility with v1.x
-- All planned breaking changes (replica count, dispatch enabled, PDB enabled) were reverted
-- Existing v1.x configurations work without modification
-
-**New Features (Opt-in):**
-- Operator compatibility mode (`operatorCompatibility.enabled`)
-- Production-ready presets in `values-presets/` directory
-- Strategic merge patch system
-- Enhanced health probes with gRPC protocol support
-- Migration status tracking via ConfigMap
-- Auto-secret generation (`config.autogenerateSecret`)
-- Cloud workload identity support
-
-**See:** [v1.x to v2.0 Migration Guide](../migration/v1-to-v2.md)
-
-#### Chart v1.1.x → v2.0.x
-
-**Safe Upgrade Path:**
-```bash
-# No changes needed to values.yaml
-helm upgrade spicedb charts/spicedb --reuse-values --wait
-```
-
-**To Adopt Production Defaults:**
-```bash
-# Use production presets
-helm upgrade spicedb charts/spicedb \
-  -f values-presets/production-postgres.yaml \
-  --wait
-```
-
-**Migration Required:** Yes (database schema changes from SpiceDB v1.40.0 → v1.46.2)
-
-#### Chart v1.0.x → v1.1.x
-
-**Safe Upgrade Path:**
-```bash
-helm upgrade spicedb charts/spicedb --reuse-values --wait
-```
-
-**New Features:**
-- Dispatch cluster mode support
-- Observability (ServiceMonitor, metrics, logging)
-- Ingress and NetworkPolicy support
-- Enhanced integration testing
-
-**Migration Required:** Yes (database schema changes from SpiceDB v1.39.0 → v1.40.0)
-
-#### SpiceDB Breaking Changes
-
-Refer to [SpiceDB Release Notes](https://github.com/authzed/spicedb/releases) for SpiceDB-specific breaking changes.
+Refer to [SpiceDB Release Notes](https://github.com/authzed/spicedb/releases) for SpiceDB version-specific breaking changes.
 
 **Common SpiceDB breaking changes:**
 - API changes in gRPC schemas
 - Configuration parameter renames
 - Deprecated flags removed
 - New required configuration parameters
-
-**SpiceDB v1.39.0 → v1.46.2 Notable Changes:**
-- Enhanced dispatch cluster support
-- Improved migration system
-- Performance optimizations
-- Security enhancements
 
 ## Pre-Upgrade Checklist
 

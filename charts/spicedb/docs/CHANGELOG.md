@@ -176,12 +176,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Migration Notes
 
-**Upgrading from v1.x:**
-- No breaking changes - upgrade with `helm upgrade` using existing values.yaml
-- All v1.x configurations remain fully compatible
-- To adopt production-ready defaults, use presets: `helm upgrade spicedb . -f values-presets/production-postgres.yaml`
-- Review [Migration Guide](migration/v1-to-v2.md) for detailed upgrade procedures
-
 **Migrating from SpiceDB Operator:**
 - Follow [Operator to Helm Migration Guide](migration/operator-to-helm.md)
 - Use `operatorCompatibility.enabled: true` for seamless transition

@@ -32,7 +32,6 @@ This document tracks known technical debt, limitations, and areas for improvemen
 **Files:**
 - `docs/migration/helm-to-operator.md` - 1,455 lines (291% over limit)
 - `docs/migration/operator-to-helm.md` - 1,395 lines (279% over limit)
-- `docs/migration/v1-to-v2.md` - 984 lines (197% over limit)
 **Rationale for Keeping Monolithic:** These are comprehensive step-by-step migration guides that users need to follow sequentially. Splitting them would:
 - Reduce usability (users would need to jump between multiple files)
 - Break the narrative flow of migration procedures
