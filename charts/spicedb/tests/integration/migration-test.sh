@@ -158,7 +158,7 @@ install_chart() {
         sleep 2
     fi
 
-    log_info "Installing Helm chart: $RELEASE_NAME (2 replicas with dispatch, allowing extra time for cluster formation)"
+    log_info "Installing Helm chart: $RELEASE_NAME (2 replicas with dispatch cluster enabled)"
     helm install "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
         --set replicaCount=2 \
@@ -172,9 +172,7 @@ install_chart() {
         --set config.datastore.database=spicedb \
         --set config.presharedKey="insecure-default-key-change-in-production" \
         --set image.tag=${SPICEDB_INITIAL_VERSION} \
-        --set probes.startup.failureThreshold=240 \
-        --set probes.startup.periodSeconds=2 \
-        --wait --timeout=20m || {
+        --wait --timeout=10m || {
         log_error "Helm install failed"
         kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' || true
         kubectl get pods -n "$NAMESPACE" || true
@@ -222,7 +220,7 @@ upgrade_chart() {
         log_warn "Failed to capture pre-upgrade state"
     }
 
-    log_info "Upgrading to new version (maintaining 2 replicas with dispatch)..."
+    log_info "Upgrading to new version (${SPICEDB_UPGRADE_VERSION} with dispatch cluster still enabled)..."
     helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
         --set replicaCount=2 \
@@ -236,8 +234,6 @@ upgrade_chart() {
         --set config.datastore.database=spicedb \
         --set config.presharedKey="insecure-default-key-change-in-production" \
         --set image.tag=${SPICEDB_UPGRADE_VERSION} \
-        --set probes.startup.failureThreshold=180 \
-        --set probes.startup.periodSeconds=2 \
         --wait --timeout=15m || {
         log_error "Helm upgrade failed"
         kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' || true
@@ -294,7 +290,7 @@ verify_cleanup() {
 test_idempotency() {
     log_section "Testing idempotent upgrades"
 
-    log_info "Running second upgrade with same values..."
+    log_info "Running second upgrade with same values (dispatch still enabled)..."
     helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
         --set replicaCount=2 \
@@ -308,8 +304,6 @@ test_idempotency() {
         --set config.datastore.database=spicedb \
         --set config.presharedKey="insecure-default-key-change-in-production" \
         --set image.tag=${SPICEDB_UPGRADE_VERSION} \
-        --set probes.startup.failureThreshold=180 \
-        --set probes.startup.periodSeconds=2 \
         --wait --timeout=15m
 
     log_info "Waiting for idempotency migration job..."
@@ -357,13 +351,13 @@ main() {
         log_info "Test coverage:"
         log_info "  [PASS] Kind cluster setup"
         log_info "  [PASS] PostgreSQL deployment"
-        log_info "  [PASS] SpiceDB HA deployment (2 replicas + dispatch cluster)"
+        log_info "  [PASS] SpiceDB HA deployment (2 replicas with dispatch cluster)"
         log_info "  [PASS] Migration job execution"
         log_info "  [PASS] Schema and data loading"
-        log_info "  [PASS] Rolling upgrade with dispatch cluster (maxUnavailable: 0)"
+        log_info "  [PASS] Rolling upgrade (maxUnavailable: 0)"
         log_info "  [PASS] Data persistence across upgrades"
         log_info "  [PASS] Migration job cleanup (hook-delete-policy)"
-        log_info "  [PASS] Idempotent migrations"
+        log_info "  [PASS] Idempotent migrations with dispatch cluster"
         return 0
     else
         log_error "[FAIL] $FAILURES test(s) failed"

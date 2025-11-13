@@ -239,7 +239,7 @@ spec:
         - name: SPICEDB_DISPATCH_CLUSTER_ENABLED
           value: "true"
         - name: SPICEDB_DISPATCH_UPSTREAM_ADDR
-          value: "{{ include "spicedb.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:50053"
+          value: "kubernetes:///{{ include "spicedb.fullname" . }}.{{ .Release.Namespace }}:dispatch"
         {{- if include "spicedb.dispatchUpstreamCASecretName" . }}
         - name: SPICEDB_DISPATCH_UPSTREAM_CA_CERT_PATH
           value: /etc/dispatch-ca/ca.crt

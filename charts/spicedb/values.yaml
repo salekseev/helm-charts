@@ -194,11 +194,14 @@ tls:
     caPath: /etc/spicedb/tls/datastore/ca.crt
 
 # Dispatch cluster distributes permission checks across pods
+# Uses kubernetes:// service discovery (kubernetes:///service.namespace:dispatch)
+# Requires RBAC permissions: get, list, watch on endpoints (included in chart)
+# Automatically enabled when replicaCount >= 2
 dispatch:
   # Automatically disabled for memory datastore
   enabled: true
 
-  # Secret with ca.crt for verifying upstream SpiceDB instances
+  # Secret with ca.crt for verifying upstream SpiceDB instances (mTLS)
   upstreamCASecretName: ""
   upstreamCAPath: /etc/dispatch-ca/ca.crt
 
