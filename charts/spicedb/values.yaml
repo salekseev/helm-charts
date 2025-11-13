@@ -2,9 +2,10 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-# Number of SpiceDB replicas for high availability (operator default)
-# Use 3+ for production to ensure availability during rolling updates and node failures
-replicaCount: 3
+# Number of SpiceDB replicas for high availability (matches operator default)
+# Operator uses 2 replicas for standard deployments, 1 for memory datastore
+# Use 3+ for production if you need higher availability during rolling updates
+replicaCount: 2
 
 image:
   repository: authzed/spicedb
@@ -86,17 +87,17 @@ probes:
     failureThreshold: 30
 
   # Liveness probe restarts unhealthy containers
-  # Failure window: failureThreshold * periodSeconds = 3 * 10 = 30 seconds before restart
-  # Set initialDelaySeconds > 0 to allow startup probe to complete first
+  # Operator default: 60s initialDelay, 10s period, 5 failureThreshold, 5s timeout
+  # Chart provides startup probe for slow starts, so liveness can start sooner
   liveness:
     enabled: true
     # Protocol: grpc (default, requires K8s 1.23+) or http (fallback for older clusters)
     protocol: grpc  # Valid: grpc, http
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 5
+    initialDelaySeconds: 60  # Matches operator default
+    periodSeconds: 10  # Matches operator default
+    timeoutSeconds: 5  # Matches operator default
     successThreshold: 1
-    failureThreshold: 3
+    failureThreshold: 5  # Matches operator default
     # HTTP probe configuration (used when protocol: http)
     http:
       path: /healthz
@@ -104,17 +105,17 @@ probes:
       scheme: HTTPS
 
   # Readiness probe controls Service endpoint membership
-  # Failure window: failureThreshold * periodSeconds = 2 * 5 = 10 seconds before marking unready
-  # More frequent checks (periodSeconds: 5) than liveness for faster traffic removal
+  # Operator default: 60s initialDelay, 10s period, 5 failureThreshold, 5s timeout
+  # Chart uses faster checks for quicker traffic management
   readiness:
     enabled: true
     # Protocol: grpc (default, requires K8s 1.23+) or http (fallback for older clusters)
     protocol: grpc  # Valid: grpc, http
-    initialDelaySeconds: 10
-    periodSeconds: 5
-    timeoutSeconds: 3
+    initialDelaySeconds: 60  # Matches operator default
+    periodSeconds: 10  # Matches operator default
+    timeoutSeconds: 5  # Matches operator default
     successThreshold: 1
-    failureThreshold: 2
+    failureThreshold: 5  # Matches operator default
     # HTTP probe configuration (used when protocol: http)
     http:
       path: /healthz
