@@ -115,8 +115,9 @@ spec:
     type: RollingUpdate
     rollingUpdate:
       {{- if and .Values.dispatch.enabled (gt (include "spicedb.replicas" . | int) 1) }}
-      # When dispatch is enabled with multiple replicas, ensure at least one pod
-      # stays running during updates so new pods can connect to the dispatch cluster
+      # When dispatch is enabled with multiple replicas, match spicedb-operator behavior:
+      # maxUnavailable: 0 ensures all replicas stay available during rolling updates
+      # This allows new pods to connect to existing dispatch cluster members
       maxUnavailable: 0
       maxSurge: {{ .Values.updateStrategy.rollingUpdate.maxSurge }}
       {{- else }}

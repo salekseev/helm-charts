@@ -161,8 +161,8 @@ install_chart() {
     log_info "Installing Helm chart: $RELEASE_NAME"
     helm install "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
-        --set replicaCount=1 \
-        --set dispatch.enabled=false \
+        --set replicaCount=2 \
+        --set dispatch.enabled=true \
         --set config.autogenerateSecret=true \
         --set config.datastoreEngine=postgres \
         --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
@@ -172,6 +172,7 @@ install_chart() {
         --set config.datastore.database=spicedb \
         --set config.presharedKey="insecure-default-key-change-in-production" \
         --set image.tag=${SPICEDB_INITIAL_VERSION} \
+        --set probes.startup.failureThreshold=60 \
         --wait --timeout=10m || {
         log_error "Helm install failed"
         kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' || true
