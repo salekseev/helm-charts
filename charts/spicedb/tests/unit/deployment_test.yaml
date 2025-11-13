@@ -437,14 +437,14 @@ tests:
             name: dispatch-upstream-ca
 
   # Health probe tests
-  - it: should configure liveness probe with production defaults
+  - it: should configure liveness probe with operator defaults
     asserts:
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.grpc.port
           value: 50051
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.initialDelaySeconds
-          value: 30
+          value: 60
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.periodSeconds
           value: 10
@@ -456,28 +456,28 @@ tests:
           value: 1
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.failureThreshold
-          value: 3
+          value: 5
 
-  - it: should configure readiness probe with production defaults
+  - it: should configure readiness probe with operator defaults
     asserts:
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.grpc.port
           value: 50051
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
-          value: 10
+          value: 60
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.periodSeconds
-          value: 5
+          value: 10
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
-          value: 3
+          value: 5
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.successThreshold
           value: 1
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.failureThreshold
-          value: 2
+          value: 5
 
   - it: should allow custom liveness probe configuration
     set:

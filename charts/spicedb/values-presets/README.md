@@ -16,7 +16,7 @@ Ready-to-use value presets for common SpiceDB deployment scenarios.
 # Development
 helm install spicedb . -f values-presets/development.yaml
 
-# Production PostgreSQL (includes HA features)
+# Production PostgreSQL (includes all HA features)
 kubectl create secret generic spicedb-config \
   --from-literal=preshared-key="$(openssl rand -base64 32)" \
   --from-literal=datastore-uri="postgresql://user:pass@host:5432/spicedb"
@@ -24,6 +24,14 @@ kubectl create secret generic spicedb-config \
 helm install spicedb . \
   -f values-presets/production-postgres.yaml \
   --set config.existingSecret=spicedb-config
+
+# Customize replica count for higher availability
+helm install spicedb . \
+  -f values-presets/production-postgres.yaml \
+  --set config.existingSecret=spicedb-config \
+  --set autoscaling.minReplicas=5 \
+  --set autoscaling.maxReplicas=10 \
+  --set podDisruptionBudget.maxUnavailable=2
 ```
 
 ## Documentation

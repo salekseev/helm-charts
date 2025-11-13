@@ -1,0 +1,184 @@
+suite: test migration status configmap
+templates:
+  - migration-status-configmap.yaml
+tests:
+  # Basic rendering when enabled
+  - it: should create ConfigMap when migration tracking is enabled
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb-migration-status
+
+  # Conditional rendering tests
+  - it: should NOT create ConfigMap when migrations are disabled
+    set:
+      migrations.enabled: false
+      migrations.tracking.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should NOT create ConfigMap when tracking is disabled
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should NOT create ConfigMap when both migrations and tracking disabled
+    set:
+      migrations.enabled: false
+      migrations.tracking.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # Hook annotations tests
+  - it: should have correct helm hook annotations
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-install,pre-upgrade
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-10"
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation
+
+  # Metadata fields tests
+  - it: should populate all required metadata fields
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+    asserts:
+      - isNotEmpty:
+          path: data.chartVersion
+      - isNotEmpty:
+          path: data.appVersion
+      - isNotEmpty:
+          path: data.datastoreEngine
+      - isNotEmpty:
+          path: data.timestamp
+
+  # Data field values tests
+  - it: should correctly populate chartVersion and appVersion
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+    asserts:
+      - matchRegex:
+          path: data.chartVersion
+          pattern: ^\d+\.\d+\.\d+
+      - matchRegex:
+          path: data.appVersion
+          pattern: ^v\d+\.\d+\.\d+
+
+  - it: should populate datastoreEngine from config
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: data.datastoreEngine
+          value: postgres
+
+  - it: should populate datastoreEngine from operatorStyle when enabled
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+      operatorStyle.enabled: true
+      operatorStyle.datastoreEngine: cockroachdb
+    asserts:
+      - equal:
+          path: data.datastoreEngine
+          value: cockroachdb
+
+  - it: should populate targetMigration when specified
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+      migrations.targetMigration: "add-caveats-table"
+    asserts:
+      - equal:
+          path: data.targetMigration
+          value: add-caveats-table
+
+  - it: should have empty targetMigration when not specified
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+    asserts:
+      - equal:
+          path: data.targetMigration
+          value: ""
+
+  - it: should populate targetPhase when specified
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+      migrations.targetPhase: "write"
+    asserts:
+      - equal:
+          path: data.targetPhase
+          value: write
+
+  - it: should have empty targetPhase when not specified
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+    asserts:
+      - equal:
+          path: data.targetPhase
+          value: ""
+
+  # Timestamp format validation
+  - it: should have properly formatted ISO 8601 timestamp
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+    asserts:
+      - matchRegex:
+          path: data.timestamp
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$
+
+  # Labels test
+  - it: should have standard labels
+    set:
+      migrations.enabled: true
+      migrations.tracking.enabled: true
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: spicedb
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+      - isNotEmpty:
+          path: metadata.labels["helm.sh/chart"]
+
+  # Integration test with default values
+  - it: should render correctly with chart default values
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - isNotEmpty:
+          path: data.chartVersion
+      - isNotEmpty:
+          path: data.appVersion
+      - isNotEmpty:
+          path: data.timestamp

@@ -13,8 +13,13 @@ This directory contains GitHub Actions workflows for continuous integration and 
 **Jobs:**
 1. **Lint** - Helm chart linting with strict mode
 2. **Unit Tests** - helm-unittest test execution
-3. **Policy Validation** - Conftest security policy validation
-4. **Chart Testing** - ct lint and ct install on kind cluster
+3. **Preset Validation** - Validate all configuration presets
+   - Lint all presets with `helm lint --strict`
+   - Validate template rendering with `helm template --validate`
+   - Schema validation against values.schema.json
+   - Test value overrides
+4. **Policy Validation** - Conftest security policy validation
+5. **Chart Testing** - ct lint and ct install on kind cluster
 
 **Duration:** ~2-5 minutes
 **Status:** Required for PR merge
@@ -64,10 +69,11 @@ Configure these required status checks in GitHub repository settings:
 
 - ✅ Lint Helm Chart
 - ✅ Run Unit Tests
+- ✅ Validate Configuration Presets
 - ✅ Validate Security Policies
 - ✅ Chart Testing
 
-Do **NOT** require "Integration Tests" - it's optional and controlled by labels.
+Do **NOT** require "Integration Tests" - they're optional and controlled by labels/schedule.
 
 ## Labels
 

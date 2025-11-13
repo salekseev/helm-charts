@@ -2,7 +2,9 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-# Number of SpiceDB replicas (use 3+ for production HA)
+# Number of SpiceDB replicas for high availability (matches operator default)
+# Operator uses 2 replicas for standard deployments, 1 for memory datastore
+# Use 3+ for production if you need higher availability during rolling updates
 replicaCount: 2
 
 image:
@@ -74,33 +76,56 @@ updateStrategy:
 
 # Health probes (gRPC health checks for Kubernetes 1.23+)
 probes:
+  # Startup probe protects slow-starting containers
+  # Total startup time: failureThreshold * periodSeconds = 30 * 5 = 150 seconds
   startup:
     enabled: true
     initialDelaySeconds: 0
     periodSeconds: 5
     timeoutSeconds: 3
     successThreshold: 1
-    failureThreshold: 30  # 150s total startup time
+    failureThreshold: 30
 
+  # Liveness probe restarts unhealthy containers
+  # Operator default: 60s initialDelay, 10s period, 5 failureThreshold, 5s timeout
+  # Chart provides startup probe for slow starts, so liveness can start sooner
   liveness:
     enabled: true
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 5
+    # Protocol: grpc (default, requires K8s 1.23+) or http (fallback for older clusters)
+    protocol: grpc  # Valid: grpc, http
+    initialDelaySeconds: 60  # Matches operator default
+    periodSeconds: 10  # Matches operator default
+    timeoutSeconds: 5  # Matches operator default
     successThreshold: 1
-    failureThreshold: 3  # 30s before restart
+    failureThreshold: 5  # Matches operator default
+    # HTTP probe configuration (used when protocol: http)
+    http:
+      path: /healthz
+      port: 8443
+      scheme: HTTPS
 
+  # Readiness probe controls Service endpoint membership
+  # Operator default: 60s initialDelay, 10s period, 5 failureThreshold, 5s timeout
+  # Chart uses faster checks for quicker traffic management
   readiness:
     enabled: true
-    initialDelaySeconds: 10
-    periodSeconds: 5
-    timeoutSeconds: 3
+    # Protocol: grpc (default, requires K8s 1.23+) or http (fallback for older clusters)
+    protocol: grpc  # Valid: grpc, http
+    initialDelaySeconds: 60  # Matches operator default
+    periodSeconds: 10  # Matches operator default
+    timeoutSeconds: 5  # Matches operator default
     successThreshold: 1
-    failureThreshold: 2  # 10s before marking unready
+    failureThreshold: 5  # Matches operator default
+    # HTTP probe configuration (used when protocol: http)
+    http:
+      path: /healthz
+      port: 8443
+      scheme: HTTPS
 
-# PodDisruptionBudget protects against maintenance operations
+# PodDisruptionBudget protects against maintenance operations (operator default)
+# Ensures high availability during voluntary disruptions (node drains, cluster upgrades)
 podDisruptionBudget:
-  enabled: false
+  enabled: true
   maxUnavailable: 1
 
 # HPA (requires metrics-server, overrides replicaCount when enabled)
@@ -143,8 +168,10 @@ config:
 
   presharedKey: "insecure-default-key-change-in-production"
 
-  # Auto-generate secure random key on install (requires opt-in)
-  autogenerateSecret: false
+  # Auto-generate secure random key on install (operator default for security)
+  # Generates a cryptographically secure 32-byte random preshared key automatically
+  # When enabled, ignores the presharedKey value above and creates a unique secret
+  autogenerateSecret: true
 
   # Use existing secret instead of creating one
   existingSecret: ""
@@ -261,9 +288,11 @@ tolerations: []
 
 affinity: {}
 
-# Operator compatibility annotations for version tracking
+# Operator compatibility annotations for version tracking (enabled by default)
+# Adds operator-style annotations to deployments for enhanced observability and compatibility
+# Tracks version, chart version, datastore engine, and migration configuration changes
 operatorCompatibility:
-  enabled: false
+  enabled: true
   annotations:
     version: true
     chartVersion: true

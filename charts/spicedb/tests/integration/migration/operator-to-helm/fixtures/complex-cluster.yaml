@@ -1,0 +1,50 @@
+---
+apiVersion: authzed.com/v1alpha1
+kind: SpiceDBCluster
+metadata:
+  name: spicedb-complex
+  namespace: spicedb-migration-test
+  labels:
+    app: spicedb
+    environment: testing
+    migration-test: "true"
+spec:
+  # Complex configuration for comprehensive migration testing
+  version: "v1.35.0"
+  replicas: 3
+
+  # Secret reference for credentials
+  secretName: spicedb-operator-config
+
+  # PostgreSQL datastore configuration
+  datastoreEngine:
+    postgres:
+      connectionString:
+        secretKeyRef:
+          name: postgres-uri
+          key: datastore-uri
+
+  # TLS configuration for gRPC and HTTP
+  tlsSecretName: spicedb-grpc-tls
+
+  # Enable dispatch cluster for distributed authorization
+  dispatchCluster:
+    enabled: true
+    tlsSecretName: spicedb-dispatch-tls
+
+  # Resource configuration
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  # Extra arguments for SpiceDB
+  extraArgs:
+    - "--grpc-max-workers=10"
+    - "--dispatch-cluster-enabled=true"
+
+  # Image pull policy
+  imagePullPolicy: IfNotPresent

@@ -32,19 +32,16 @@ This document tracks known technical debt, limitations, and areas for improvemen
 **Files:**
 - `docs/migration/helm-to-operator.md` - 1,455 lines (291% over limit)
 - `docs/migration/operator-to-helm.md` - 1,395 lines (279% over limit)
-**Impact:** Difficult to navigate, overwhelming for users, violates "short and simple" principle
-**Proposed Solution:**
-- Split each into subdirectories:
-  - `overview.md` - Introduction and decision guide (~200 lines)
-  - `preparation.md` - Prerequisites and planning (~300 lines)
-  - `execution.md` - Step-by-step migration (~400 lines)
-  - `validation.md` - Testing and verification (~200 lines)
-- Create index file with table of contents
-- Update cross-references
-
-**Effort Estimate:** 1-2 hours
-**Dependencies:** None
-**Tracked in:** Task #80
+**Rationale for Keeping Monolithic:** These are comprehensive step-by-step migration guides that users need to follow sequentially. Splitting them would:
+- Reduce usability (users would need to jump between multiple files)
+- Break the narrative flow of migration procedures
+- Complicate troubleshooting (users need all information accessible)
+- Make printing/saving for offline use more difficult
+**Impact:** Slightly harder to navigate in editors, but comprehensive guides are more valuable than adherence to line limits for procedural documentation
+**Alternative Considered:** Splitting into subdirectories with overview/preparation/execution/validation files
+**Decision:** Keep monolithic for migration guides; line limit is a guideline, not a hard requirement. User experience prioritized over file size.
+**Status:** Accepted as-is. No action planned.
+**Last Reviewed:** 2025-11-13
 
 ### Integration Test Coverage with Live Databases
 **Priority:** Medium

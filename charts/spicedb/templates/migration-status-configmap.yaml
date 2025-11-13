@@ -1,0 +1,19 @@
+{{- if and .Values.migrations.enabled .Values.migrations.tracking.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "spicedb.fullname" . }}-migration-status
+  labels:
+    {{- include "spicedb.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation
+data:
+  chartVersion: {{ .Chart.Version | quote }}
+  appVersion: {{ .Chart.AppVersion | quote }}
+  datastoreEngine: {{ include "spicedb.datastoreEngine" . | quote }}
+  targetMigration: {{ .Values.migrations.targetMigration | default "" | quote }}
+  targetPhase: {{ .Values.migrations.targetPhase | default "" | quote }}
+  timestamp: {{ now | date "2006-01-02T15:04:05Z07:00" | quote }}
+{{- end }}

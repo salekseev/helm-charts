@@ -1,0 +1,26 @@
+---
+apiVersion: authzed.com/v1alpha1
+kind: SpiceDBCluster
+metadata:
+  name: spicedb-minimal
+  namespace: spicedb-migration-test
+spec:
+  # Minimal configuration for basic migration test
+  version: "v1.35.0"
+  replicas: 1
+
+  # Use existing secret for configuration
+  secretName: spicedb-operator-config
+
+  # Memory datastore for simple testing
+  datastoreEngine:
+    memory: {}
+
+  # Resource requests/limits
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

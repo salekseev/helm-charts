@@ -66,13 +66,58 @@ tests:
           value: 50051
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.initialDelaySeconds
-          value: 30
+          value: 60
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.periodSeconds
           value: 10
       - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 5
+      - equal:
           path: spec.template.spec.containers[0].livenessProbe.failureThreshold
-          value: 3
+          value: 5
+
+  - it: should support HTTP liveness probe fallback
+    set:
+      probes.liveness.protocol: http
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.containers[0].livenessProbe
+      - isNull:
+          path: spec.template.spec.containers[0].livenessProbe.grpc
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /healthz
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: 8443
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.scheme
+          value: HTTPS
+
+  - it: should disable liveness probe when disabled
+    set:
+      probes.liveness.enabled: false
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].livenessProbe
+
+  - it: should customize liveness probe HTTP settings
+    set:
+      probes.liveness.protocol: http
+      probes.liveness.http.path: /custom-health
+      probes.liveness.http.port: 9000
+      probes.liveness.http.scheme: HTTP
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /custom-health
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: 9000
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.scheme
+          value: HTTP
 
   # Readiness probe tests
   - it: should have readiness probe with correct defaults
@@ -84,13 +129,58 @@ tests:
           value: 50051
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
-          value: 10
+          value: 60
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.periodSeconds
+          value: 10
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
           value: 5
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.failureThreshold
-          value: 2
+          value: 5
+
+  - it: should support HTTP readiness probe fallback
+    set:
+      probes.readiness.protocol: http
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.containers[0].readinessProbe
+      - isNull:
+          path: spec.template.spec.containers[0].readinessProbe.grpc
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /healthz
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: 8443
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.scheme
+          value: HTTPS
+
+  - it: should disable readiness probe when disabled
+    set:
+      probes.readiness.enabled: false
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].readinessProbe
+
+  - it: should customize readiness probe HTTP settings
+    set:
+      probes.readiness.protocol: http
+      probes.readiness.http.path: /ready
+      probes.readiness.http.port: 9000
+      probes.readiness.http.scheme: HTTP
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /ready
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: 9000
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.scheme
+          value: HTTP
 
   # Combined probe configuration test
   - it: should have all three probes configured for production HA
@@ -103,3 +193,19 @@ tests:
           path: spec.template.spec.containers[0].livenessProbe
       - isNotEmpty:
           path: spec.template.spec.containers[0].readinessProbe
+
+  # Mixed protocol test
+  - it: should support different protocols for liveness and readiness
+    set:
+      probes.liveness.protocol: grpc
+      probes.readiness.protocol: http
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.containers[0].livenessProbe.grpc
+      - isNull:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet
+      - isNotEmpty:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet
+      - isNull:
+          path: spec.template.spec.containers[0].readinessProbe.grpc
+

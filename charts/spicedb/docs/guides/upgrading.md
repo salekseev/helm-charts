@@ -1,6 +1,6 @@
 # SpiceDB Upgrade Guide
 
-This guide provides procedures for upgrading SpiceDB deployments to new versions, including chart upgrades and SpiceDB version upgrades.
+This guide provides procedures for upgrading SpiceDB deployments to new versions.
 
 ## Table of Contents
 
@@ -13,37 +13,33 @@ This guide provides procedures for upgrading SpiceDB deployments to new versions
 
 ## Version Compatibility
 
-### Chart Version to SpiceDB Version Mapping
+### Kubernetes Version Compatibility
+
+| Chart Version | Minimum Kubernetes Version | Tested Kubernetes Versions | Notes |
+|---------------|---------------------------|---------------------------|-------|
+| 2.0.x+        | 1.27+                     | 1.27, 1.28, 1.29, 1.30    | gRPC probes require 1.23+ |
+
+### SpiceDB Version Compatibility
 
 The chart `appVersion` specifies the default SpiceDB version. You can override this with `image.tag`.
-
-| Chart Version | Default SpiceDB Version | Notes |
-|---------------|------------------------|-------|
-| 0.1.x         | v1.39.0                | Initial release, supports PostgreSQL and CockroachDB |
 
 **Important Notes:**
 - Always check the [SpiceDB changelog](https://github.com/authzed/spicedb/releases) for breaking changes
 - Test upgrades in a non-production environment first
 - Database schema upgrades are forward-only (no downgrades)
 
-### Kubernetes Version Compatibility
+### Operator Compatibility
 
-| Chart Version | Minimum Kubernetes Version | Tested Kubernetes Versions |
-|---------------|---------------------------|---------------------------|
-| 0.1.x         | 1.19+                     | 1.24, 1.25, 1.26, 1.27    |
+The chart supports operator compatibility mode for migration:
+- Use `operatorCompatibility.enabled: true` for seamless operator transition
+- See [Operator to Helm Migration Guide](../migration/operator-to-helm.md)
+- See [Helm to Operator Migration Guide](../migration/helm-to-operator.md)
 
-### Breaking Changes Between Versions
+### SpiceDB Version Breaking Changes
 
-#### Chart v0.1.x → v0.2.x (Future)
+Refer to [SpiceDB Release Notes](https://github.com/authzed/spicedb/releases) for SpiceDB version-specific breaking changes.
 
-**Potential breaking changes to be aware of:**
-- TBD based on future requirements
-
-#### SpiceDB Breaking Changes
-
-Refer to [SpiceDB Release Notes](https://github.com/authzed/spicedb/releases) for SpiceDB-specific breaking changes.
-
-**Common breaking changes:**
+**Common SpiceDB breaking changes:**
 - API changes in gRPC schemas
 - Configuration parameter renames
 - Deprecated flags removed

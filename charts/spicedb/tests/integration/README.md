@@ -51,12 +51,20 @@ make test-integration
 make spicedb-test-integration
 ```
 
-Or run directly:
+Or run tests individually:
 
 ```bash
 # From chart directory
 cd charts/spicedb
+
+# Migration and upgrade tests
 ./tests/integration/migration-test.sh
+
+# Self-healing features E2E tests
+./tests/integration/self-healing-test.sh
+
+# Run specific self-healing test
+TEST_FILTER=liveness ./tests/integration/self-healing-test.sh
 ```
 
 Expected output:
@@ -137,6 +145,16 @@ The integration test suite validates:
 - ✅ No data corruption or drift
 - ✅ Consistent schema state
 
+### 7. Self-Healing Features (E2E)
+- ✅ Liveness probe automatic pod restart on failure
+- ✅ Readiness probe endpoint removal for unready pods
+- ✅ Startup probe protection during slow initialization
+- ✅ Resource limits enforcement and OOM handling
+- ✅ Graceful shutdown on SIGTERM signal
+- ✅ Pod anti-affinity distribution across nodes
+- ✅ Topology spread constraints across zones
+- ✅ PodDisruptionBudget enforcement during disruptions
+
 ## Architecture
 
 ### Test Components
@@ -147,7 +165,9 @@ tests/integration/
 ├── test-schema.zed            # Sample SpiceDB schema (user, document)
 ├── verify-persistence.sh      # Data persistence verification script
 ├── verify-cleanup.sh          # Migration job cleanup validation script
-├── migration-test.sh          # Main orchestration script
+├── migration-test.sh          # Main orchestration script (upgrades & data)
+├── self-healing-test.sh       # Self-healing features E2E test suite
+├── kind-cluster-config.yaml   # Multi-node Kind cluster configuration
 └── README.md                  # This file
 ```
 
@@ -299,6 +319,149 @@ act -j unittest
 ```
 
 **Note**: Integration tests are automatically skipped when using `act` due to resource constraints. Use `make test-integration` for local integration testing instead.
+
+## Self-Healing Test Suite
+
+The `self-healing-test.sh` script provides comprehensive E2E testing for Kubernetes self-healing capabilities.
+
+### Running Self-Healing Tests
+
+```bash
+# Run all self-healing tests
+./tests/integration/self-healing-test.sh
+
+# Run with debug output (keep cluster on failure)
+SKIP_CLEANUP=true ./tests/integration/self-healing-test.sh
+
+# Run specific test only
+TEST_FILTER=liveness ./tests/integration/self-healing-test.sh
+TEST_FILTER=readiness ./tests/integration/self-healing-test.sh
+TEST_FILTER=startup ./tests/integration/self-healing-test.sh
+TEST_FILTER=oom ./tests/integration/self-healing-test.sh
+TEST_FILTER=shutdown ./tests/integration/self-healing-test.sh
+TEST_FILTER=affinity ./tests/integration/self-healing-test.sh
+TEST_FILTER=topology ./tests/integration/self-healing-test.sh
+TEST_FILTER=pdb ./tests/integration/self-healing-test.sh
+```
+
+### Self-Healing Test Details
+
+#### Test 1: Liveness Probe Restart
+- **Purpose**: Verify unhealthy pods are automatically restarted
+- **Method**: Kills SpiceDB process (PID 1) inside container
+- **Success**: Pod restart count increments and pod returns to Ready state
+- **Timeout**: 90 seconds for restart detection
+
+#### Test 2: Readiness Probe Endpoint Removal
+- **Purpose**: Verify unready pods are removed from Service endpoints
+- **Method**: Simulates readiness failure by blocking health check
+- **Success**: Pod IP removed from Service endpoints, moved to notReadyAddresses
+- **Timeout**: 60 seconds for endpoint removal
+
+#### Test 3: Startup Probe Slow Initialization
+- **Purpose**: Verify startup probe prevents premature liveness probe kills
+- **Method**: Creates pod with 20s startup delay
+- **Success**: Pod not restarted during startup window (no restarts before 25s)
+- **Timeout**: 60 seconds total test time
+
+#### Test 4: Resource Limits and OOM
+- **Purpose**: Verify memory limits are enforced and OOMKilled pods restart
+- **Method**: Creates pod with 128Mi limit, attempts to allocate 200Mi
+- **Success**: Container OOMKilled event detected, pod restarts automatically
+- **Timeout**: 60 seconds for OOM detection
+
+#### Test 5: Graceful Shutdown
+- **Purpose**: Verify SIGTERM triggers graceful shutdown within grace period
+- **Method**: Deletes pod, monitors shutdown time
+- **Success**: Pod terminates within configured terminationGracePeriodSeconds
+- **Grace Period**: 30 seconds (configurable in chart)
+
+#### Test 6: Anti-Affinity Distribution
+- **Purpose**: Verify pods spread across multiple nodes
+- **Method**: Checks pod-to-node mapping for 3 replicas
+- **Success**: Pods distributed across 2+ nodes (preferredDuringScheduling)
+- **Note**: Non-blocking if cluster has insufficient nodes
+
+#### Test 7: Topology Spread Constraints
+- **Purpose**: Verify pods spread across topology zones
+- **Method**: Labels nodes with zone labels, checks pod distribution
+- **Success**: Pods distributed across 2+ zones
+- **Note**: Non-blocking in test clusters without zone diversity
+
+#### Test 8: PodDisruptionBudget Enforcement
+- **Purpose**: Verify PDB prevents excessive pod eviction
+- **Method**: Attempts node drain, monitors PDB status
+- **Success**: PDB maintains desiredHealthy pods during disruption
+- **Timeout**: 30 seconds for drain attempt
+
+### Expected Output
+
+```
+[====] SpiceDB Self-Healing Features E2E Test Suite [====]
+[INFO] Cluster: spicedb-selfhealing-test
+[INFO] Namespace: spicedb-test
+[INFO] Release: spicedb
+
+[====] Test 1: Liveness Probe Automatic Restart [====]
+[INFO] Killing SpiceDB process inside pod...
+[INFO] Pod restarted! New restart count: 1
+[PASS] Liveness probe successfully restarted unhealthy pod
+
+[====] Test 2: Readiness Probe Endpoint Removal [====]
+[INFO] Pod successfully removed from service endpoints
+[PASS] Pod moved to notReadyAddresses as expected
+
+[====] Test 3: Startup Probe Slow Initialization Protection [====]
+[PASS] Startup probe successfully protected slow initialization
+
+[====] Test 4: Resource Limits and OOM Prevention [====]
+[PASS] Resource limits enforced - pod OOMKilled and restarted
+
+[====] Test 5: Graceful Shutdown on SIGTERM [====]
+[PASS] Graceful shutdown completed within grace period
+
+[====] Test 6: Pod Anti-Affinity Distribution [====]
+[PASS] Anti-affinity working - pods distributed across 3 nodes
+
+[====] Test 7: Topology Spread Constraints [====]
+[PASS] Topology spread working - pods distributed across 3 zones
+
+[====] Test 8: PodDisruptionBudget Enforcement [====]
+[PASS] PodDisruptionBudget successfully prevented excessive disruption
+
+[====] Test Summary [====]
+[INFO] Tests run: 8
+[INFO] Tests passed: 8
+[INFO] Tests failed: 0
+[PASS] All self-healing tests passed successfully!
+```
+
+### Troubleshooting Self-Healing Tests
+
+#### Liveness Test Failures
+- **Issue**: Pod not restarting after process kill
+- **Check**: `kubectl describe pod` for liveness probe configuration
+- **Verify**: Probe settings match chart values (periodSeconds, failureThreshold)
+
+#### Readiness Test Failures
+- **Issue**: Pod not removed from endpoints
+- **Check**: `kubectl get endpoints` to see current state
+- **Verify**: Readiness probe configured correctly in deployment
+
+#### Startup Test Failures
+- **Issue**: Pod restarted during initialization
+- **Check**: Startup probe failureThreshold * periodSeconds > initialization time
+- **Adjust**: Increase `probes.startup.failureThreshold` in values
+
+#### OOM Test Timeouts
+- **Issue**: No OOM detected in test window
+- **Note**: This may be expected if stress test doesn't trigger OOM
+- **Verify**: Resource limits are configured in deployment spec
+
+#### PDB Test Skipped
+- **Issue**: Tests skip PDB validation
+- **Check**: Ensure PDB is enabled (`podDisruptionBudget.enabled=true`)
+- **Verify**: `kubectl get pdb` shows PodDisruptionBudget exists
 
 ## CI/CD Integration
 
