@@ -5,9 +5,9 @@ description: >-
   database with operator parity features, production-ready presets, and
   comprehensive migration support
 type: application
-version: 2.0.1
+version: 2.1.0
 appVersion: v1.46.2
-kubeVersion: ">=1.27.0-0"
+kubeVersion: '>=1.27.0-0'
 keywords:
   - spicedb
   - permissions
@@ -50,6 +50,6 @@ annotations:
       description: Improved resource defaults aligned with operator
     - kind: changed
       description: Comprehensive documentation reorganization
-  artifacthub.io/containsSecurityUpdates: "false"
-  artifacthub.io/prerelease: "false"
-  artifacthub.io/signKey: ""
+  artifacthub.io/containsSecurityUpdates: 'false'
+  artifacthub.io/prerelease: 'false'
+  artifacthub.io/signKey: ''
