@@ -109,7 +109,7 @@ spec:
           validate_migration
         env:
         - name: SPICEDB_LOG_LEVEL
-          value: {{ .Values.migrations.logLevel | default "info" }}
+          value: {{ .Values.migrations.logLevel | default "debug" }}
         volumeMounts:
         - name: tmp
           mountPath: /tmp
