@@ -158,11 +158,11 @@ install_chart() {
         sleep 2
     fi
 
-    log_info "Installing Helm chart: $RELEASE_NAME (single replica, no dispatch)"
+    log_info "Installing Helm chart: $RELEASE_NAME (2 replicas with dispatch, allowing extra time for cluster formation)"
     helm install "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
-        --set replicaCount=1 \
-        --set dispatch.enabled=false \
+        --set replicaCount=2 \
+        --set dispatch.enabled=true \
         --set config.autogenerateSecret=true \
         --set config.datastoreEngine=postgres \
         --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
@@ -172,7 +172,9 @@ install_chart() {
         --set config.datastore.database=spicedb \
         --set config.presharedKey="insecure-default-key-change-in-production" \
         --set image.tag=${SPICEDB_INITIAL_VERSION} \
-        --wait --timeout=10m || {
+        --set probes.startup.failureThreshold=240 \
+        --set probes.startup.periodSeconds=2 \
+        --wait --timeout=20m || {
         log_error "Helm install failed"
         kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' || true
         kubectl get pods -n "$NAMESPACE" || true
@@ -213,61 +215,14 @@ load_test_data() {
 }
 
 upgrade_chart() {
-    log_section "Performing Helm upgrade (3-stage process)"
+    log_section "Performing Helm upgrade"
 
     log_info "Capturing pre-upgrade migration job state..."
     "$SCRIPT_DIR/verify-cleanup.sh" before || {
         log_warn "Failed to capture pre-upgrade state"
     }
 
-    # Stage 1: Upgrade version only (keep 1 replica, dispatch disabled)
-    log_info "Stage 1: Upgrading to new version (keeping 1 replica, dispatch disabled)..."
-    helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
-        --namespace "$NAMESPACE" \
-        --set replicaCount=1 \
-        --set dispatch.enabled=false \
-        --set config.autogenerateSecret=true \
-        --set config.datastoreEngine=postgres \
-        --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
-        --set config.datastore.port=5432 \
-        --set config.datastore.username=spicedb \
-        --set config.datastore.password=testpassword123 \
-        --set config.datastore.database=spicedb \
-        --set config.presharedKey="insecure-default-key-change-in-production" \
-        --set image.tag=${SPICEDB_UPGRADE_VERSION} \
-        --wait --timeout=10m || {
-        log_error "Stage 1 upgrade failed"
-        kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' || true
-        kubectl get pods -n "$NAMESPACE" || true
-        return 1
-    }
-    log_info "[PASS] Stage 1 complete: Version upgraded"
-
-    # Stage 2: Scale to 2 replicas (still no dispatch)
-    log_info "Stage 2: Scaling to 2 replicas (dispatch still disabled)..."
-    helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
-        --namespace "$NAMESPACE" \
-        --set replicaCount=2 \
-        --set dispatch.enabled=false \
-        --set config.autogenerateSecret=true \
-        --set config.datastoreEngine=postgres \
-        --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
-        --set config.datastore.port=5432 \
-        --set config.datastore.username=spicedb \
-        --set config.datastore.password=testpassword123 \
-        --set config.datastore.database=spicedb \
-        --set config.presharedKey="insecure-default-key-change-in-production" \
-        --set image.tag=${SPICEDB_UPGRADE_VERSION} \
-        --wait --timeout=10m || {
-        log_error "Stage 2 scaling failed"
-        kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' || true
-        kubectl get pods -n "$NAMESPACE" || true
-        return 1
-    }
-    log_info "[PASS] Stage 2 complete: Scaled to 2 replicas"
-
-    # Stage 3: Enable dispatch (with 2 replicas already running)
-    log_info "Stage 3: Enabling dispatch cluster (with 2 replicas)..."
+    log_info "Upgrading to new version (maintaining 2 replicas with dispatch)..."
     helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
         --set replicaCount=2 \
@@ -281,17 +236,18 @@ upgrade_chart() {
         --set config.datastore.database=spicedb \
         --set config.presharedKey="insecure-default-key-change-in-production" \
         --set image.tag=${SPICEDB_UPGRADE_VERSION} \
-        --set probes.startup.failureThreshold=60 \
+        --set probes.startup.failureThreshold=180 \
+        --set probes.startup.periodSeconds=2 \
         --wait --timeout=15m || {
-        log_error "Stage 3 dispatch enablement failed"
+        log_error "Helm upgrade failed"
         kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' || true
         kubectl get pods -n "$NAMESPACE" || true
         return 1
     }
 
-    log_info "[PASS] Stage 3 complete: Dispatch cluster enabled"
+    log_info "[PASS] Helm upgrade completed successfully"
 
-    log_info "Verifying SpiceDB pods are ready after all upgrades..."
+    log_info "Verifying SpiceDB pods are ready..."
     kubectl wait --for=condition=ready pod \
         -l "app.kubernetes.io/name=spicedb" \
         -n "$NAMESPACE" \
@@ -306,7 +262,7 @@ upgrade_chart() {
         log_warn "Cleanup job wait timed out or failed (non-fatal)"
     }
 
-    log_info "[PASS] All upgrade stages completed successfully"
+    log_info "[PASS] Upgrade completed successfully"
 }
 
 verify_persistence() {
@@ -352,7 +308,8 @@ test_idempotency() {
         --set config.datastore.database=spicedb \
         --set config.presharedKey="insecure-default-key-change-in-production" \
         --set image.tag=${SPICEDB_UPGRADE_VERSION} \
-        --set probes.startup.failureThreshold=60 \
+        --set probes.startup.failureThreshold=180 \
+        --set probes.startup.periodSeconds=2 \
         --wait --timeout=15m
 
     log_info "Waiting for idempotency migration job..."
@@ -400,10 +357,10 @@ main() {
         log_info "Test coverage:"
         log_info "  [PASS] Kind cluster setup"
         log_info "  [PASS] PostgreSQL deployment"
-        log_info "  [PASS] SpiceDB chart installation"
+        log_info "  [PASS] SpiceDB HA deployment (2 replicas + dispatch cluster)"
         log_info "  [PASS] Migration job execution"
         log_info "  [PASS] Schema and data loading"
-        log_info "  [PASS] Helm upgrade with new version"
+        log_info "  [PASS] Rolling upgrade with dispatch cluster (maxUnavailable: 0)"
         log_info "  [PASS] Data persistence across upgrades"
         log_info "  [PASS] Migration job cleanup (hook-delete-policy)"
         log_info "  [PASS] Idempotent migrations"
