@@ -1,6 +1,6 @@
 # SpiceDB Helm Chart
 
-[![Helm Chart CI](https://github.com/salekseev/helm-charts/actions/workflows/ci.yaml/badge.svg)](https://github.com/salekseev/helm-charts/actions/workflows/ci.yaml)
+[![Helm Chart CI](https://github.com/salekseev/helm-charts/actions/workflows/ci-unit.yaml/badge.svg)](https://github.com/salekseev/helm-charts/actions/workflows/ci-unit.yaml)
 
 Production-ready Helm chart for deploying [SpiceDB](https://authzed.com/spicedb) - an open source, Google Zanzibar-inspired permissions database for fine-grained authorization at scale.
 
