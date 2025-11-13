@@ -64,7 +64,7 @@ Converts SpiceDB Operator `SpiceDBCluster` CRD to Helm `values.yaml` format.
 **Options:**
 - `-i, --input FILE` - Input SpiceDBCluster YAML file (required)
 - `-o, --output FILE` - Output values.yaml file (default: stdout)
-- `--preset NAME` - Base preset to use (development, production-postgres, production-cockroachdb, production-ha)
+- `--preset NAME` - Base preset to use (development, production-postgres, production-cockroachdb)
 - `--dry-run` - Validate without producing output
 - `-h, --help` - Show help message
 

@@ -69,7 +69,7 @@ jobs:
       - name: Validate preset files exist
         run: |
           cd charts/spicedb
-          for preset in development production-postgres production-cockroachdb production-ha; do
+          for preset in development production-postgres production-cockroachdb; do
             if [ ! -f "values-presets/${preset}.yaml" ]; then
               echo "ERROR: Preset file values-presets/${preset}.yaml not found"
               exit 1
@@ -115,16 +115,6 @@ jobs:
             --set config.existingSecret=test-secret \
             --set config.autogenerateSecret=false > /dev/null
           echo "✓ Production CockroachDB preset renders successfully"
-
-      - name: Validate production-ha preset
-        run: |
-          cd charts/spicedb
-          echo "Testing production-ha preset..."
-          helm template test-ha . \
-            -f values-presets/production-ha.yaml \
-            --set config.existingSecret=test-secret \
-            --set config.autogenerateSecret=false > /dev/null
-          echo "✓ Production HA preset renders successfully"
 
       - name: Validate preset value overrides
         run: |

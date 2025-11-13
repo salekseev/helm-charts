@@ -34,12 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reference: [Operator to Helm Migration](migration/operator-to-helm.md)
 
 #### Production-Ready Presets
-- **Four comprehensive configuration presets** in `values-presets/` directory:
+- **Three comprehensive configuration presets** in `values-presets/` directory:
   - `development.yaml` - Local development with memory datastore (1 replica, minimal resources)
-  - `production-postgres.yaml` - PostgreSQL production deployment (3 replicas, HA enabled)
-  - `production-cockroachdb.yaml` - CockroachDB production deployment (3 replicas, HA enabled)
-  - `production-ha.yaml` - High-availability multi-zone deployment (5 replicas, topology spread)
+  - `production-postgres.yaml` - PostgreSQL production deployment with all HA features (HPA 2-5 replicas, PDB, anti-affinity, topology spread)
+  - `production-cockroachdb.yaml` - CockroachDB production deployment with dispatch cluster mTLS (2 replicas)
 - Usage: `helm install spicedb . -f values-presets/production-postgres.yaml`
+- Customize with `--set` for higher availability (e.g., `--set autoscaling.minReplicas=5 --set autoscaling.maxReplicas=10`)
 - Reference: [Preset Configuration Guide](configuration/presets.md)
 
 #### Strategic Merge Patch System

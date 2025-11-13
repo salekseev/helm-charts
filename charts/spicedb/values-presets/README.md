@@ -9,7 +9,6 @@ Ready-to-use value presets for common SpiceDB deployment scenarios.
 | `development.yaml` | Local dev/testing | Memory | 1 | Minimal resources, debug logging |
 | `production-postgres.yaml` | Production PostgreSQL | PostgreSQL | 2-5 (HPA) | TLS, PDB, HPA, anti-affinity, topology spread |
 | `production-cockroachdb.yaml` | Production CockroachDB | CockroachDB | 2 | mTLS dispatch, distributed |
-| `production-ha.yaml` | High availability layer | Any | 5-10 (HPA) | Aggressive HPA, higher PDB, multi-zone spread |
 
 ## Quick Start
 
@@ -17,7 +16,7 @@ Ready-to-use value presets for common SpiceDB deployment scenarios.
 # Development
 helm install spicedb . -f values-presets/development.yaml
 
-# Production PostgreSQL (includes HA features)
+# Production PostgreSQL (includes all HA features)
 kubectl create secret generic spicedb-config \
   --from-literal=preshared-key="$(openssl rand -base64 32)" \
   --from-literal=datastore-uri="postgresql://user:pass@host:5432/spicedb"
@@ -26,11 +25,13 @@ helm install spicedb . \
   -f values-presets/production-postgres.yaml \
   --set config.existingSecret=spicedb-config
 
-# High availability PostgreSQL (layered presets)
+# Customize replica count for higher availability
 helm install spicedb . \
   -f values-presets/production-postgres.yaml \
-  -f values-presets/production-ha.yaml \
-  --set config.existingSecret=spicedb-config
+  --set config.existingSecret=spicedb-config \
+  --set autoscaling.minReplicas=5 \
+  --set autoscaling.maxReplicas=10 \
+  --set podDisruptionBudget.maxUnavailable=2
 ```
 
 ## Documentation
