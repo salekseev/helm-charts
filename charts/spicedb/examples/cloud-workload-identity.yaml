@@ -1,0 +1,148 @@
+# Cloud Workload Identity Integration
+#
+# Shows how to configure cloud provider annotations for SpiceDB's ServiceAccount
+# to enable workload identity (IRSA, GCP Workload Identity, Azure Workload Identity).
+#
+# Benefits:
+# - No credential distribution or rotation needed
+# - Automatic token refresh
+# - Fine-grained access control via IAM roles
+# - Compliance with zero-trust security principles
+
+# ============================================================================
+# AWS EKS - IAM Roles for Service Accounts (IRSA)
+# ============================================================================
+#
+# Prerequisites:
+# 1. EKS cluster with OIDC provider enabled
+# 2. IAM role with trust policy for OIDC provider
+# 3. IAM policies attached for required AWS services (RDS, Secrets Manager, etc.)
+#
+# Setup IAM role:
+# aws iam create-role --role-name spicedb-role \
+#   --assume-role-policy-document file://trust-policy.json
+# aws iam attach-role-policy --role-name spicedb-role \
+#   --policy-arn arn:aws:iam::ACCOUNT_ID:policy/spicedb-policy
+#
+# Helm values (values.yaml or custom file):
+serviceAccount:
+  create: true
+  name: ""  # Auto-generated
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/spicedb-role
+
+# Optional environment variables for SpiceDB to use AWS services
+# env:
+#   - name: AWS_REGION
+#     value: us-east-1
+
+# Install with:
+# helm install spicedb authzed/spicedb -f values.yaml
+
+# ============================================================================
+# GCP - Workload Identity
+# ============================================================================
+#
+# Prerequisites:
+# 1. GKE cluster with Workload Identity enabled
+# 2. GCP service account created
+# 3. IAM binding between Kubernetes SA and GCP SA
+#
+# Setup GCP service account:
+# gcloud iam service-accounts create spicedb
+# gcloud iam service-accounts add-iam-policy-binding \
+#   spicedb@PROJECT.iam.gserviceaccount.com \
+#   --role roles/iam.workloadIdentityUser \
+#   --member serviceAccount:PROJECT.svc.id.goog[NAMESPACE/spicedb]
+#
+# Helm values:
+serviceAccount:
+  create: true
+  name: ""
+  annotations:
+    iam.gke.io/gcp-service-account: spicedb@PROJECT.iam.gserviceaccount.com
+
+# Optional environment variables
+# env:
+#   - name: GCLOUD_PROJECT
+#     value: your-project-id
+
+# Install with:
+# helm install spicedb authzed/spicedb -f values.yaml
+
+# ============================================================================
+# Azure - Workload Identity
+# ============================================================================
+#
+# Prerequisites:
+# 1. AKS cluster with Workload Identity enabled
+# 2. Azure managed identity created
+# 3. Federated credential configured for service account
+#
+# Setup Azure managed identity:
+# az identity create -g MY_RESOURCE_GROUP -n spicedb-identity
+# IDENTITY_CLIENT_ID=$(az identity show -g MY_RESOURCE_GROUP \
+#   -n spicedb-identity --query clientId -otsv)
+# az identity federated-credential create \
+#   --name spicedb-federated-credential \
+#   --identity-name spicedb-identity \
+#   --issuer OIDC_ISSUER_URL \
+#   --subject system:serviceaccount:NAMESPACE:spicedb
+#
+# Helm values:
+serviceAccount:
+  create: true
+  name: ""
+  annotations:
+    azure.workload.identity/client-id: "00000000-0000-0000-0000-000000000000"
+    azure.workload.identity/tenant-id: "00000000-0000-0000-0000-000000000000"
+
+# Required pod label for Azure Workload Identity
+podLabels:
+  azure.workload.identity/use: "true"
+
+# Install with:
+# helm install spicedb authzed/spicedb -f values.yaml
+
+# ============================================================================
+# Multi-Cloud Configuration
+# ============================================================================
+#
+# For multi-cloud or hybrid deployments, combine annotations:
+serviceAccount:
+  create: true
+  name: ""
+  annotations:
+    # AWS IRSA
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/spicedb-role
+    # GCP Workload Identity
+    iam.gke.io/gcp-service-account: spicedb@PROJECT.iam.gserviceaccount.com
+    # Azure Workload Identity
+    azure.workload.identity/client-id: "00000000-0000-0000-0000-000000000000"
+    azure.workload.identity/tenant-id: "00000000-0000-0000-0000-000000000000"
+
+podLabels:
+  azure.workload.identity/use: "true"
+
+# ============================================================================
+# Summary
+# ============================================================================
+#
+# AWS (IRSA):
+#   - Annotation: eks.amazonaws.com/role-arn
+#   - Token location: /var/run/secrets/eks.amazonaws.com/serviceaccount/token
+#
+# GCP (Workload Identity):
+#   - Annotation: iam.gke.io/gcp-service-account
+#   - Automatic metadata service integration
+#
+# Azure (Workload Identity):
+#   - Annotations: azure.workload.identity/client-id, azure.workload.identity/tenant-id
+#   - Pod label: azure.workload.identity/use: "true"
+#   - Token location: /var/run/secrets/azure/tokens/azure-identity-token
+#
+# Best Practices:
+# - Use chart's built-in serviceAccount (create: true)
+# - Grant least-privilege IAM roles
+# - Enable audit logging in cloud providers
+# - Regularly review service account access

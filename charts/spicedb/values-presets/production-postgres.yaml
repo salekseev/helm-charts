@@ -1,0 +1,73 @@
+# Production PostgreSQL: HPA (2-5 replicas), TLS, PDB, anti-affinity, topology spread, JSON logging
+# Prerequisites: PostgreSQL instance, K8s secret (datastore-uri, preshared-key), TLS certificates, Metrics Server (see README)
+# Usage: helm install NAME . -f values-presets/production-postgres.yaml --set config.existingSecret=SECRET
+
+replicaCount: 2
+
+config:
+  datastoreEngine: postgres
+  existingSecret: ""
+
+logging:
+  level: info
+  format: json
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+
+tls:
+  enabled: true
+  grpc:
+    secretName: spicedb-tls
+    certPath: /etc/spicedb/tls/grpc/tls.crt
+    keyPath: /etc/spicedb/tls/grpc/tls.key
+    caPath: /etc/spicedb/tls/grpc/ca.crt
+  http:
+    secretName: spicedb-tls
+    certPath: /etc/spicedb/tls/http/tls.crt
+    keyPath: /etc/spicedb/tls/http/tls.key
+
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: topology.kubernetes.io/zone
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: spicedb
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: spicedb
+
+migrations:
+  enabled: true
+  logLevel: info
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s

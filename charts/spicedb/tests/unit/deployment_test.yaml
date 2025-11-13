@@ -26,19 +26,19 @@ tests:
           value: Helm
 
   # Replica count tests
-  - it: should set default replica count to 1
+  - it: should set default replica count to 2 (operator parity)
     asserts:
       - equal:
           path: spec.replicas
-          value: 1
+          value: 2
 
   - it: should allow custom replica count
     set:
-      replicaCount: 3
+      replicaCount: 5
     asserts:
       - equal:
           path: spec.replicas
-          value: 3
+          value: 5
 
   # Image configuration tests
   - it: should use default image repository and tag
@@ -352,6 +352,19 @@ tests:
       - isNotEmpty:
           path: spec.template.metadata.annotations["checksum/migration-config"]
   # Dispatch cluster configuration tests
+  - it: should have dispatch enabled by default (matches operator parity)
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_CLUSTER_ENABLED
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_UPSTREAM_ADDR
+            value: "kubernetes:///RELEASE-NAME-spicedb.NAMESPACE:dispatch"
+
   - it: should not set dispatch environment variables when dispatch is disabled
     set:
       dispatch.enabled: false
@@ -378,7 +391,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SPICEDB_DISPATCH_UPSTREAM_ADDR
-            value: "RELEASE-NAME-spicedb.NAMESPACE.svc.cluster.local:50053"
+            value: "kubernetes:///RELEASE-NAME-spicedb.NAMESPACE:dispatch"
 
   - it: should set dispatch upstream CA path when upstreamCASecretName is provided
     set:
@@ -422,3 +435,87 @@ tests:
           path: spec.template.spec.containers[0].volumeMounts
           content:
             name: dispatch-upstream-ca
+
+  # Health probe tests
+  - it: should configure liveness probe with production defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.grpc.port
+          value: 50051
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.initialDelaySeconds
+          value: 30
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.periodSeconds
+          value: 10
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.successThreshold
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.failureThreshold
+          value: 3
+
+  - it: should configure readiness probe with production defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.grpc.port
+          value: 50051
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
+          value: 10
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.periodSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
+          value: 3
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.successThreshold
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.failureThreshold
+          value: 2
+
+  - it: should allow custom liveness probe configuration
+    set:
+      probes.liveness.initialDelaySeconds: 60
+      probes.liveness.periodSeconds: 20
+      probes.liveness.timeoutSeconds: 10
+      probes.liveness.failureThreshold: 5
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.initialDelaySeconds
+          value: 60
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.periodSeconds
+          value: 20
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 10
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.failureThreshold
+          value: 5
+
+  - it: should allow custom readiness probe configuration
+    set:
+      probes.readiness.initialDelaySeconds: 20
+      probes.readiness.periodSeconds: 10
+      probes.readiness.timeoutSeconds: 5
+      probes.readiness.failureThreshold: 5
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
+          value: 20
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.periodSeconds
+          value: 10
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.failureThreshold
+          value: 5
+

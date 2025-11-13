@@ -848,16 +848,100 @@ For a complete production-ready CockroachDB configuration with full TLS, see [ex
 
 ## High Availability Configuration
 
-This section covers advanced HA features for production deployments.
+This section covers HA features for production deployments.
 
 ### Multiple Replicas
 
-Run at least 3 replicas for production:
+**Important:** SpiceDB achieves consistency through the external datastore (PostgreSQL, CockroachDB, etc.), not through internal consensus between pods. This means:
+- **2 replicas = basic HA** (sufficient for most production use cases)
+- **3+ replicas = enhanced HA** (better load distribution and failover)
+- No quorum requirement - odd numbers not necessary
+
+**Recommendation by scale:**
 
 ```yaml
-replicaCount: 3  # Minimum for HA
-# Or 5 for better availability
+# Small-medium production (default)
+replicaCount: 2  # Basic HA, handles single pod failure
+
+# Medium-large production
+replicaCount: 3  # Better load distribution
+
+# Large-scale production
+replicaCount: 5  # High load distribution + rolling updates
 ```
+
+**Note:** The chart defaults to `replicaCount: 2` (matches operator parity), providing basic HA out of the box.
+
+### Dispatch Cluster
+
+The dispatch cluster enables distributed request processing across multiple SpiceDB pods for improved performance and scalability. It's enabled by default when running 2+ replicas.
+
+**Service Discovery:**
+
+The chart uses Kubernetes native service discovery (`kubernetes://`) for dispatch cluster communication:
+
+```yaml
+dispatch:
+  enabled: true  # Enabled by default with 2+ replicas
+```
+
+The chart automatically configures:
+- **Service Discovery**: `kubernetes:///spicedb.namespace:dispatch` (uses gRPC kuberesolver)
+- **RBAC Permissions**: ServiceAccount with `get`, `list`, `watch` on endpoints
+- **Port Name Resolution**: Uses port name `dispatch` instead of port number `50053`
+
+**How it works:**
+1. SpiceDB pods register with the `spicedb` Service on the `dispatch` port (50053)
+2. The kubernetes:// resolver watches the Endpoints resource to discover pod IPs
+3. gRPC load balances requests using consistent hash ring across available pods
+4. RBAC watch permission allows real-time pod discovery without polling
+
+**RBAC Requirements:**
+
+The chart includes required RBAC permissions for kubernetes:// service discovery:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: spicedb
+rules:
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["get", "list", "watch"]  # watch required for kubernetes://
+```
+
+**TLS Configuration (Optional):**
+
+For secure dispatch communication, enable mTLS:
+
+```yaml
+tls:
+  enabled: true
+  dispatch:
+    secretName: spicedb-dispatch-tls  # mTLS certificate
+```
+
+See the [TLS Certificate Generation](#tls-certificate-generation) section for creating dispatch certificates.
+
+**Verification:**
+
+Check dispatch cluster is working:
+
+```bash
+# Check endpoints are discovered
+kubectl get endpoints spicedb -n spicedb
+
+# Verify dispatch port is listening
+kubectl exec -n spicedb spicedb-0 -- netstat -tlnp | grep 50053
+
+# Check logs for dispatch cluster formation
+kubectl logs -n spicedb -l app.kubernetes.io/name=spicedb | grep -i dispatch
+```
+
+**References:**
+- [Consistent Hash Load Balancing for gRPC](https://authzed.com/blog/consistent-hash-load-balancing-grpc)
+- [SpiceDB Operator Dispatch Configuration](https://github.com/authzed/spicedb-operator/blob/main/pkg/config/config_test.go)
 
 ### Pod Disruption Budget
 
@@ -973,7 +1057,7 @@ kubectl get pods -n spicedb \
 
 ### Complete HA Example
 
-For a comprehensive HA configuration with all features enabled, see [examples/production-ha.yaml](examples/production-ha.yaml).
+The production-postgres preset now includes HA features by default (HPA, anti-affinity, topology spread). For CockroachDB configurations, see [examples/production-cockroachdb-tls.yaml](examples/production-cockroachdb-tls.yaml).
 
 ## Post-Deployment Verification
 

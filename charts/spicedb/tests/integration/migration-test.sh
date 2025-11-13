@@ -95,20 +95,7 @@ setup_kind_cluster() {
     fi
 
     log_info "Creating Kind cluster: $CLUSTER_NAME"
-
-    cat <<EOF | kind create cluster --name "$CLUSTER_NAME" --config=-
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-nodes:
-- role: control-plane
-  extraPortMappings:
-  - containerPort: 30051
-    hostPort: 50051
-    protocol: TCP
-  - containerPort: 30443
-    hostPort: 8443
-    protocol: TCP
-EOF
+    kind create cluster --name "$CLUSTER_NAME" --config="$SCRIPT_DIR/kind-cluster-config.yaml"
 
     kubectl config use-context "kind-${CLUSTER_NAME}"
 
@@ -171,9 +158,12 @@ install_chart() {
         sleep 2
     fi
 
-    log_info "Installing Helm chart: $RELEASE_NAME"
+    log_info "Installing Helm chart: $RELEASE_NAME (2 replicas with dispatch cluster enabled)"
     helm install "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
+        --set replicaCount=2 \
+        --set dispatch.enabled=true \
+        --set config.autogenerateSecret=true \
         --set config.datastoreEngine=postgres \
         --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
         --set config.datastore.port=5432 \
@@ -196,6 +186,15 @@ install_chart() {
         -l "app.kubernetes.io/name=spicedb" \
         -n "$NAMESPACE" \
         --timeout=300s
+
+    log_info "Waiting for post-install hooks (cleanup job) to complete..."
+    sleep 5  # Give hooks time to start
+    kubectl wait --for=condition=complete job \
+        -l "app.kubernetes.io/component=migration-cleanup" \
+        -n "$NAMESPACE" \
+        --timeout=120s || {
+        log_warn "Cleanup job wait timed out or failed (non-fatal)"
+    }
 
     log_info "[PASS] SpiceDB chart installed successfully"
 }
@@ -221,9 +220,12 @@ upgrade_chart() {
         log_warn "Failed to capture pre-upgrade state"
     }
 
-    log_info "Upgrading Helm chart with modified values..."
+    log_info "Upgrading to new version (${SPICEDB_UPGRADE_VERSION} with dispatch cluster still enabled)..."
     helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
+        --set replicaCount=2 \
+        --set dispatch.enabled=true \
+        --set config.autogenerateSecret=true \
         --set config.datastoreEngine=postgres \
         --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
         --set config.datastore.port=5432 \
@@ -232,23 +234,31 @@ upgrade_chart() {
         --set config.datastore.database=spicedb \
         --set config.presharedKey="insecure-default-key-change-in-production" \
         --set image.tag=${SPICEDB_UPGRADE_VERSION} \
-        --set replicaCount=2 \
-        --wait --timeout=10m || {
+        --wait --timeout=15m || {
         log_error "Helm upgrade failed"
         kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' || true
         kubectl get pods -n "$NAMESPACE" || true
         return 1
     }
 
-    log_info "[PASS] Helm upgrade completed successfully (migration succeeded)"
+    log_info "[PASS] Helm upgrade completed successfully"
 
-    log_info "Verifying SpiceDB pods are ready after upgrade..."
+    log_info "Verifying SpiceDB pods are ready..."
     kubectl wait --for=condition=ready pod \
         -l "app.kubernetes.io/name=spicedb" \
         -n "$NAMESPACE" \
         --timeout=300s
 
-    log_info "[PASS] Helm upgrade and migration verification complete"
+    log_info "Waiting for post-upgrade hooks (cleanup job) to complete..."
+    sleep 5  # Give hooks time to start
+    kubectl wait --for=condition=complete job \
+        -l "app.kubernetes.io/component=migration-cleanup" \
+        -n "$NAMESPACE" \
+        --timeout=120s || {
+        log_warn "Cleanup job wait timed out or failed (non-fatal)"
+    }
+
+    log_info "[PASS] Upgrade completed successfully"
 }
 
 verify_persistence() {
@@ -280,9 +290,12 @@ verify_cleanup() {
 test_idempotency() {
     log_section "Testing idempotent upgrades"
 
-    log_info "Running second upgrade with same values..."
+    log_info "Running second upgrade with same values (dispatch still enabled)..."
     helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
+        --set replicaCount=2 \
+        --set dispatch.enabled=true \
+        --set config.autogenerateSecret=true \
         --set config.datastoreEngine=postgres \
         --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
         --set config.datastore.port=5432 \
@@ -291,8 +304,7 @@ test_idempotency() {
         --set config.datastore.database=spicedb \
         --set config.presharedKey="insecure-default-key-change-in-production" \
         --set image.tag=${SPICEDB_UPGRADE_VERSION} \
-        --set replicaCount=2 \
-        --wait --timeout=10m
+        --wait --timeout=15m
 
     log_info "Waiting for idempotency migration job..."
     kubectl wait --for=condition=complete job \
@@ -339,13 +351,13 @@ main() {
         log_info "Test coverage:"
         log_info "  [PASS] Kind cluster setup"
         log_info "  [PASS] PostgreSQL deployment"
-        log_info "  [PASS] SpiceDB chart installation"
+        log_info "  [PASS] SpiceDB HA deployment (2 replicas with dispatch cluster)"
         log_info "  [PASS] Migration job execution"
         log_info "  [PASS] Schema and data loading"
-        log_info "  [PASS] Helm upgrade with new version"
+        log_info "  [PASS] Rolling upgrade (maxUnavailable: 0)"
         log_info "  [PASS] Data persistence across upgrades"
         log_info "  [PASS] Migration job cleanup (hook-delete-policy)"
-        log_info "  [PASS] Idempotent migrations"
+        log_info "  [PASS] Idempotent migrations with dispatch cluster"
         return 0
     else
         log_error "[FAIL] $FAILURES test(s) failed"

@@ -1,0 +1,217 @@
+suite: Test Production PostgreSQL Preset Configuration
+templates:
+  - deployment.yaml
+  - service.yaml
+  - poddisruptionbudget.yaml
+  - hpa.yaml
+tests:
+  # Test that production-postgres preset creates correct deployment
+  - it: should create deployment with production postgres settings
+    template: deployment.yaml
+    values:
+      - ../../values-presets/production-postgres.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+      tls.grpc.secretName: spicedb-tls
+      tls.http.secretName: spicedb-tls
+    asserts:
+      - isKind:
+          of: Deployment
+      # Should have 2 replicas for basic HA (operator minimal defaults)
+      - equal:
+          path: spec.replicas
+          value: 2
+      # Should use PostgreSQL datastore
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_ENGINE
+            value: postgres
+      # Should have info logging for production
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_LOG_LEVEL
+            value: info
+      # Should have JSON log format
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_LOG_FORMAT
+            value: json
+      # Should have production resource limits
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 1Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2000m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+
+  # Test that TLS is enabled
+  - it: should configure TLS for production
+    template: deployment.yaml
+    values:
+      - ../../values-presets/production-postgres.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+      tls.grpc.secretName: spicedb-tls
+      tls.http.secretName: spicedb-tls
+    asserts:
+      # Should have TLS environment variables for gRPC
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_GRPC_TLS_CERT_PATH
+            value: /etc/spicedb/tls/grpc/tls.crt
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_GRPC_TLS_KEY_PATH
+            value: /etc/spicedb/tls/grpc/tls.key
+
+  # Test that PDB is created
+  - it: should create PDB for high availability
+    template: poddisruptionbudget.yaml
+    values:
+      - ../../values-presets/production-postgres.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+
+  # Test that service is created correctly
+  - it: should create service with standard ports
+    template: service.yaml
+    values:
+      - ../../values-presets/production-postgres.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      # Should expose all required ports
+      - contains:
+          path: spec.ports
+          content:
+            name: grpc
+            port: 50051
+            protocol: TCP
+            targetPort: grpc
+
+  # Test that datastore URI comes from existing secret
+  - it: should use existing secret for datastore credentials
+    template: deployment.yaml
+    values:
+      - ../../values-presets/production-postgres.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+    asserts:
+      # Should reference the existing secret
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_CONN_URI
+            valueFrom:
+              secretKeyRef:
+                name: spicedb-secrets
+                key: datastore-uri
+
+  # Test that HPA is created with autoscaling enabled
+  - it: should create HPA for autoscaling
+    template: hpa.yaml
+    values:
+      - ../../values-presets/production-postgres.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+    asserts:
+      - isKind:
+          of: HorizontalPodAutoscaler
+      # Should have correct min replicas
+      - equal:
+          path: spec.minReplicas
+          value: 2
+      # Should have correct max replicas
+      - equal:
+          path: spec.maxReplicas
+          value: 5
+      # Should have CPU target
+      - contains:
+          path: spec.metrics
+          content:
+            type: Resource
+            resource:
+              name: cpu
+              target:
+                type: Utilization
+                averageUtilization: 70
+      # Should have memory target
+      - contains:
+          path: spec.metrics
+          content:
+            type: Resource
+            resource:
+              name: memory
+              target:
+                type: Utilization
+                averageUtilization: 80
+
+  # Test pod anti-affinity configuration
+  - it: should configure pod anti-affinity for zone spreading
+    template: deployment.yaml
+    values:
+      - ../../values-presets/production-postgres.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+      tls.grpc.secretName: spicedb-tls
+      tls.http.secretName: spicedb-tls
+    asserts:
+      # Should have pod anti-affinity
+      - isNotEmpty:
+          path: spec.template.spec.affinity.podAntiAffinity
+      # Should prefer zone spreading
+      - contains:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
+          content:
+            weight: 100
+            podAffinityTerm:
+              topologyKey: topology.kubernetes.io/zone
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: spicedb
+
+  # Test topology spread constraints
+  - it: should configure topology spread constraints
+    template: deployment.yaml
+    values:
+      - ../../values-presets/production-postgres.yaml
+    set:
+      config.existingSecret: spicedb-secrets
+      tls.grpc.secretName: spicedb-tls
+      tls.http.secretName: spicedb-tls
+    asserts:
+      # Should have topology spread constraints
+      - isNotEmpty:
+          path: spec.template.spec.topologySpreadConstraints
+      # Should spread across zones (checking key fields)
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].maxSkew
+          value: 1
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].topologyKey
+          value: topology.kubernetes.io/zone
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].whenUnsatisfiable
+          value: ScheduleAnyway

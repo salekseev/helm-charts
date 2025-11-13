@@ -1,0 +1,43 @@
+# Development: minimal resources, memory datastore, debug logging, single replica
+# WARNING: Memory datastore is not persistent - all data is lost on pod restart
+# Usage: helm install NAME . -f values-presets/development.yaml
+
+replicaCount: 1
+
+config:
+  datastoreEngine: memory
+  autogenerateSecret: true
+  presharedKey: "dev-insecure-key-change-me"
+
+logging:
+  level: debug
+  format: console
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+tls:
+  enabled: false
+
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false
+
+dispatch:
+  enabled: false
+
+migrations:
+  enabled: true
+  logLevel: debug
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: false

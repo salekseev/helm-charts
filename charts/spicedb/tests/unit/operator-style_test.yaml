@@ -1,0 +1,252 @@
+suite: test operator-style configuration
+templates:
+  - deployment.yaml
+tests:
+  # Test 1: operatorStyle.replicas overrides replicaCount when enabled
+  - it: should use operatorStyle.replicas when operatorStyle.enabled is true
+    set:
+      operatorStyle:
+        enabled: true
+        replicas: 5
+        secretName: "custom-secret"
+        datastoreEngine: postgres
+      replicaCount: 1
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 5
+
+  # Test 2: operatorStyle.secretName translates to existingSecret
+  - it: should use operatorStyle.secretName for datastore connection when enabled
+    set:
+      operatorStyle:
+        enabled: true
+        replicas: 3
+        secretName: "operator-secret"
+        datastoreEngine: postgres
+      config:
+        existingSecret: ""
+        datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.name
+          value: "operator-secret"
+
+  # Test 3: operatorStyle.tlsSecretName enables TLS for all endpoints
+  - it: should configure TLS for all endpoints when operatorStyle.tlsSecretName is set
+    set:
+      operatorStyle:
+        enabled: true
+        replicas: 3
+        secretName: "operator-secret"
+        tlsSecretName: "operator-tls"
+        datastoreEngine: postgres
+    asserts:
+      # gRPC TLS env vars
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_GRPC_TLS_CERT_PATH
+            value: "/etc/spicedb/tls/grpc/tls.crt"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_GRPC_TLS_KEY_PATH
+            value: "/etc/spicedb/tls/grpc/tls.key"
+      # HTTP TLS env vars
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_HTTP_TLS_CERT_PATH
+            value: "/etc/spicedb/tls/http/tls.crt"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_HTTP_TLS_KEY_PATH
+            value: "/etc/spicedb/tls/http/tls.key"
+      # Dispatch TLS env vars
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_CLUSTER_TLS_CERT_PATH
+            value: "/etc/spicedb/tls/dispatch/tls.crt"
+
+  # Test 4: operatorStyle.datastoreEngine overrides config.datastoreEngine
+  - it: should use operatorStyle.datastoreEngine when enabled
+    set:
+      operatorStyle:
+        enabled: true
+        replicas: 3
+        secretName: "operator-secret"
+        datastoreEngine: cockroachdb
+      config:
+        datastoreEngine: memory
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_ENGINE
+            value: cockroachdb
+
+  # Test 5: detailed config takes precedence when operatorStyle disabled
+  - it: should use standard config values when operatorStyle.enabled is false
+    set:
+      operatorStyle:
+        enabled: false
+        replicas: 5
+        secretName: "operator-secret"
+        datastoreEngine: postgres
+      replicaCount: 2
+      config:
+        existingSecret: "standard-secret"
+        datastoreEngine: cockroachdb
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_ENGINE
+            value: cockroachdb
+      - equal:
+          path: spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.name
+          value: "standard-secret"
+
+  # Test 6: operatorStyle with memory datastore should not create datastore connection
+  - it: should not configure datastore connection when operatorStyle.datastoreEngine is memory
+    set:
+      operatorStyle:
+        enabled: true
+        replicas: 1
+        secretName: "operator-secret"
+        datastoreEngine: memory
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_ENGINE
+            value: memory
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_CONN_URI
+
+  # Test 7: operatorStyle.dispatchUpstreamCASecretName configures dispatch CA
+  - it: should configure dispatch upstream CA when operatorStyle.dispatchUpstreamCASecretName is set
+    set:
+      operatorStyle:
+        enabled: true
+        replicas: 3
+        secretName: "operator-secret"
+        dispatchUpstreamCASecretName: "dispatch-ca"
+        datastoreEngine: postgres
+      dispatch:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_UPSTREAM_CA_CERT_PATH
+            value: /etc/dispatch-ca/ca.crt
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: dispatch-upstream-ca
+            secret:
+              secretName: dispatch-ca
+              defaultMode: 256
+
+  # Test 8: TLS volume mounts use operatorStyle.tlsSecretName
+  - it: should mount TLS volumes with operatorStyle.tlsSecretName
+    set:
+      operatorStyle:
+        enabled: true
+        replicas: 3
+        secretName: "operator-secret"
+        tlsSecretName: "unified-tls"
+        datastoreEngine: postgres
+    asserts:
+      # gRPC TLS volume
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls-grpc-certs
+            secret:
+              secretName: unified-tls
+              defaultMode: 256
+      # HTTP TLS volume
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls-http-certs
+            secret:
+              secretName: unified-tls
+              defaultMode: 256
+      # Dispatch TLS volume
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls-dispatch-certs
+            secret:
+              secretName: unified-tls
+              defaultMode: 256
+
+  # Test 9: Replica count affects affinity and topology spread
+  - it: should configure affinity when operatorStyle.replicas > 1
+    set:
+      operatorStyle:
+        enabled: true
+        replicas: 3
+        secretName: "operator-secret"
+        datastoreEngine: postgres
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity
+      - isNotNull:
+          path: spec.template.spec.topologySpreadConstraints
+
+  # Test 10: Single replica should not have affinity
+  - it: should not configure affinity when operatorStyle.replicas = 1
+    set:
+      operatorStyle:
+        enabled: true
+        replicas: 1
+        secretName: "operator-secret"
+        datastoreEngine: memory
+    asserts:
+      - isNull:
+          path: spec.template.spec.affinity
+      - isNull:
+          path: spec.template.spec.topologySpreadConstraints
+
+  # Test 11: Mixed mode - some operator settings, some standard
+  - it: should handle mixed operatorStyle and standard config correctly
+    set:
+      operatorStyle:
+        enabled: true
+        replicas: 4
+        secretName: "operator-secret"
+        datastoreEngine: postgres
+      tls:
+        enabled: false
+        grpc:
+          secretName: "ignored-grpc-tls"
+      dispatch:
+        enabled: true
+        upstreamCASecretName: "standard-dispatch-ca"
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 4
+      # Should not have TLS env vars (operatorStyle.tlsSecretName is empty)
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_GRPC_TLS_CERT_PATH
+      # Should still have dispatch enabled from standard config
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DISPATCH_CLUSTER_ENABLED
+            value: "true"

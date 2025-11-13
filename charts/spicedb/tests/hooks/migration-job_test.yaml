@@ -1,6 +1,10 @@
 suite: test migration job
 templates:
   - hooks/migration-job.yaml
+values:
+  - ../../values.yaml
+set:
+  config.autogenerateSecret: true
 tests:
   # Basic rendering tests
   - it: should create migration job when migrations enabled
@@ -246,7 +250,7 @@ tests:
             name: SPICEDB_LOG_LEVEL
             value: debug
 
-  - it: should use default info log level when not specified
+  - it: should use default debug log level when not specified (operator parity)
     set:
       migrations.enabled: true
       config.datastoreEngine: postgres
@@ -255,7 +259,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SPICEDB_LOG_LEVEL
-            value: info
+            value: debug
 
   # Environment variables tests - connection URI
   - it: should set connection URI from default secret for postgres

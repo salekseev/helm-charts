@@ -2,39 +2,35 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 1
+# Number of SpiceDB replicas (use 3+ for production HA)
+replicaCount: 2
 
 image:
   repository: authzed/spicedb
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+  tag: ""  # Overrides chart appVersion
 
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
 serviceAccount:
-  # Specifies whether a service account should be created
   create: true
-  # Automatically mount a ServiceAccount's API credentials?
   automount: true
-  # Annotations to add to the service account
+  # Cloud workload identity annotations (see examples/cloud-workload-identity.yaml)
   annotations: {}
-  # The name of the service account to use.
-  # If not set and create is true, a name is generated using the fullname template
   name: ""
 
 rbac:
-  # Specifies whether RBAC resources should be created
   create: true
 
 podAnnotations: {}
 podLabels: {}
 
-# Pod-level security context
-# Implements Kubernetes Pod Security Standards restricted profile
-# These settings apply to all containers in the pod
+# Graceful shutdown ensures in-flight requests complete before termination
+terminationGracePeriodSeconds: 60
+
+# Pod Security Standards restricted profile
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 1000
@@ -43,9 +39,7 @@ podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 
-# Container-level security context
-# Additional security restrictions for the SpiceDB container
-# Implements least privilege and defense in depth
+# Container-level security context (least privilege)
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:
@@ -56,22 +50,14 @@ securityContext:
 
 service:
   type: ClusterIP
-  # Headless service configuration for StatefulSet deployments
-  # When enabled, creates a headless service (clusterIP: None) that provides stable
-  # network identities for individual pods. This is required for StatefulSet deployments
-  # and enables direct pod-to-pod communication for features like dispatch clustering.
-  # Note: Setting this to true overrides the service type and creates a headless service
-  # regardless of the 'type' setting above.
-  # Default: false (creates standard ClusterIP service)
+  # Headless service for StatefulSet (creates clusterIP: None for pod-to-pod communication)
   headless: false
   grpcPort: 50051
   httpPort: 8443
   metricsPort: 9090
   dispatchPort: 50053
 
-# Resource limits and requests for SpiceDB containers
-# Defaults are set for production workloads
-# Adjust based on your workload and cluster capacity
+# Resource limits (adjust based on workload)
 resources:
   requests:
     cpu: 500m
@@ -80,510 +66,193 @@ resources:
     cpu: 2000m
     memory: 4Gi
 
-# Rolling update strategy for zero-downtime deployments
-# These settings ensure high availability during updates
+# Rolling update for zero-downtime deployments
 updateStrategy:
   rollingUpdate:
-    # Maximum number of pods that can be unavailable during update
-    # 0 ensures at least one pod is always available
-    maxUnavailable: 0
-    # Maximum number of pods that can be created above desired replicas
-    # 1 allows one extra pod during updates to maintain availability
-    maxSurge: 1
+    maxUnavailable: 0  # Ensures at least one pod always available
+    maxSurge: 1  # One extra pod during updates
 
-# PodDisruptionBudget ensures availability during voluntary disruptions
-# Automatically enabled when replicaCount > 1, or can be explicitly enabled
+# Health probes (gRPC health checks for Kubernetes 1.23+)
+probes:
+  startup:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 5
+    timeoutSeconds: 3
+    successThreshold: 1
+    failureThreshold: 30  # 150s total startup time
+
+  liveness:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 3  # 30s before restart
+
+  readiness:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    successThreshold: 1
+    failureThreshold: 2  # 10s before marking unready
+
+# PodDisruptionBudget protects against maintenance operations
 podDisruptionBudget:
-  # Explicitly enable PDB (auto-enables when replicaCount > 1)
   enabled: false
-  # Maximum number of unavailable pods during disruption
-  # With 3 replicas and maxUnavailable=1, at least 2 pods remain running
   maxUnavailable: 1
 
-# HorizontalPodAutoscaler for automatic scaling based on resource utilization
-# Note: When enabled, HPA manages replica count (ignores replicaCount setting)
-# Requires metrics-server to be installed in the cluster
+# HPA (requires metrics-server, overrides replicaCount when enabled)
 autoscaling:
-  # Enable horizontal pod autoscaling
   enabled: false
-  # Minimum number of replicas (should be >= 2 for HA)
   minReplicas: 2
-  # Maximum number of replicas
   maxReplicas: 10
-  # Target CPU utilization percentage for scaling
   targetCPUUtilizationPercentage: 80
-  # Target memory utilization percentage for scaling
   targetMemoryUtilizationPercentage: 80
 
-# Logging configuration
-# Controls log verbosity and format for SpiceDB and migration jobs
 logging:
-  # Log level controls verbosity of logs
-  # Valid values: debug, info, warn, error
-  # debug: Verbose logging for troubleshooting
-  # info: Standard operational logging (recommended for production)
-  # warn: Only warnings and errors
-  # error: Only errors
-  level: info
-
-  # Log format controls output structure
-  # Valid values: json, console
-  # json: Structured JSON logging (recommended for production, log aggregation)
-  # console: Human-readable console output (useful for development)
-  format: json
+  level: info  # Valid: debug, info, warn, error
+  format: json  # Valid: json, console
 
 # Config for SpiceDB
+
+# Operator-style simplified configuration (overrides config section when enabled)
+operatorStyle:
+  enabled: false
+
+  # Reference to existing secret with preshared-key and datastore-uri keys
+  secretName: ""
+
+  # Overrides replicaCount when enabled
+  replicas: 3
+
+  # Single TLS secret for all endpoints (gRPC, HTTP, dispatch)
+  tlsSecretName: ""
+
+  # CA cert secret for verifying upstream dispatch connections
+  dispatchUpstreamCASecretName: ""
+
+  # Valid: postgres, cockroachdb, memory
+  datastoreEngine: postgres
+
+
 config:
-  # Datastore engine: memory, postgres, cockroachdb
+  # Valid: memory, postgres, cockroachdb
   datastoreEngine: memory
 
-  # gRPC preshared key for authentication
-  # This is required for SpiceDB to start
-  # In production, this should be set via an existing secret
   presharedKey: "insecure-default-key-change-in-production"
 
-  # Reference to an existing secret containing datastore credentials
-  # If set, the chart will not create a secret and will use this instead
-  # The secret must contain a 'datastore-uri' key with the connection string
+  # Auto-generate secure random key on install (requires opt-in)
+  autogenerateSecret: false
+
+  # Use existing secret instead of creating one
   existingSecret: ""
 
-  # Explicit datastore connection URI (overrides generated connection string)
-  # Format for PostgreSQL: postgresql://user:password@host:port/database?sslmode=disable
-  # Format for CockroachDB: postgresql://user:password@host:port/database?sslmode=verify-full
+  # Explicit connection URI (overrides generated string)
   datastoreURI: ""
 
-  # Datastore connection configuration (used when datastoreURI is not set)
+  # Connection config (used when datastoreURI not set)
   datastore:
-    # Hostname of the database server
     hostname: "localhost"
-
-    # Port number (default: 5432 for postgres, 26257 for cockroachdb)
     port: 5432
-
-    # Database username
     username: "spicedb"
-
-    # Database password (only used if existingSecret is not set)
     password: ""
-
-    # Database name
     database: "spicedb"
-
-    # SSL mode for database connections
-    # For PostgreSQL: disable, allow, prefer, require, verify-ca, verify-full
-    # For CockroachDB: require, verify-ca, verify-full (verify-full recommended)
-    sslMode: "disable"
-
-    # Path to SSL root certificate (optional)
+    sslMode: "disable"  # postgres: disable|allow|prefer|require|verify-ca|verify-full
     sslRootCert: ""
-
-    # Path to SSL client certificate (optional)
     sslCert: ""
-
-    # Path to SSL client key (optional)
     sslKey: ""
 
 # TLS configuration for SpiceDB endpoints
-# SpiceDB supports TLS for multiple endpoints to secure communication
 tls:
-  # Master switch to enable TLS features
-  # When disabled, all TLS configurations below are ignored
-  # Set to true to enable TLS on any endpoint
   enabled: false
 
-  # gRPC endpoint TLS configuration
-  # The gRPC endpoint is the primary API for clients interacting with SpiceDB
-  # This configures server-side TLS for securing client-to-SpiceDB communication
+  # gRPC endpoint TLS (client-to-SpiceDB)
   grpc:
-    # Name of the Kubernetes secret containing TLS certificates
-    # The secret should contain the following keys:
-    #   - tls.crt: Server certificate
-    #   - tls.key: Server private key
-    #   - ca.crt: CA certificate (optional, for client certificate verification)
-    #
-    # Example using cert-manager:
-    #   apiVersion: cert-manager.io/v1
-    #   kind: Certificate
-    #   metadata:
-    #     name: spicedb-grpc-tls
-    #   spec:
-    #     secretName: spicedb-grpc-tls
-    #     dnsNames:
-    #       - spicedb.example.com
-    #     issuerRef:
-    #       name: my-issuer
-    secretName: ""
-
-    # Path where the server certificate will be mounted in the container
+    secretName: ""  # Secret with tls.crt, tls.key, ca.crt
     certPath: /etc/spicedb/tls/grpc/tls.crt
-
-    # Path where the server private key will be mounted in the container
     keyPath: /etc/spicedb/tls/grpc/tls.key
-
-    # Path where the CA certificate will be mounted in the container
-    # Used for verifying client certificates if mTLS is required
     caPath: /etc/spicedb/tls/grpc/ca.crt
 
-  # HTTP endpoint TLS configuration
-  # The HTTP endpoint provides the dashboard and metrics
-  # This configures server-side TLS for securing HTTP communication
+  # HTTP endpoint TLS (dashboard and metrics)
   http:
-    # Name of the Kubernetes secret containing TLS certificates
-    # The secret should contain the following keys:
-    #   - tls.crt: Server certificate
-    #   - tls.key: Server private key
-    #
-    # You can reuse the same secret as gRPC if the certificate is valid for both
-    # or create a separate secret for different certificate requirements
-    secretName: ""
-
-    # Path where the server certificate will be mounted in the container
+    secretName: ""  # Secret with tls.crt, tls.key
     certPath: /etc/spicedb/tls/http/tls.crt
-
-    # Path where the server private key will be mounted in the container
     keyPath: /etc/spicedb/tls/http/tls.key
 
-  # Dispatch cluster TLS configuration (mTLS)
-  # The dispatch endpoint is used for internal cluster communication between SpiceDB nodes
-  # This configures mutual TLS (mTLS) where both client and server verify each other
-  # mTLS is strongly recommended for dispatch to prevent unauthorized nodes from joining
+  # Dispatch cluster mTLS (inter-node communication)
   dispatch:
-    # Name of the Kubernetes secret containing TLS certificates for dispatch
-    # The secret should contain the following keys:
-    #   - tls.crt: Certificate for this SpiceDB instance (both server and client)
-    #   - tls.key: Private key for this SpiceDB instance
-    #   - ca.crt: CA certificate to verify other SpiceDB instances
-    #
-    # Important: All SpiceDB instances in the cluster must share the same CA
-    # Each instance should have its own certificate signed by that CA
-    #
-    # Example using cert-manager with a shared CA:
-    #   apiVersion: cert-manager.io/v1
-    #   kind: Certificate
-    #   metadata:
-    #     name: spicedb-dispatch-tls
-    #   spec:
-    #     secretName: spicedb-dispatch-tls
-    #     commonName: spicedb-dispatch
-    #     usages:
-    #       - server auth
-    #       - client auth
-    #     issuerRef:
-    #       name: spicedb-ca-issuer
-    secretName: ""
-
-    # Path where the dispatch certificate will be mounted in the container
+    secretName: ""  # Secret with tls.crt, tls.key, ca.crt
     certPath: /etc/spicedb/tls/dispatch/tls.crt
-
-    # Path where the dispatch private key will be mounted in the container
     keyPath: /etc/spicedb/tls/dispatch/tls.key
-
-    # Path where the dispatch CA certificate will be mounted in the container
-    # Used to verify certificates from other SpiceDB instances in the cluster
     caPath: /etc/spicedb/tls/dispatch/ca.crt
 
-  # Datastore TLS configuration
-  # Configures TLS for connections to the database backend
-  # Note: Connection URI and SSL parameters in config.datastore take precedence
-  # This section provides an alternative way to configure datastore TLS via secrets
+  # Datastore TLS (database connections)
   datastore:
-    # Name of the Kubernetes secret containing datastore TLS certificates
-    # The secret should contain the following keys:
-    #   - ca.crt: CA certificate to verify the database server
-    #   - tls.crt: Client certificate (optional, for mTLS)
-    #   - tls.key: Client private key (optional, for mTLS)
-    #
-    # This is useful when the database requires client certificate authentication
-    # or when you want to manage certificates separately from the datastore URI
-    #
-    # For PostgreSQL, set config.datastore.sslMode to "verify-ca" or "verify-full"
-    # For CockroachDB, set config.datastore.sslMode to "verify-full"
-    secretName: ""
-
-    # Path where the datastore CA certificate will be mounted in the container
-    # This path should match config.datastore.sslRootCert if using URI configuration
+    secretName: ""  # Secret with ca.crt, tls.crt (optional), tls.key (optional)
     caPath: /etc/spicedb/tls/datastore/ca.crt
 
-# Dispatch cluster mode configuration
-# Enables distributed permission checking across multiple SpiceDB instances
-# When enabled, SpiceDB instances can communicate with each other to distribute
-# permission checks across the cluster for improved performance
+# Dispatch cluster distributes permission checks across pods
+# Uses kubernetes:// service discovery (kubernetes:///service.namespace:dispatch)
+# Requires RBAC permissions: get, list, watch on endpoints (included in chart)
+# Automatically enabled when replicaCount >= 2
 dispatch:
-  # Enable dispatch cluster mode
-  # When true, enables distributed permission checking between SpiceDB pods
-  # Requires multiple replicas to be effective (replicaCount > 1)
-  enabled: false
+  # Automatically disabled for memory datastore
+  enabled: true
 
-  # Name of the Kubernetes secret containing custom CA certificate for upstream dispatch connections
-  # The secret should contain the following key:
-  #   - ca.crt: CA certificate to verify upstream SpiceDB instances
-  #
-  # This is useful when upstream SpiceDB instances use certificates signed by a custom CA
-  # Leave empty to use system default CA certificates
-  #
-  # Note: This is different from tls.dispatch which configures mTLS for the dispatch endpoint
-  # upstreamCASecretName configures the CA used to verify connections TO other instances
-  # tls.dispatch configures the certificates used BY this instance for its dispatch endpoint
+  # Secret with ca.crt for verifying upstream SpiceDB instances (mTLS)
   upstreamCASecretName: ""
-
-  # Path where the upstream CA certificate will be mounted in the container
-  # Used by SPICEDB_DISPATCH_UPSTREAM_CA_CERT_PATH environment variable
   upstreamCAPath: /etc/dispatch-ca/ca.crt
 
-  # Cluster name for identifying this SpiceDB cluster
-  # Optional: Used for logging and metrics to distinguish between multiple clusters
+  # Cluster identifier for logging/metrics
   clusterName: ""
 
-# Database migration configuration
+# Database migrations
 migrations:
-  # Specifies whether to run database migrations as a pre-install/pre-upgrade Job
-  # When enabled, migrations will run automatically before SpiceDB starts
-  # Disable this if you want to manage migrations separately
+  # Run migrations as pre-install/pre-upgrade Job
   enabled: true
 
-  # Log level for migration operations
-  # Valid values: debug, info, warn, error
-  # Use 'debug' for troubleshooting migration issues
-  logLevel: info
+  logLevel: debug  # Valid: debug, info, warn, error
 
-  # Target a specific migration version (optional)
-  # Leave empty to migrate to the latest version
-  # Format: migration version identifier (e.g., "add-caveats")
-  # Useful for rolling back or testing specific migration states
+  # Target specific migration version (optional)
   targetMigration: ""
 
-  # Target a specific migration phase (optional)
-  # Valid values: write, read, complete
-  # Phases allow for zero-downtime migrations:
-  #   - write: Make schema changes, old code still works
-  #   - read: New code can read new schema, old code deprecated
-  #   - complete: Migration fully complete, old code support removed
-  # Leave empty to run all phases
+  # Target specific phase (optional). Valid: write, read, complete
   targetPhase: ""
 
-  # Resource limits and requests for the migration Job
-  # These are independent from the main SpiceDB deployment resources
-  # Migrations may need more resources for large schema changes
-  resources: {}
-    # limits:
-    #   cpu: 500m
-    #   memory: 512Mi
-    # requests:
-    #   cpu: 100m
-    #   memory: 128Mi
+  # Track migration state for observability
+  tracking:
+    enabled: true
 
-  # Cleanup configuration for migration jobs
+  # Pre-upgrade validation prevents issues
+  validation:
+    enabled: true
+
+  resources: {}
+
   cleanup:
-    # Enable automatic cleanup of completed migration jobs
     enabled: false
 
-# Monitoring configuration
 monitoring:
-  # Enable Prometheus metrics scraping annotations
-  # When enabled, adds prometheus.io/* annotations to pod template
+  # Prometheus scraping annotations
   enabled: true
 
-  # Prometheus Operator ServiceMonitor configuration
-  # Requires Prometheus Operator CRDs (monitoring.coreos.com/v1) to be installed in the cluster
-  # The ServiceMonitor CRD allows Prometheus to automatically discover and scrape metrics
+  # ServiceMonitor (requires Prometheus Operator CRDs)
   serviceMonitor:
-    # Specifies whether a ServiceMonitor should be created
-    # Set to true to enable Prometheus metrics scraping via ServiceMonitor
     enabled: false
-
-    # Scrape interval for Prometheus metrics
-    # Defines how often Prometheus scrapes the metrics endpoint
-    # Default: 30s (30 seconds)
     interval: 30s
-
-    # Scrape timeout for Prometheus metrics
-    # Maximum time to wait for a metrics scrape to complete
-    # Must be less than the scrape interval
-    # Default: 10s (10 seconds)
     scrapeTimeout: 10s
-
-    # Additional metadata labels for the ServiceMonitor resource
-    # These labels are added to the ServiceMonitor metadata only
-    # They do not affect Prometheus discovery or scraping
-    # Use for organizational purposes, ownership, or cost tracking
-    #
-    # Example usage:
-    #   labels:
-    #     team: security
-    #     component: authorization
-    #     environment: production
-    labels: {}
-
-    # Additional labels for Prometheus ServiceMonitor selection
-    # These labels are used by Prometheus to discover ServiceMonitors
-    # Must match the serviceMonitorSelector in your Prometheus CR
-    #
-    # Common examples:
-    #   release: prometheus-operator  # For Prometheus Operator chart
-    #   prometheus: kube-prometheus    # For kube-prometheus-stack
-    #   app.kubernetes.io/part-of: monitoring
-    #
-    # Example usage:
-    #   additionalLabels:
-    #     prometheus: kube-prometheus
-    #     team: platform
-    additionalLabels: {}
-
-    # Metrics path to scrape
-    # SpiceDB exposes metrics on the standard /metrics endpoint
-    # Default: /metrics
+    labels: {}  # Metadata labels for ServiceMonitor resource
+    additionalLabels: {}  # Labels for Prometheus to discover this ServiceMonitor
     path: /metrics
 
-# Ingress configuration for exposing SpiceDB to external traffic
-# Supports multiple ingress controllers: nginx, Contour, Traefik
+# Ingress configuration (see examples/ingress-examples.yaml for complete examples)
 ingress:
-  # Enable ingress resource creation
   enabled: false
-
-  # IngressClass name for selecting the ingress controller
-  # Common values:
-  #   - nginx: For NGINX Ingress Controller
-  #   - contour: For Contour Ingress Controller
-  #   - traefik: For Traefik Ingress Controller
-  # Leave empty to use the cluster's default ingress class
-  className: ""
-
-  # Annotations for controller-specific configuration
-  # Examples for different controllers:
-  #
-  # NGINX Ingress Controller (gRPC support):
-  #   annotations:
-  #     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
-  #     nginx.ingress.kubernetes.io/ssl-redirect: "true"
-  #     nginx.ingress.kubernetes.io/grpc-backend: "true"
-  #
-  # NGINX Ingress Controller (TLS passthrough for end-to-end encryption):
-  #   annotations:
-  #     nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-  #     nginx.ingress.kubernetes.io/backend-protocol: "GRPCS"
-  #
-  # NGINX with cert-manager for automated TLS:
-  #   annotations:
-  #     cert-manager.io/cluster-issuer: "letsencrypt-prod"
-  #     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
-  #
-  # Contour:
-  #   annotations:
-  #     projectcontour.io/upstream-protocol.h2c: "grpc"
-  #
-  # Traefik:
-  #   annotations:
-  #     traefik.ingress.kubernetes.io/router.entrypoints: websecure
-  #     traefik.ingress.kubernetes.io/router.tls: "true"
+  className: ""  # Valid: nginx, contour, traefik
   annotations: {}
-
-  # Ingress hosts configuration
-  # Supports multiple hosts with multiple paths per host
-  # Each path can route to different SpiceDB service ports
-  #
-  # Available service ports:
-  #   - grpc: 50051 (main gRPC API)
-  #   - http: 8443 (dashboard and health)
-  #   - metrics: 9090 (Prometheus metrics)
-  #   - dispatch: 50053 (cluster dispatch)
-  #
-  # Path types:
-  #   - Prefix: Matches URL path prefix (e.g., /api matches /api, /api/v1, /api/*)
-  #   - Exact: Matches exact URL path only
-  #   - ImplementationSpecific: Ingress controller-specific behavior
-  #
-  # Single host example:
-  #   hosts:
-  #     - host: spicedb.example.com
-  #       paths:
-  #         - path: /
-  #           pathType: Prefix
-  #           servicePort: grpc  # Use named port
-  #
-  # Multi-host example with different paths:
-  #   hosts:
-  #     - host: api.spicedb.example.com
-  #       paths:
-  #         - path: /v1
-  #           pathType: Prefix
-  #           servicePort: grpc
-  #     - host: metrics.spicedb.example.com
-  #       paths:
-  #         - path: /metrics
-  #           pathType: Exact
-  #           servicePort: metrics  # Named port
-  #         - path: /health
-  #           pathType: Prefix
-  #           servicePort: 8443  # Numeric port also supported
-  #     - host: dispatch.spicedb.example.com
-  #       paths:
-  #         - path: /
-  #           pathType: Prefix
-  #           servicePort: dispatch
-  #
-  # Single host with multiple paths to different services:
-  #   hosts:
-  #     - host: spicedb.example.com
-  #       paths:
-  #         - path: /v1
-  #           pathType: Prefix
-  #           servicePort: grpc
-  #         - path: /metrics
-  #           pathType: Exact
-  #           servicePort: metrics
-  #         - path: /dashboard
-  #           pathType: Prefix
-  #           servicePort: http
-  hosts: []
-
-  # TLS configuration for HTTPS
-  # Supports multiple TLS configurations for different host groups
-  #
-  # TLS Termination vs Passthrough:
-  #   - TLS Termination (default): Ingress controller terminates TLS, backends use HTTP
-  #     Requires: TLS secret at ingress level
-  #     Use case: Standard HTTPS setup, simplest configuration
-  #
-  #   - TLS Passthrough: Ingress controller forwards encrypted traffic to backend
-  #     Requires: nginx.ingress.kubernetes.io/ssl-passthrough: "true" annotation
-  #               TLS configured in SpiceDB (see tls.grpc.secretName)
-  #     Use case: End-to-end encryption, regulatory compliance
-  #
-  # cert-manager integration:
-  #   TLS secrets can be automatically managed by cert-manager
-  #   Add cert-manager.io/cluster-issuer annotation to enable
-  #
-  # Single TLS configuration:
-  #   tls:
-  #     - secretName: spicedb-tls
-  #       hosts:
-  #         - spicedb.example.com
-  #
-  # Multiple TLS configurations for different host groups:
-  #   tls:
-  #     - secretName: api-tls-cert
-  #       hosts:
-  #         - api.spicedb.example.com
-  #         - grpc.spicedb.example.com
-  #     - secretName: monitoring-tls-cert
-  #       hosts:
-  #         - metrics.spicedb.example.com
-  #     - secretName: dispatch-tls-cert
-  #       hosts:
-  #         - dispatch.spicedb.example.com
-  #
-  # TLS with cert-manager (automated certificate management):
-  #   annotations:
-  #     cert-manager.io/cluster-issuer: "letsencrypt-prod"
-  #   tls:
-  #     - secretName: spicedb-tls  # cert-manager creates this secret
-  #       hosts:
-  #         - spicedb.example.com
-  #
-  # SNI routing without secretName (uses default TLS certificate):
-  #   tls:
-  #     - hosts:
-  #         - spicedb.example.com
+  hosts: []  # Available ports: grpc (50051), http (8443), metrics (9090), dispatch (50053)
   tls: []
 
 nodeSelector: {}
@@ -592,89 +261,37 @@ tolerations: []
 
 affinity: {}
 
-# NetworkPolicy configuration for network isolation
-# Implements zero-trust security by restricting network traffic to/from SpiceDB
-# When enabled, only explicitly allowed traffic patterns are permitted
+# Operator compatibility annotations for version tracking
+operatorCompatibility:
+  enabled: false
+  annotations:
+    version: true
+    chartVersion: true
+    datastoreEngine: true
+    migrationHash: true
+
+# NetworkPolicy for zero-trust network isolation
 networkPolicy:
-  # Enable NetworkPolicy for network isolation
-  # Requires a network plugin that supports NetworkPolicy (Calico, Cilium, etc.)
+  # Requires network plugin supporting NetworkPolicy (Calico, Cilium)
   enabled: false
 
-  # Namespace selector for ingress controller
-  # Allows traffic from ingress controller namespace to gRPC and HTTP ports
-  # Example for nginx-ingress in ingress-nginx namespace:
-  #   ingressControllerNamespaceSelector:
-  #     matchLabels:
-  #       kubernetes.io/metadata.name: ingress-nginx
-  # Leave empty to allow from all namespaces (not recommended for production)
+  # Ingress controller namespace selector
   ingressControllerNamespaceSelector: {}
 
-  # Namespace selector for Prometheus
-  # Allows traffic from Prometheus namespace to metrics port
-  # Example for Prometheus in monitoring namespace:
-  #   prometheusNamespaceSelector:
-  #     matchLabels:
-  #       kubernetes.io/metadata.name: monitoring
-  # Leave empty to allow from all namespaces
+  # Prometheus namespace selector
   prometheusNamespaceSelector: {}
 
-  # Database egress configuration
-  # Defines allowed outbound traffic to database
-  # If not set, automatically configures egress based on config.datastoreEngine:
-  #   - postgres: port 5432 (or config.datastore.port if specified)
-  #   - cockroachdb: port 26257 (or config.datastore.port if specified)
-  #   - memory: no database egress rules
-  #
-  # Use this to restrict database access to specific namespaces/pods
-  # Example for PostgreSQL in database namespace:
-  #   databaseEgress:
-  #     ports:
-  #     - protocol: TCP
-  #       port: 5432
-  #     to:
-  #     - namespaceSelector:
-  #         matchLabels:
-  #           kubernetes.io/metadata.name: database
-  #       podSelector:
-  #         matchLabels:
-  #           app: postgresql
-  #
-  # Example for CockroachDB in production namespace:
-  #   databaseEgress:
-  #     ports:
-  #     - protocol: TCP
-  #       port: 26257
-  #     to:
-  #     - namespaceSelector:
-  #         matchLabels:
-  #           kubernetes.io/metadata.name: production
-  #       podSelector:
-  #         matchLabels:
-  #           app.kubernetes.io/name: cockroachdb
+  # Database egress (auto-configured based on datastoreEngine if not set)
   databaseEgress: {}
 
   # Custom ingress rules
-  # Additional ingress rules to allow specific traffic patterns
-  # Example:
-  #   ingress:
-  #   - from:
-  #     - namespaceSelector:
-  #         matchLabels:
-  #           app: my-app
-  #     ports:
-  #     - protocol: TCP
-  #       port: 50051
   ingress: []
 
   # Custom egress rules
-  # Additional egress rules to allow specific outbound traffic
-  # Example:
-  #   egress:
-  #   - to:
-  #     - namespaceSelector:
-  #         matchLabels:
-  #           app: external-service
-  #     ports:
-  #     - protocol: TCP
-  #       port: 443
   egress: []
+
+# Strategic merge patches (see examples/patches-examples.yaml)
+patches:
+  deployment: []
+  service: []
+  ingress: []

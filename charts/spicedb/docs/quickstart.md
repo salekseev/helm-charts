@@ -26,7 +26,26 @@ zed version
 
 ## Step 1: Install SpiceDB
 
-Install the chart with default settings (memory datastore):
+### Option A: Quick Install with Development Preset (Recommended for Testing)
+
+The easiest way to get started is using the development preset:
+
+```bash
+# Install with development preset (memory datastore, debug logging)
+helm install spicedb charts/spicedb -f values-presets/development.yaml
+```
+
+**What this does:**
+- Single replica with in-memory datastore (no database needed)
+- Debug logging enabled
+- Minimal resource requirements
+- Perfect for local development and testing
+
+**Warning:** Memory datastore is not persistent. Data is lost when pods restart.
+
+### Option B: Standard Install with Default Values (Basic HA)
+
+Install the chart with default settings (2 replicas, dispatch enabled):
 
 ```bash
 # Install from local charts directory
@@ -37,6 +56,14 @@ helm install spicedb charts/spicedb
 # helm repo update
 # helm install spicedb authzed/spicedb
 ```
+
+**What this does:**
+- 2 replicas for basic HA (handles single pod failure)
+- Dispatch cluster enabled for distributed permission checking
+- Memory datastore by default (suitable for testing)
+- Matches SpiceDB operator defaults
+
+**Note:** For production, use Option C with persistent datastore.
 
 **Expected output:**
 ```
@@ -50,6 +77,28 @@ SpiceDB has been installed!
 
 ...
 ```
+
+### Option C: Production-Ready Install (PostgreSQL)
+
+For a more production-like setup with persistent storage:
+
+```bash
+# Create secrets first
+kubectl create secret generic spicedb-secrets \
+  --from-literal=datastore-uri="postgresql://user:pass@postgres-host:5432/spicedb?sslmode=require" \
+  --from-literal=preshared-key="$(openssl rand -base64 32)"
+
+# Install with production preset
+helm install spicedb charts/spicedb \
+  -f values-presets/production-postgres.yaml \
+  --set config.existingSecret=spicedb-secrets
+```
+
+**Note:** Requires a PostgreSQL instance. See [PRODUCTION_GUIDE.md](./PRODUCTION_GUIDE.md) for database setup.
+
+---
+
+**For this quickstart, we'll continue with Option A (development preset).**
 
 ## Step 2: Verify Deployment
 
@@ -227,11 +276,15 @@ See [examples/production-postgres.yaml](./examples/production-postgres.yaml) for
 
 ### High Availability Setup
 
-Deploy with autoscaling, pod disruption budgets, and topology spread:
+The production-postgres preset now includes HA features by default:
 
 ```bash
-helm install spicedb charts/spicedb -f examples/production-ha.yaml
+helm install spicedb charts/spicedb \
+  -f values-presets/production-postgres.yaml \
+  --set config.existingSecret=spicedb-config
 ```
+
+This includes HPA (2-5 replicas), pod anti-affinity, and topology spread constraints.
 
 ### Enable Monitoring
 

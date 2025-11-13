@@ -1,0 +1,43 @@
+{{- if and .Values.rbac.create .Values.migrations.enabled .Values.migrations.validation.enabled (ne .Values.config.datastoreEngine "memory") -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "spicedb.fullname" . }}-migration-validation
+  labels:
+    {{- include "spicedb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration-validation
+  annotations:
+    # Hook annotations to ensure RBAC is created before validation job runs
+    helm.sh/hook: pre-upgrade
+    helm.sh/hook-weight: "-20"
+    helm.sh/hook-delete-policy: before-hook-creation
+rules:
+  # Allow reading ConfigMaps to check migration status
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+    # Restrict to only the migration status ConfigMap
+    resourceNames:
+      - "{{ include "spicedb.fullname" . }}-migration-status"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "spicedb.fullname" . }}-migration-validation
+  labels:
+    {{- include "spicedb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration-validation
+  annotations:
+    # Hook annotations to ensure RBAC is created before validation job runs
+    helm.sh/hook: pre-upgrade
+    helm.sh/hook-weight: "-20"
+    helm.sh/hook-delete-policy: before-hook-creation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "spicedb.fullname" . }}-migration-validation
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "spicedb.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

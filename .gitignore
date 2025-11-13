@@ -35,3 +35,19 @@ CLAUDE.md
 
 # Temporary development files
 RELEASE_READINESS_REPORT.md
+
+# Temporary test artifacts
+*_INTEGRATION_TEST_REPORT.md
+*_TEST_REPORT.md
+*_TEST_SUMMARY.md
+*_TEST_RESULTS.md
+*_QUICK_REFERENCE.md
+kind-config.yaml
+test-*.yaml
+test-*.sh
+verify-*.sh
+/charts/*/tests/integration/logs/
+
+# Task files
+# tasks.json
+# tasks/ 

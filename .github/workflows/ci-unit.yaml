@@ -53,10 +53,84 @@ jobs:
           cd charts/spicedb
           helm unittest --color .
 
+  preset-validation:
+    name: Validate Configuration Presets
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Validate preset files exist
+        run: |
+          cd charts/spicedb
+          for preset in development production-postgres production-cockroachdb; do
+            if [ ! -f "values-presets/${preset}.yaml" ]; then
+              echo "ERROR: Preset file values-presets/${preset}.yaml not found"
+              exit 1
+            fi
+            echo "✓ Found preset: values-presets/${preset}.yaml"
+          done
+
+      - name: Validate development preset
+        run: |
+          cd charts/spicedb
+          echo "Testing development preset..."
+          helm template test-dev . -f values-presets/development.yaml > /dev/null
+          echo "✓ Development preset renders successfully"
+
+      - name: Validate production-postgres preset
+        run: |
+          cd charts/spicedb
+          echo "Testing production-postgres preset..."
+          helm template test-postgres . \
+            -f values-presets/production-postgres.yaml \
+            --set config.existingSecret=test-secret \
+            --set config.autogenerateSecret=false > /dev/null
+          echo "✓ Production PostgreSQL preset renders successfully"
+
+      - name: Validate production-cockroachdb preset
+        run: |
+          cd charts/spicedb
+          echo "Testing production-cockroachdb preset..."
+          helm template test-crdb . \
+            -f values-presets/production-cockroachdb.yaml \
+            --set config.existingSecret=test-secret \
+            --set config.autogenerateSecret=false > /dev/null
+          echo "✓ Production CockroachDB preset renders successfully"
+
+      - name: Validate production-postgres HA features
+        run: |
+          cd charts/spicedb
+          echo "Testing production-postgres preset (includes HA features)..."
+          helm template test-postgres-ha . \
+            -f values-presets/production-postgres.yaml \
+            --set config.existingSecret=test-secret \
+            --set config.autogenerateSecret=false > /dev/null
+          echo "✓ Production PostgreSQL preset with HA renders successfully"
+
+      - name: Validate preset value overrides
+        run: |
+          cd charts/spicedb
+          echo "Testing value overrides with presets..."
+          helm template test-override . \
+            -f values-presets/production-postgres.yaml \
+            --set replicaCount=7 \
+            --set logging.level=debug \
+            --set config.existingSecret=test-secret \
+            --set config.autogenerateSecret=false > /dev/null
+          echo "✓ Preset value overrides work correctly"
+
+
   policy:
     name: Validate Security Policies
     runs-on: ubuntu-latest
-    needs: unittest
+    needs: [unittest, preset-validation]
     steps:
       - name: Checkout code
         uses: actions/checkout@v5

@@ -1,0 +1,61 @@
+# Production CockroachDB: 2 replicas, dispatch cluster enabled, TLS/mTLS, PDB, JSON logging
+# Prerequisites: CockroachDB cluster, K8s secrets (datastore-uri, preshared-key, TLS certs, mTLS certs - see README)
+# Usage: helm install NAME . -f values-presets/production-cockroachdb.yaml --set config.existingSecret=SECRET
+
+replicaCount: 2
+
+config:
+  datastoreEngine: cockroachdb
+  existingSecret: ""
+
+logging:
+  level: info
+  format: json
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+
+tls:
+  enabled: true
+  grpc:
+    secretName: spicedb-tls
+    certPath: /etc/spicedb/tls/grpc/tls.crt
+    keyPath: /etc/spicedb/tls/grpc/tls.key
+    caPath: /etc/spicedb/tls/grpc/ca.crt
+  http:
+    secretName: spicedb-tls
+    certPath: /etc/spicedb/tls/http/tls.crt
+    keyPath: /etc/spicedb/tls/http/tls.key
+  dispatch:
+    secretName: spicedb-dispatch-tls
+    certPath: /etc/spicedb/tls/dispatch/tls.crt
+    keyPath: /etc/spicedb/tls/dispatch/tls.key
+    caPath: /etc/spicedb/tls/dispatch/ca.crt
+
+dispatch:
+  enabled: true
+  upstreamCASecretName: spicedb-dispatch-ca
+  clusterName: "production"
+
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+
+autoscaling:
+  enabled: false
+
+migrations:
+  enabled: true
+  logLevel: info
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s

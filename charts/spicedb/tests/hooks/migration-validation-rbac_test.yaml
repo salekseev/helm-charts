@@ -1,0 +1,237 @@
+suite: test migration validation RBAC
+templates:
+  - hooks/migration-validation-rbac.yaml
+tests:
+  # Basic rendering tests
+  - it: should create RBAC when rbac, migrations, and validation enabled
+    set:
+      rbac.create: true
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: Role
+        documentIndex: 0
+      - isKind:
+          of: RoleBinding
+        documentIndex: 1
+
+  - it: should NOT create RBAC when rbac.create is false
+    set:
+      rbac.create: false
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should NOT create RBAC when migrations disabled
+    set:
+      rbac.create: true
+      migrations.enabled: false
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should NOT create RBAC when validation disabled
+    set:
+      rbac.create: true
+      migrations.enabled: true
+      migrations.validation.enabled: false
+      config.datastoreEngine: postgres
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should NOT create RBAC when using memory datastore
+    set:
+      rbac.create: true
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: memory
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # Role metadata tests
+  - it: should have correct Role metadata
+    set:
+      rbac.create: true
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb-migration-validation
+        documentIndex: 0
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: spicedb
+        documentIndex: 0
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: migration-validation
+        documentIndex: 0
+
+  # Role hook annotations tests
+  - it: should have correct hook annotations on Role
+    set:
+      rbac.create: true
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-upgrade
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-20"
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation
+        documentIndex: 0
+
+  # Role rules tests
+  - it: should grant ConfigMap read permissions
+    set:
+      rbac.create: true
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["configmaps"]
+            verbs: ["get", "list"]
+            resourceNames:
+              - "RELEASE-NAME-spicedb-migration-status"
+        documentIndex: 0
+
+  # RoleBinding metadata tests
+  - it: should have correct RoleBinding metadata
+    set:
+      rbac.create: true
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-spicedb-migration-validation
+        documentIndex: 1
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: spicedb
+        documentIndex: 1
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: migration-validation
+        documentIndex: 1
+
+  # RoleBinding hook annotations tests
+  - it: should have correct hook annotations on RoleBinding
+    set:
+      rbac.create: true
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-upgrade
+        documentIndex: 1
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-20"
+        documentIndex: 1
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation
+        documentIndex: 1
+
+  # RoleBinding roleRef tests
+  - it: should reference correct Role
+    set:
+      rbac.create: true
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - equal:
+          path: roleRef.apiGroup
+          value: rbac.authorization.k8s.io
+        documentIndex: 1
+      - equal:
+          path: roleRef.kind
+          value: Role
+        documentIndex: 1
+      - equal:
+          path: roleRef.name
+          value: RELEASE-NAME-spicedb-migration-validation
+        documentIndex: 1
+
+  # RoleBinding subjects tests
+  - it: should bind to default ServiceAccount
+    set:
+      rbac.create: true
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - contains:
+          path: subjects
+          content:
+            kind: ServiceAccount
+            name: RELEASE-NAME-spicedb
+            namespace: NAMESPACE
+        documentIndex: 1
+
+  - it: should bind to custom ServiceAccount when provided
+    set:
+      rbac.create: true
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+      serviceAccount.create: true
+      serviceAccount.name: custom-sa
+    asserts:
+      - contains:
+          path: subjects
+          content:
+            kind: ServiceAccount
+            name: custom-sa
+            namespace: NAMESPACE
+        documentIndex: 1
+
+  # Datastore engine tests
+  - it: should work with postgres datastore
+    set:
+      rbac.create: true
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: postgres
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: should work with cockroachdb datastore
+    set:
+      rbac.create: true
+      migrations.enabled: true
+      migrations.validation.enabled: true
+      config.datastoreEngine: cockroachdb
+    asserts:
+      - hasDocuments:
+          count: 2

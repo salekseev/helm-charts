@@ -1,7 +1,13 @@
 name: Integration Tests
 
 # Comprehensive integration tests across multiple Kubernetes versions
-# These tests are more resource-intensive and take 30-54 minutes to complete
+# Uses multi-node Kind cluster (1 control-plane + 2 workers) to test:
+# - HA deployments with multiple replicas
+# - Dispatch cluster communication across pods
+# - Pod distribution and anti-affinity
+# - Production-like deployment scenarios
+#
+# These tests are resource-intensive and take 30-54 minutes to complete
 #
 # Trigger conditions:
 # 1. Always runs on pushes to master branch
@@ -53,6 +59,7 @@ jobs:
         with:
           node_image: kindest/node:${{ matrix.k8s-version }}
           cluster_name: spicedb-test
+          config: charts/spicedb/tests/integration/kind-cluster-config.yaml
           wait: 5m
 
       - name: Install kubectl

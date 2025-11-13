@@ -1,0 +1,96 @@
+suite: Test Development Preset Configuration
+templates:
+  - deployment.yaml
+  - service.yaml
+tests:
+  # Test that development preset creates correct deployment
+  - it: should create deployment with development preset settings
+    template: deployment.yaml
+    values:
+      - ../../values-presets/development.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      # Should have 1 replica for development
+      - equal:
+          path: spec.replicas
+          value: 1
+      # Should use memory datastore
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_DATASTORE_ENGINE
+            value: memory
+      # Should have debug logging
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_LOG_LEVEL
+            value: debug
+      # Should have console log format
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_LOG_FORMAT
+            value: console
+      # Should have minimal resource limits
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 256Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi
+
+  # Test that TLS is disabled
+  - it: should not configure TLS for development
+    template: deployment.yaml
+    values:
+      - ../../values-presets/development.yaml
+    asserts:
+      # Should not have TLS environment variables
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPICEDB_GRPC_TLS_CERT_PATH
+
+  # Test that service is created correctly
+  - it: should create service with standard ports
+    template: service.yaml
+    values:
+      - ../../values-presets/development.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      # Should expose gRPC port
+      - contains:
+          path: spec.ports
+          content:
+            name: grpc
+            port: 50051
+            protocol: TCP
+            targetPort: grpc
+      # Should expose HTTP port
+      - contains:
+          path: spec.ports
+          content:
+            name: http
+            port: 8443
+            protocol: TCP
+            targetPort: http
+      # Should expose metrics port
+      - contains:
+          path: spec.ports
+          content:
+            name: metrics
+            port: 9090
+            protocol: TCP
+            targetPort: metrics

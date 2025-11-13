@@ -1,0 +1,7 @@
+{{- $effectiveExistingSecret := include "spicedb.existingSecret" . -}}
+{{- if and .Values.config.autogenerateSecret $effectiveExistingSecret (ne $effectiveExistingSecret "") -}}
+{{- fail "ERROR: config.autogenerateSecret cannot be enabled when config.existingSecret or operatorStyle.secretName is set. These options are mutually exclusive. Either disable autogenerateSecret or remove the existingSecret/operatorStyle.secretName setting." -}}
+{{- end -}}
+{{- if and (ne (include "spicedb.datastoreEngine" .) "memory") (not .Values.config.autogenerateSecret) (not $effectiveExistingSecret) -}}
+{{- fail (printf "ERROR: For non-memory datastores, you must either enable config.autogenerateSecret or provide config.existingSecret. Current datastore: %s. Set either config.autogenerateSecret=true or config.existingSecret=<secret-name>." (include "spicedb.datastoreEngine" .)) -}}
+{{- end -}}
