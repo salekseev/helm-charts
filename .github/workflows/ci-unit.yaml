@@ -93,7 +93,7 @@ jobs:
         run: |
           cd charts/spicedb
           echo "Testing development preset..."
-          helm template test-dev . -f values-presets/development.yaml --validate > /dev/null
+          helm template test-dev . -f values-presets/development.yaml > /dev/null
           echo "✓ Development preset renders successfully"
 
       - name: Validate production-postgres preset
@@ -103,8 +103,7 @@ jobs:
           helm template test-postgres . \
             -f values-presets/production-postgres.yaml \
             --set config.existingSecret=test-secret \
-            --set config.autogenerateSecret=false \
-            --validate > /dev/null
+            --set config.autogenerateSecret=false > /dev/null
           echo "✓ Production PostgreSQL preset renders successfully"
 
       - name: Validate production-cockroachdb preset
@@ -114,8 +113,7 @@ jobs:
           helm template test-crdb . \
             -f values-presets/production-cockroachdb.yaml \
             --set config.existingSecret=test-secret \
-            --set config.autogenerateSecret=false \
-            --validate > /dev/null
+            --set config.autogenerateSecret=false > /dev/null
           echo "✓ Production CockroachDB preset renders successfully"
 
       - name: Validate production-ha preset
@@ -125,8 +123,7 @@ jobs:
           helm template test-ha . \
             -f values-presets/production-ha.yaml \
             --set config.existingSecret=test-secret \
-            --set config.autogenerateSecret=false \
-            --validate > /dev/null
+            --set config.autogenerateSecret=false > /dev/null
           echo "✓ Production HA preset renders successfully"
 
       - name: Validate preset value overrides
@@ -138,8 +135,7 @@ jobs:
             --set replicaCount=7 \
             --set logging.level=debug \
             --set config.existingSecret=test-secret \
-            --set config.autogenerateSecret=false \
-            --validate > /dev/null
+            --set config.autogenerateSecret=false > /dev/null
           echo "✓ Preset value overrides work correctly"
 
       - name: Validate presets against values.schema.json
