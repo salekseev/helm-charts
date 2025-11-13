@@ -220,30 +220,7 @@ upgrade_chart() {
         log_warn "Failed to capture pre-upgrade state"
     }
 
-    log_info "Upgrading Helm chart with new version (still single replica)..."
-    helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
-        --namespace "$NAMESPACE" \
-        --set replicaCount=1 \
-        --set dispatch.enabled=false \
-        --set config.autogenerateSecret=true \
-        --set config.datastoreEngine=postgres \
-        --set config.datastore.hostname=postgres.spicedb-test.svc.cluster.local \
-        --set config.datastore.port=5432 \
-        --set config.datastore.username=spicedb \
-        --set config.datastore.password=testpassword123 \
-        --set config.datastore.database=spicedb \
-        --set config.presharedKey="insecure-default-key-change-in-production" \
-        --set image.tag=${SPICEDB_UPGRADE_VERSION} \
-        --wait --timeout=10m || {
-        log_error "Helm upgrade to new version failed"
-        kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' || true
-        kubectl get pods -n "$NAMESPACE" || true
-        return 1
-    }
-
-    log_info "[PASS] Helm upgrade to new version completed successfully"
-
-    log_info "Scaling to 2 replicas and enabling dispatch..."
+    log_info "Upgrading Helm chart to new version with HA+dispatch enabled..."
     helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
         --namespace "$NAMESPACE" \
         --set replicaCount=2 \
@@ -259,7 +236,7 @@ upgrade_chart() {
         --set image.tag=${SPICEDB_UPGRADE_VERSION} \
         --set probes.startup.failureThreshold=60 \
         --wait --timeout=15m || {
-        log_error "Helm upgrade to enable HA+dispatch failed"
+        log_error "Helm upgrade failed"
         kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' || true
         kubectl get pods -n "$NAMESPACE" || true
         return 1
