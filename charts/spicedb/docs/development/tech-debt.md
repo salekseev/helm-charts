@@ -2,7 +2,7 @@
 
 This document tracks known technical debt, limitations, and areas for improvement in the SpiceDB Helm chart.
 
-> **Note:** Resolved issues are tracked in git history and [docs/CHANGELOG.md](../CHANGELOG.md). This document focuses on active issues and future improvements.
+> **Note:** Resolved issues are tracked in git history and [CHANGELOG.md](../../CHANGELOG.md). This document focuses on active issues and future improvements.
 
 ## Active Issues
 

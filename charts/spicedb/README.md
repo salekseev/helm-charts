@@ -63,7 +63,7 @@ See the [Quick Start Guide](docs/quickstart.md) for detailed setup instructions.
 
 - [Testing Guide](docs/development/testing.md) - Running unit and integration tests
 - [Technical Debt](docs/development/tech-debt.md) - Known issues and improvements
-- [Changelog](docs/CHANGELOG.md) - Release history and changes
+- [Changelog](CHANGELOG.md) - Release history and changes
 
 ## Configuration Presets
 
