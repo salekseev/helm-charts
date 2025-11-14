@@ -25,7 +25,10 @@ A production-grade Helm chart for [SpiceDB](https://github.com/authzed/spicedb),
 helm install spicedb oci://ghcr.io/salekseev/helm-charts/spicedb --version 1.0.0
 ```
 
-For detailed documentation, see the [SpiceDB chart README](./charts/spicedb/README.md).
+**Documentation:**
+- [SpiceDB Chart Documentation](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Home) - Comprehensive wiki
+- [Quick Start Guide](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Quick-Start) - Get started in 5 minutes
+- [Chart README](./charts/spicedb/README.md) - Installation and configuration overview
 
 ## Installation
 
@@ -91,7 +94,7 @@ This repository uses automated release management:
 
 ## Support
 
-- **Documentation**: See individual chart READMEs
+- **Documentation**: [Wiki](https://github.com/salekseev/helm-charts/wiki) - Comprehensive guides and references
 - **Issues**: [GitHub Issues](https://github.com/salekseev/helm-charts/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/salekseev/helm-charts/discussions)
 
