@@ -30,22 +30,35 @@ This document tracks known technical debt, limitations, and areas for improvemen
 
 ### Documentation File Length Violations (AI Developer Guide)
 
-**Priority:** Low
-**Issue:** Migration documentation files exceed 500-line AI Developer Guide recommendation
-**Files:**
+**Priority:** Low (RESOLVED)
+**Status:** ✅ Resolved 2025-11-14
+**Issue:** Migration documentation files exceeded 500-line AI Developer Guide recommendation
+**Files (Original):**
 
-- `docs/migration/helm-to-operator.md` - 1,455 lines (291% over limit)
-- `docs/migration/operator-to-helm.md` - 1,395 lines (279% over limit)
-**Rationale for Keeping Monolithic:** These are comprehensive step-by-step migration guides that users need to follow sequentially. Splitting them would:
-- Reduce usability (users would need to jump between multiple files)
-- Break the narrative flow of migration procedures
-- Complicate troubleshooting (users need all information accessible)
-- Make printing/saving for offline use more difficult
-**Impact:** Slightly harder to navigate in editors, but comprehensive guides are more valuable than adherence to line limits for procedural documentation
-**Alternative Considered:** Splitting into subdirectories with overview/preparation/execution/validation files
-**Decision:** Keep monolithic for migration guides; line limit is a guideline, not a hard requirement. User experience prioritized over file size.
-**Status:** Accepted as-is. No action planned.
-**Last Reviewed:** 2025-11-13
+- `docs/migration/helm-to-operator.md` - 1,508 lines (301% over limit)
+- `docs/migration/operator-to-helm.md` - 1,434 lines (287% over limit)
+- `docs/guides/production.md` - 1,208 lines (242% over limit)
+- `docs/guides/troubleshooting.md` - 1,209 lines (242% over limit)
+- `docs/guides/security.md` - 1,007 lines (201% over limit)
+
+**Resolution:** Split into focused topic files while maintaining narrative flow
+**New Structure:**
+
+- `docs/migration/helm-to-operator/` - 6 focused files (index, prerequisites, step-by-step, configuration-conversion, post-migration, troubleshooting)
+- `docs/migration/operator-to-helm/` - 6 focused files (same structure)
+- `docs/guides/production/` - 6 focused files (index, infrastructure, tls-certificates, postgresql-deployment, cockroachdb-deployment, high-availability)
+- `docs/guides/troubleshooting/` - 7 focused files (index, migration-failures, tls-errors, connection-issues, performance-issues, pod-scheduling, diagnostic-commands)
+- `docs/guides/security/` - 6 focused files (index, tls-configuration, authentication, network-security, pod-security, compliance)
+
+**Benefits Achieved:**
+
+- Better navigation and organization
+- Easier to find specific topics
+- Maintained sequential flow through index files
+- All files now comply with AI Developer Guide (largest: 660 lines)
+- Improved maintainability
+
+**Last Reviewed:** 2025-11-14
 
 ### Integration Test Coverage with Live Databases
 
@@ -68,13 +81,13 @@ This document tracks known technical debt, limitations, and areas for improvemen
 **Issue:** No automated integration tests for migration from spicedb-operator to Helm chart
 **Current State:**
 
-- Comprehensive documentation exists (`docs/migration/operator-to-helm.md` - 35KB)
+- Comprehensive documentation exists (`docs/migration/operator-to-helm/` - split into 6 focused files)
 - Integration tests only cover Helm-to-Helm upgrade scenarios
 - Manual verification required for operator migrations
 **Impact:** Cannot automatically validate operator-to-helm migration procedures work correctly
 **Proposed Solution:**
 - Create integration test that deploys SpiceDB using the operator
-- Test migration procedure documented in operator-to-helm.md
+- Test migration procedure documented in `docs/migration/operator-to-helm/`
 - Verify configuration conversion (operator CR → Helm values)
 - Test resource ownership transfer
 - Validate data persistence during migration

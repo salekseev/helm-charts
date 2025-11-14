@@ -33,6 +33,14 @@ repos:
         name: Check line endings
         description: Ensures consistent line endings
 
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.42.0
+    hooks:
+      - id: markdownlint
+        name: Markdown Lint
+        description: Lints markdown files with markdownlint
+
   # Helm specific checks
   - repo: local
     hooks:
@@ -83,6 +91,5 @@ exclude: |
   (?x)^(
       \.taskmaster/.*|
       \.git/.*|
-      \.github/.*|
-      .*\.md$
+      \.github/.*
   )

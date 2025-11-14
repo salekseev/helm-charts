@@ -6,7 +6,7 @@ This guide covers running tests for the SpiceDB Helm chart, including unit tests
 
 The chart has comprehensive test coverage organized into several test suites:
 
-```
+```text
 tests/
 ├── hooks/                    # Migration hook tests (113 tests)
 │   ├── migration-job_test.yaml
@@ -65,7 +65,7 @@ helm unittest . --file 'tests/unit/*.yaml' --file 'tests/hooks/*.yaml'
 
 **Expected Output:**
 
-```
+```text
 Charts:      1 passed, 1 total
 Test Suites: 24 passed, 24 total
 Tests:       310 passed, 310 total

@@ -563,7 +563,7 @@ We use [Conventional Commits](https://www.conventionalcommits.org/) for automate
 
 For breaking changes that require a **MAJOR** version bump (1.0.0 -> 2.0.0):
 
-```
+```text
 feat!: change default datastore from memory to postgres
 
 BREAKING CHANGE: The default datastore is now PostgreSQL instead of in-memory.
@@ -573,7 +573,7 @@ datastore.engine to "memory" to maintain previous behavior.
 
 Or use the `BREAKING CHANGE:` footer:
 
-```
+```text
 feat: migrate to new Helm chart API version
 
 BREAKING CHANGE: Chart now requires Helm 3.14.0 or later.
@@ -581,7 +581,7 @@ BREAKING CHANGE: Chart now requires Helm 3.14.0 or later.
 
 #### Examples
 
-```
+```text
 feat: add PostgreSQL datastore support
 fix: correct service port configuration
 docs: update README with TLS examples

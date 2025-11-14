@@ -17,7 +17,7 @@ helm install spicedb oci://ghcr.io/salekseev/helm-charts/spicedb \
   --set config.existingSecret=spicedb-config
 ```
 
-See the [Quick Start Guide](docs/quickstart.md) for detailed setup instructions.
+For detailed setup instructions, see the [Quick Start Guide](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Quick-Start).
 
 ## Features
 
@@ -32,37 +32,45 @@ See the [Quick Start Guide](docs/quickstart.md) for detailed setup instructions.
 
 ## Documentation
 
+**Comprehensive documentation is available on the [GitHub Wiki](https://github.com/salekseev/helm-charts/wiki):**
+
 ### Getting Started
 
-- [Quick Start Guide](docs/quickstart.md) - Get up and running in minutes
-- [Configuration Presets](docs/configuration/presets.md) - Production-ready configurations
+- [SpiceDB Chart Home](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Home) - Overview and navigation
+- [Quick Start Guide](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Quick-Start) - Get up and running in 5 minutes
+- [Configuration Presets](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Configuration-Presets) - Production-ready configurations
 
-### Configuration
+### Production Deployment
 
-- [Values Reference](values.yaml) - Complete configuration options with inline documentation
-- [Preset Guide](docs/configuration/presets.md) - Detailed preset documentation and customization
+- [Production Guide](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Guides-Production-Index) - Complete production deployment guide
+- [Infrastructure Setup](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Guides-Production-Infrastructure) - Database and network configuration
+- [TLS Certificates](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Guides-Production-TLS-Certificates) - Certificate management
+- [High Availability](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Guides-Production-High-Availability) - HA configuration and scaling
+
+### Security
+
+- [Security Guide](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Guides-Security-Index) - Security hardening and compliance
+- [TLS Configuration](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Guides-Security-TLS-Configuration) - TLS/mTLS setup
+- [Authentication](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Guides-Security-Authentication) - Authentication methods
+- [Network Security](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Guides-Security-Network-Security) - NetworkPolicy configuration
 
 ### Migration
 
-- [Operator Comparison](docs/migration/operator-comparison.md) - Feature comparison with Kubernetes operator
-- [Helm to Operator Migration](docs/migration/helm-to-operator.md) - Migrate from Helm to operator
-- [Operator to Helm Migration](docs/migration/operator-to-helm.md) - Migrate from operator to Helm
+- [Operator Comparison](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Migration-Operator-Comparison) - Feature comparison with Kubernetes operator
+- [Operator to Helm Migration](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Migration-Operator-to-Helm-Index) - Migrate from operator to Helm
+- [Helm to Operator Migration](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Migration-Helm-to-Operator-Index) - Migrate from Helm to operator
 
-### Operations
+### Operations & Troubleshooting
 
-- [Status Monitoring](docs/operations/status-script.md) - Check deployment health with scripts/status.sh
-
-### Guides
-
-- [Production Guide](docs/guides/production.md) - Production deployment best practices
-- [Security Guide](docs/guides/security.md) - Security hardening and compliance
-- [Troubleshooting Guide](docs/guides/troubleshooting.md) - Common issues and solutions
-- [Upgrade Guide](docs/guides/upgrading.md) - Version upgrade procedures
+- [Status Monitoring](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Operations-Status-Script) - Health monitoring with scripts/status.sh
+- [Upgrading Guide](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Guides-Upgrading) - Version upgrade procedures
+- [Troubleshooting Guide](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Guides-Troubleshooting-Index) - Common issues and solutions
 
 ### Development
 
 - [Testing Guide](docs/development/testing.md) - Running unit and integration tests
 - [Technical Debt](docs/development/tech-debt.md) - Known issues and improvements
+- [Values Reference](values.yaml) - Complete configuration options with inline documentation
 - [Changelog](CHANGELOG.md) - Release history and changes
 
 ## Configuration Presets
@@ -75,7 +83,7 @@ This chart includes 3 production-ready presets:
 | `production-postgres.yaml` | Production PostgreSQL | 2-5 (HPA) | PostgreSQL | TLS, PDB, HPA, anti-affinity, topology spread |
 | `production-cockroachdb.yaml` | Production CockroachDB | 2 | CockroachDB | mTLS dispatch, distributed (matches operator defaults) |
 
-See [Configuration Presets](docs/configuration/presets.md) for detailed usage.
+See [Configuration Presets](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Configuration-Presets) for detailed usage and customization.
 
 ## Minimum Requirements
 
@@ -133,7 +141,7 @@ Check deployment health using the status script:
 ./scripts/status.sh --namespace spicedb --release spicedb
 ```
 
-See [Status Monitoring](docs/operations/status-script.md) for more details.
+See [Status Monitoring](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Operations-Status-Script) for detailed usage and monitoring options.
 
 ## Upgrading
 

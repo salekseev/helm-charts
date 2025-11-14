@@ -55,7 +55,7 @@ Check the health and status of a SpiceDB deployment.
 
 #### Text Format (default)
 
-```
+```text
 SpiceDB Status
 ==============
 

@@ -69,7 +69,7 @@ TEST_FILTER=liveness ./tests/integration/self-healing-test.sh
 
 Expected output:
 
-```
+```text
 [====] SpiceDB Integration Test Suite [====]
 [INFO] Cluster: spicedb-test
 [INFO] Namespace: spicedb-test
@@ -166,7 +166,7 @@ The integration test suite validates:
 
 ### Test Components
 
-```
+```text
 tests/integration/
 ├── postgres-deployment.yaml    # PostgreSQL StatefulSet, Service, Secret, PVC
 ├── test-schema.zed            # Sample SpiceDB schema (user, document)
@@ -180,7 +180,7 @@ tests/integration/
 
 ### Test Flow Diagram
 
-```
+```text
 ┌─────────────────────┐
 │  Setup Kind Cluster │
 └──────────┬──────────┘
@@ -411,7 +411,7 @@ TEST_FILTER=pdb ./tests/integration/self-healing-test.sh
 
 ### Expected Output
 
-```
+```text
 [====] SpiceDB Self-Healing Features E2E Test Suite [====]
 [INFO] Cluster: spicedb-selfhealing-test
 [INFO] Namespace: spicedb-test
