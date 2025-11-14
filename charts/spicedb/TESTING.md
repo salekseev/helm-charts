@@ -302,7 +302,9 @@ helm unittest . --file 'tests/unit/deployment_test.yaml' --update-snapshot
 
 ## Known Test Issues
 
-See [Technical Debt](tech-debt.md#pre-existing-unit-test-failures) for details on the 4 pre-existing test failures (unrelated to migration functionality).
+See [GitHub Issue #30](https://github.com/salekseev/helm-charts/issues/30) for details on the 4 pre-existing test failures (unrelated to migration functionality).
+
+For all SpiceDB chart issues and improvements, see [GitHub Issues with `spicedb` label](https://github.com/salekseev/helm-charts/issues?q=is%3Aissue+is%3Aopen+label%3Aspicedb).
 
 ## Additional Resources
 
