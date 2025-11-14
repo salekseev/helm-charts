@@ -5,7 +5,7 @@ description: >-
   database with operator parity features, production-ready presets, and
   comprehensive migration support
 type: application
-version: 2.1.0
+version: 2.2.0
 appVersion: v1.46.2
 kubeVersion: '>=1.27.0-0'
 keywords:
