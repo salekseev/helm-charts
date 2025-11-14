@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.2.0](https://github.com/salekseev/helm-charts/compare/spicedb-2.1.0...spicedb-2.2.0) (2025-11-14)
+
+
+### Features
+
+* add markdownlint enforcement and migrate docs to wiki ([#26](https://github.com/salekseev/helm-charts/issues/26)) ([0614aea](https://github.com/salekseev/helm-charts/commit/0614aeab1d09b9ec405a306e49c969acd11eb5d9))
+
+
+### Documentation
+
+* migrate tech debt tracking to GitHub issues ([119d2e9](https://github.com/salekseev/helm-charts/commit/119d2e95d14bcc5e9fc8b0edf12c5bd0885a610b))
+* remove completed items from tech-debt.md ([#27](https://github.com/salekseev/helm-charts/issues/27)) ([119d2e9](https://github.com/salekseev/helm-charts/commit/119d2e95d14bcc5e9fc8b0edf12c5bd0885a610b))
+
+
+### Code Refactoring
+
+* remove redundant docs/CHANGELOG.md file ([32dba73](https://github.com/salekseev/helm-charts/commit/32dba7366c895fe9ca223b4f61c9e524144cdef3))
+
 ## [2.1.0](https://github.com/salekseev/helm-charts/compare/spicedb-2.0.1...spicedb-2.1.0) (2025-11-13)
 
 
