@@ -43,7 +43,7 @@ kubectl get events --sort-by='.lastTimestamp' | grep migration
 
 **Symptoms:**
 
-```
+```text
 connection refused
 authentication failed
 could not connect to database
@@ -84,7 +84,7 @@ kubectl run -it --rm debug --image=cockroachdb/cockroach:latest --restart=Never 
 
 **Symptoms:**
 
-```
+```text
 permission denied for database
 must be owner of database
 permission denied to create table
@@ -120,7 +120,7 @@ cockroach sql --url="..." --execute="SHOW GRANTS ON DATABASE spicedb;"
 
 **Symptoms:**
 
-```
+```text
 table already exists
 duplicate key value
 schema version mismatch
@@ -163,7 +163,7 @@ psql -h postgres-host -U spicedb -d spicedb \
 
 **Symptoms:**
 
-```
+```text
 Job has reached the specified deadline
 activeDeadlineSeconds exceeded
 ```
@@ -264,7 +264,7 @@ psql -h postgres-host -U postgres -d spicedb -c \
 
 **Symptoms:**
 
-```
+```text
 Error from server (Forbidden): jobs.batch "spicedb-migration-cleanup" is forbidden
 User "system:serviceaccount:default:spicedb" cannot delete resource "jobs"
 ```
@@ -319,7 +319,7 @@ kubectl logs -l app.kubernetes.io/component=migration-cleanup
 
 **Symptoms:**
 
-```
+```text
 x509: certificate signed by unknown authority
 transport: authentication handshake failed
 certificate has expired
@@ -403,7 +403,7 @@ kubectl get secret spicedb-grpc-tls -o jsonpath='{.data.tls\.crt}' | \
 
 **Symptoms:**
 
-```
+```text
 dispatch: connection refused
 dispatch: certificate verification failed
 remote error: tls: bad certificate
@@ -462,7 +462,7 @@ kubectl exec spicedb-0 -- env | grep DISPATCH.*TLS
 
 **Symptoms:**
 
-```
+```text
 pq: SSL is not enabled on the server
 x509: certificate is not valid for requested name
 connection requires authentication
@@ -529,7 +529,7 @@ kubectl run -it --rm debug --image=cockroachdb/cockroach:latest --restart=Never 
 
 **Symptoms:**
 
-```
+```text
 connection refused
 no such host
 dial tcp: lookup spicedb: no such host
@@ -585,7 +585,7 @@ kubectl run -it --rm debug --image=nicolaka/netshoot --restart=Never -- \
 
 **Symptoms:**
 
-```
+```text
 connection timeout
 no route to host
 connection refused (from specific namespaces)
@@ -644,7 +644,7 @@ kubectl run -it --rm debug --image=nicolaka/netshoot -n other-namespace --restar
 
 **Symptoms:**
 
-```
+```text
 error: timed out waiting for port-forward
 unable to listen on port
 error forwarding port: listen tcp: address already in use
@@ -676,7 +676,7 @@ kubectl get pods -l app.kubernetes.io/name=spicedb
 
 **Symptoms:**
 
-```
+```text
 OOMKilled
 Error: failed to create containerd task: OOM Killed
 pod continuously restarting
@@ -762,7 +762,7 @@ helm upgrade spicedb charts/spicedb \
 
 **Symptoms:**
 
-```
+```text
 too many clients
 connection pool exhausted
 could not connect to database: max connections reached
@@ -850,7 +850,7 @@ kubectl get hpa spicedb --watch
 
 **Symptoms:**
 
-```
+```text
 Status: Pending
 0/3 nodes are available
 ```
@@ -1017,7 +1017,7 @@ kubectl logs -n kube-system -l k8s-app=metrics-server
 
 **Symptoms:**
 
-```
+```text
 Cannot evict pod: pod disruption budget "spicedb" violation
 error when evicting pod: "spicedb-xxx"
 ```

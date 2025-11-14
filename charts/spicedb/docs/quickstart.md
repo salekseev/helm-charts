@@ -69,7 +69,7 @@ helm install spicedb charts/spicedb
 
 **Expected output:**
 
-```
+```text
 NAME: spicedb
 LAST DEPLOYED: ...
 NAMESPACE: default
@@ -117,7 +117,7 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=spicedb --timeo
 
 **Expected output:**
 
-```
+```text
 NAME                       READY   STATUS    RESTARTS   AGE
 spicedb-6d9f8b4c7-xyz12    1/1     Running   0          45s
 ```
@@ -218,7 +218,7 @@ zed permission check document:readme view user:charlie
 
 **Expected outputs:**
 
-```
+```text
 true   # Alice can delete
 false  # Bob cannot delete
 false  # Charlie cannot edit

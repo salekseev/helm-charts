@@ -66,7 +66,7 @@ We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md)
 
 ## Repository Structure
 
-```
+```text
 .
 ├── charts/              # Individual Helm charts
 │   └── spicedb/        # SpiceDB chart

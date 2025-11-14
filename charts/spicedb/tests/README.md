@@ -14,7 +14,7 @@ helm unittest --help
 
 ## Directory Structure
 
-```
+```text
 tests/
 ├── unit/               # Unit tests for individual templates
 │   ├── deployment_test.yaml

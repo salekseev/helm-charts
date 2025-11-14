@@ -185,7 +185,7 @@ diff ../values.yaml values-roundtrip.yaml
 
 ### yq not found
 
-```
+```text
 Error: yq is required but not installed.
 ```
 
@@ -193,7 +193,7 @@ Error: yq is required but not installed.
 
 ### Invalid YAML input
 
-```
+```text
 Error: Input file is not valid YAML: values.yaml
 ```
 

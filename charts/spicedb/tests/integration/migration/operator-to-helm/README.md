@@ -169,7 +169,7 @@ Or run individual tests:
 
 ### Directory Structure
 
-```
+```text
 tests/integration/migration/operator-to-helm/
 ├── common/
 │   ├── validation-checks.sh          # Reusable validation functions
@@ -231,7 +231,7 @@ Pre-configured secrets for testing:
 
 **Expected Output**:
 
-```
+```text
 [====] Operator-to-Helm Migration Test Suite [====]
 
 [RUNNER] Running all migration tests...
@@ -484,7 +484,7 @@ kubectl get spicedbcluster spicedb -o yaml | ./common/convert-cr-to-values.sh -f
 
 **Symptom**:
 
-```
+```text
 ERROR: failed to create cluster: node(s) already exist for a cluster with the name "spicedb-migration-test"
 ```
 
@@ -499,7 +499,7 @@ kind delete cluster --name spicedb-migration-test
 
 **Symptom**:
 
-```
+```text
 error: unable to fetch SpiceDB operator manifest
 ```
 
@@ -518,7 +518,7 @@ export SPICEDB_OPERATOR_VERSION="v1.30.0"
 
 **Symptom**:
 
-```
+```text
 error: timed out waiting for the condition on pods/postgresql-0
 ```
 
@@ -539,7 +539,7 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=postgresql -n s
 
 **Symptom**:
 
-```
+```text
 jq: command not found
 ```
 
@@ -556,7 +556,7 @@ yum install jq  # CentOS/RHEL
 
 **Symptom**:
 
-```
+```text
 Error: template: spicedb/templates/deployment.yaml:XX:XX: executing "spicedb/templates/deployment.yaml" ...
 ```
 

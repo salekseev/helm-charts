@@ -484,7 +484,7 @@ helm upgrade spicedb charts/spicedb \
 
 Maintain base preset + environment-specific files:
 
-```
+```text
 config/
 ├── base/
 │   └── spicedb-base.yaml          # Shared config (ingress, monitoring, etc.)
@@ -518,7 +518,7 @@ helm install spicedb charts/spicedb \
 
 Create modular feature files that can be enabled/disabled:
 
-```
+```text
 features/
 ├── monitoring.yaml       # ServiceMonitor + annotations
 ├── network-policy.yaml   # NetworkPolicy rules

@@ -28,32 +28,32 @@ This guide helps you choose between deploying SpiceDB using the **Helm chart** o
 
 | Feature | Helm Chart | SpiceDB Operator | Notes |
 |---------|-----------|------------------|-------|
-| **Deployment & Management** |
+| **Deployment & Management** | | | |
 | Configuration Complexity | Medium (50+ lines) | Low (10-15 lines) | Operator uses simplified CRD spec |
 | Installation Method | `helm install` | `kubectl apply -f operator.yaml` then create `SpiceDBCluster` | Operator requires operator installation first |
 | Update Method | `helm upgrade` | Update `SpiceDBCluster` CR or automatic via channels | Operator can auto-update within channels |
 | GitOps Compatibility | Excellent (ArgoCD, Flux) | Good (requires CRD support) | Both work, Helm more common |
 | Configuration Format | values.yaml | SpiceDBCluster CRD YAML | Different API surfaces |
-| **High Availability** |
+| **High Availability** | | | |
 | Multiple Replicas | Yes (replicaCount) | Yes (spec.replicas) | Both support HA |
 | PodDisruptionBudget | Yes (configurable) | Managed automatically | Operator creates PDB automatically |
 | Rolling Updates | Yes (updateStrategy) | Yes (automatic) | Both support zero-downtime updates |
 | HorizontalPodAutoscaler | Yes (autoscaling.enabled) | Yes (spec.autoscaling) | Both support HPA |
 | Pod Anti-Affinity | Yes (affinity) | Yes (via podSpec) | Both support advanced scheduling |
 | Topology Spread | Yes (topologySpreadConstraints) | Yes (via podSpec) | Both support zone distribution |
-| **Datastore Support** |
+| **Datastore Support** | | | |
 | PostgreSQL | Yes | Yes | Both support |
 | CockroachDB | Yes | Yes | Both support |
 | MySQL | No | Yes | Operator-only |
 | Cloud Spanner | No | Yes | Operator-only |
 | Memory (development) | Yes | Yes | Both support |
-| **Database Migrations** |
+| **Database Migrations** | | | |
 | Automated Migrations | Yes (Helm hooks) | Yes (automatic on upgrade) | Operator fully automated |
 | Migration Jobs | Yes (pre-install, pre-upgrade) | Managed by operator | Helm uses Jobs, Operator internal |
 | Phased Migrations | Yes (targetPhase) | Yes (automatic) | Both support zero-downtime |
 | Migration Rollback | Manual | Automatic (on failure) | Operator has built-in rollback |
 | Migration Cleanup | Optional (cleanup.enabled) | Automatic | Operator cleans up automatically |
-| **Security** |
+| **Security** | | | |
 | TLS for gRPC | Yes (tls.grpc) | Yes (spec.tlsSecretName) | Both support |
 | TLS for HTTP | Yes (tls.http) | Yes (spec.tlsSecretName) | Both support |
 | TLS for Dispatch | Yes (tls.dispatch) | Yes (spec.tlsSecretName) | Both support mTLS |
@@ -63,45 +63,45 @@ This guide helps you choose between deploying SpiceDB using the **Helm chart** o
 | RBAC | Yes (rbac.create) | Yes (automatic) | Both support |
 | Pod Security Context | Yes (detailed control) | Yes (via podSpec) | Both follow best practices |
 | Secret Management | External Secrets Operator | External Secrets Operator | Both compatible |
-| **Networking** |
+| **Networking** | | | |
 | Service Creation | Yes (service.type) | Yes (automatic) | Both create Services |
 | Headless Service | Yes (service.headless) | Yes (automatic for StatefulSet) | Both support |
 | Ingress | **Yes (ingress.enabled)** | **No** | Helm-only feature |
 | Multi-host Ingress | **Yes (ingress.hosts[])** | **No** | Helm-only feature |
 | Path-based Routing | **Yes** | **No** | Helm-only feature |
-| **Monitoring & Observability** |
+| **Monitoring & Observability** | | | |
 | Prometheus Metrics | Yes (monitoring.enabled) | Yes (automatic) | Both expose /metrics |
 | ServiceMonitor | Yes (monitoring.serviceMonitor) | Create manually | Helm creates automatically |
 | Metrics Annotations | Yes (automatic) | Yes (automatic) | Both add annotations |
 | Structured Logging | Yes (logging.format) | Yes (spec.logLevel) | Both support JSON/console |
 | Log Level Control | Yes (logging.level) | Yes (spec.logLevel) | Both configurable |
-| **Dispatch Clustering** |
+| **Dispatch Clustering** | | | |
 | Dispatch Mode | Yes (dispatch.enabled) | Yes (spec.dispatchCluster) | Both support |
 | Cluster Name | Yes (dispatch.clusterName) | Yes (spec.clusterName) | Both support |
 | Upstream CA | Yes (dispatch.upstreamCASecretName) | Yes (spec.dispatchUpstreamCASecret) | Both support |
-| **Update Management** |
+| **Update Management** | | | |
 | Manual Version Control | Yes (image.tag) | Yes (spec.version) | Both support pinning |
 | Update Channels | **No** | **Yes (spec.channel)** | Operator-only feature |
 | Automatic Updates | **No** | **Yes (channel: stable)** | Operator-only feature |
 | Suggested Updates | **No** | **Yes (channel: manual)** | Operator-only feature |
 | Safe Upgrade Paths | Manual (UPGRADE_GUIDE.md) | Automatic (validated) | Operator prevents unsafe upgrades |
-| **Status & Health** |
+| **Status & Health** | | | |
 | Readiness Probes | Yes (automatic) | Yes (automatic) | Both configure probes |
 | Liveness Probes | Yes (automatic) | Yes (automatic) | Both configure probes |
 | Status Reporting | kubectl commands | **CRD .status field** | Operator has structured status |
 | Health Dashboard | Via HTTP endpoint | Via HTTP endpoint + CRD status | Operator adds CRD status |
-| **Resource Management** |
+| **Resource Management** | | | |
 | Resource Limits | Yes (resources.limits) | Yes (spec.resources.limits) | Both support |
 | Resource Requests | Yes (resources.requests) | Yes (spec.resources.requests) | Both support |
 | Init Containers | Yes (via templates) | Yes (via podSpec) | Both support |
 | Extra Volumes | Yes (extraVolumes) | Yes (spec.extraVolumes) | Both support |
 | Extra Env Vars | Yes (extraEnv) | Yes (spec.extraEnv) | Both support |
-| **Testing & Validation** |
+| **Testing & Validation** | | | |
 | Helm Unit Tests | **Yes (90%+ coverage)** | N/A | Helm-only |
 | Integration Tests | **Yes (Kind + PostgreSQL)** | Operator has own tests | Helm has dedicated tests |
 | OPA Policies | **Yes (Conftest)** | N/A | Helm-only |
 | CI/CD Integration | **Yes (GitHub Actions)** | Via operator testing | Helm has CI |
-| **Documentation** |
+| **Documentation** | | | |
 | Quick Start Guide | Yes (QUICKSTART.md) | Operator docs | Both documented |
 | Production Guide | Yes (PRODUCTION_GUIDE.md) | Operator docs | Helm has detailed guides |
 | Security Guide | Yes (SECURITY.md) | Operator docs | Helm has comprehensive guide |
