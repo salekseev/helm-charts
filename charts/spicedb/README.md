@@ -45,8 +45,8 @@ See the [Quick Start Guide](docs/quickstart.md) for detailed setup instructions.
 ### Migration
 
 - [Operator Comparison](docs/migration/operator-comparison.md) - Feature comparison with Kubernetes operator
-- [Helm to Operator Migration](docs/migration/helm-to-operator.md) - Migrate from Helm to operator
-- [Operator to Helm Migration](docs/migration/operator-to-helm.md) - Migrate from operator to Helm
+- [Helm to Operator Migration](docs/migration/helm-to-operator/index.md) - Migrate from Helm to operator
+- [Operator to Helm Migration](docs/migration/operator-to-helm/index.md) - Migrate from operator to Helm
 
 ### Operations
 
@@ -54,9 +54,9 @@ See the [Quick Start Guide](docs/quickstart.md) for detailed setup instructions.
 
 ### Guides
 
-- [Production Guide](docs/guides/production.md) - Production deployment best practices
-- [Security Guide](docs/guides/security.md) - Security hardening and compliance
-- [Troubleshooting Guide](docs/guides/troubleshooting.md) - Common issues and solutions
+- [Production Guide](docs/guides/production/index.md) - Production deployment best practices
+- [Security Guide](docs/guides/security/index.md) - Security hardening and compliance
+- [Troubleshooting Guide](docs/guides/troubleshooting/index.md) - Common issues and solutions
 - [Upgrade Guide](docs/guides/upgrading.md) - Version upgrade procedures
 
 ### Development

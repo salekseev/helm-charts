@@ -722,5 +722,5 @@ This test suite is part of the SpiceDB Helm chart and follows the same Apache 2.
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/salekseev/helm-charts/issues)
-- **Migration Guide**: See [operator-to-helm.md](../../../../docs/migration/operator-to-helm.md)
+- **Migration Guide**: See [operator-to-helm](../../../../docs/migration/operator-to-helm/index.md)
 - **Discussions**: [GitHub Discussions](https://github.com/salekseev/helm-charts/discussions)
