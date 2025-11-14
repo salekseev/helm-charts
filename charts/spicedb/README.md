@@ -68,10 +68,11 @@ For detailed setup instructions, see the [Quick Start Guide](https://github.com/
 
 ### Development
 
-- [Testing Guide](docs/development/testing.md) - Running unit and integration tests
-- [Technical Debt](docs/development/tech-debt.md) - Known issues and improvements
+- [Testing Guide](TESTING.md) - Running unit and integration tests
 - [Values Reference](values.yaml) - Complete configuration options with inline documentation
 - [Changelog](CHANGELOG.md) - Release history and changes
+
+For known issues and future improvements, see [GitHub Issues](https://github.com/salekseev/helm-charts/issues?q=is%3Aissue+is%3Aopen+label%3Aspicedb).
 
 ## Configuration Presets
 
