@@ -26,6 +26,7 @@ helm install spicedb oci://ghcr.io/salekseev/helm-charts/spicedb --version 1.0.0
 ```
 
 **Documentation:**
+
 - [SpiceDB Chart Documentation](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Home) - Comprehensive wiki
 - [Quick Start Guide](https://github.com/salekseev/helm-charts/wiki/SpiceDB-Quick-Start) - Get started in 5 minutes
 - [Chart README](./charts/spicedb/README.md) - Installation and configuration overview
