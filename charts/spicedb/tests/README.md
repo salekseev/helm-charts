@@ -75,12 +75,14 @@ tests:
 ### Common Assertion Types
 
 #### isKind - Check resource kind
+
 ```yaml
 - isKind:
     of: Deployment
 ```
 
 #### equal - Check exact value
+
 ```yaml
 - equal:
     path: metadata.name
@@ -88,6 +90,7 @@ tests:
 ```
 
 #### matchRegex - Pattern matching
+
 ```yaml
 - matchRegex:
     path: spec.template.spec.containers[0].image
@@ -95,6 +98,7 @@ tests:
 ```
 
 #### contains - Check array contains item
+
 ```yaml
 - contains:
     path: spec.template.spec.containers[0].ports
@@ -104,6 +108,7 @@ tests:
 ```
 
 #### isNull/isNotNull - Check existence
+
 ```yaml
 - isNull:
     path: spec.template.spec.nodeSelector
@@ -112,6 +117,7 @@ tests:
 ```
 
 #### isNotEmpty - Check non-empty
+
 ```yaml
 - isNotEmpty:
     path: metadata.labels
@@ -156,6 +162,7 @@ Snapshot tests capture the entire rendered output and detect any changes:
 ```
 
 First run creates the snapshot:
+
 ```bash
 helm unittest --update-snapshot .
 ```
@@ -187,16 +194,19 @@ These tests run automatically in GitHub Actions on every push and pull request. 
 ## Debugging Failed Tests
 
 ### View detailed output
+
 ```bash
 helm unittest --color --debug .
 ```
 
 ### Test with specific values file
+
 ```bash
 helm unittest -v values-examples/valid.yaml .
 ```
 
 ### Render templates manually
+
 ```bash
 helm template . --values values.yaml
 ```

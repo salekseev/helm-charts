@@ -42,6 +42,7 @@ kubectl get events --sort-by='.lastTimestamp' | grep migration
 #### 1. Database Connection Errors
 
 **Symptoms:**
+
 ```
 connection refused
 authentication failed
@@ -49,6 +50,7 @@ could not connect to database
 ```
 
 **Diagnosis:**
+
 ```bash
 # Test database connectivity from a debug pod
 kubectl run -it --rm debug --image=postgres:15 --restart=Never -- \
@@ -63,11 +65,13 @@ kubectl run -it --rm debug --image=cockroachdb/cockroach:latest --restart=Never 
 
 - Verify database hostname and port are correct in values
 - Check database credentials:
+
   ```bash
   # Verify secret exists and has correct format
   kubectl get secret spicedb -o yaml
   kubectl get secret spicedb -o jsonpath='{.data.datastore-uri}' | base64 -d
   ```
+
 - Ensure database allows connections from Kubernetes pods:
   - Check security groups/firewall rules
   - Verify database network policies
@@ -79,6 +83,7 @@ kubectl run -it --rm debug --image=cockroachdb/cockroach:latest --restart=Never 
 #### 2. Permission Issues
 
 **Symptoms:**
+
 ```
 permission denied for database
 must be owner of database
@@ -86,6 +91,7 @@ permission denied to create table
 ```
 
 **Diagnosis:**
+
 ```bash
 # Connect to database and check permissions
 psql -h postgres-host -U spicedb -d spicedb -c "\dp"
@@ -97,6 +103,7 @@ cockroach sql --url="..." --execute="SHOW GRANTS ON DATABASE spicedb;"
 **Solutions:**
 
 - Grant required permissions to SpiceDB user:
+
   ```sql
   -- PostgreSQL
   GRANT ALL PRIVILEGES ON DATABASE spicedb TO spicedb;
@@ -105,12 +112,14 @@ cockroach sql --url="..." --execute="SHOW GRANTS ON DATABASE spicedb;"
   -- CockroachDB
   GRANT ALL ON DATABASE spicedb TO spicedb;
   ```
+
 - Ensure user has CREATE permission on the database
 - For managed databases, check IAM roles and policies
 
 #### 3. Schema Conflicts
 
 **Symptoms:**
+
 ```
 table already exists
 duplicate key value
@@ -118,6 +127,7 @@ schema version mismatch
 ```
 
 **Diagnosis:**
+
 ```bash
 # Check existing schema
 psql -h postgres-host -U spicedb -d spicedb -c "\dt"
@@ -130,17 +140,21 @@ psql -h postgres-host -U spicedb -d spicedb \
 **Solutions:**
 
 - **For clean slate**: Drop and recreate database:
+
   ```sql
   DROP DATABASE spicedb;
   CREATE DATABASE spicedb;
   GRANT ALL PRIVILEGES ON DATABASE spicedb TO spicedb;
   ```
+
 - **For existing database**: Check if migrations are partially applied:
+
   ```bash
   # Delete failed migration job and retry
   kubectl delete job -l app.kubernetes.io/component=migration
   helm upgrade spicedb charts/spicedb --reuse-values
   ```
+
 - **Version conflicts**: Ensure SpiceDB version is compatible with existing schema:
   - Cannot downgrade SpiceDB versions
   - Restore from database backup if downgrade needed
@@ -148,12 +162,14 @@ psql -h postgres-host -U spicedb -d spicedb \
 #### 4. Migration Job Timeout
 
 **Symptoms:**
+
 ```
 Job has reached the specified deadline
 activeDeadlineSeconds exceeded
 ```
 
 **Diagnosis:**
+
 ```bash
 kubectl describe job -l app.kubernetes.io/component=migration
 # Look for "DeadlineExceeded" in events
@@ -166,6 +182,7 @@ kubectl logs -l app.kubernetes.io/component=migration -f
 
 - Large databases may need more time. The default timeout is 600 seconds (10 minutes).
 - Manually create migration job with longer timeout:
+
   ```yaml
   apiVersion: batch/v1
   kind: Job
@@ -190,6 +207,7 @@ kubectl logs -l app.kubernetes.io/component=migration -f
                 name: spicedb
                 key: datastore-uri
   ```
+
   ```bash
   kubectl apply -f extended-migration-job.yaml
   kubectl wait --for=condition=complete job/spicedb-migration-extended --timeout=3600s
@@ -198,10 +216,12 @@ kubectl logs -l app.kubernetes.io/component=migration -f
 #### 5. Migration Job Stuck
 
 **Symptoms:**
+
 - Migration job shows as "Running" but makes no progress
 - Logs show no activity for extended period
 
 **Diagnosis:**
+
 ```bash
 # Check pod status
 kubectl get pods -l app.kubernetes.io/component=migration
@@ -223,28 +243,34 @@ psql -h postgres-host -U postgres -d spicedb -c \
 **Solutions:**
 
 - Delete stuck job and retry:
+
   ```bash
   kubectl delete job -l app.kubernetes.io/component=migration
   helm upgrade spicedb charts/spicedb --reuse-values
   ```
+
 - Check for database locks and terminate blocking queries:
+
   ```sql
   -- PostgreSQL: Terminate blocking query
   SELECT pg_terminate_backend(pid) FROM pg_stat_activity
   WHERE pid = <blocking_pid>;
   ```
+
 - Verify database has sufficient resources (CPU, memory, IOPS)
 - Check network connectivity between migration pod and database
 
 #### 6. Migration Cleanup Job Failures
 
 **Symptoms:**
+
 ```
 Error from server (Forbidden): jobs.batch "spicedb-migration-cleanup" is forbidden
 User "system:serviceaccount:default:spicedb" cannot delete resource "jobs"
 ```
 
 **Diagnosis:**
+
 ```bash
 # Check if cleanup is enabled
 helm get values spicedb | grep -A 3 cleanup
@@ -259,12 +285,15 @@ kubectl logs -l app.kubernetes.io/component=migration-cleanup
 **Solutions:**
 
 - Disable cleanup if RBAC permissions cannot be granted:
+
   ```bash
   helm upgrade spicedb charts/spicedb \
     --set migrations.cleanup.enabled=false \
     --reuse-values
   ```
+
 - Grant necessary RBAC permissions (if RBAC is enabled):
+
   ```yaml
   # This is automatically created by the chart when rbac.create=true
   # If using custom RBAC, ensure these rules are included:
@@ -277,7 +306,9 @@ kubectl logs -l app.kubernetes.io/component=migration-cleanup
     resources: ["jobs"]
     verbs: ["get", "list", "delete"]
   ```
+
 - Manually clean up old migration jobs:
+
   ```bash
   kubectl delete jobs -l app.kubernetes.io/component=migration
   ```
@@ -287,6 +318,7 @@ kubectl logs -l app.kubernetes.io/component=migration-cleanup
 ### Certificate Validation Failures
 
 **Symptoms:**
+
 ```
 x509: certificate signed by unknown authority
 transport: authentication handshake failed
@@ -295,6 +327,7 @@ certificate is not valid for requested name
 ```
 
 **Diagnosis:**
+
 ```bash
 # Check if TLS secrets exist
 kubectl get secret spicedb-grpc-tls spicedb-http-tls spicedb-dispatch-tls
@@ -318,6 +351,7 @@ kubectl get secret spicedb-grpc-tls -o jsonpath='{.data.tls\.crt}' | \
 **Solutions:**
 
 - **Certificate not found**: Ensure TLS secrets are created before deployment:
+
   ```bash
   # Verify secret exists
   kubectl get secret spicedb-grpc-tls
@@ -331,6 +365,7 @@ kubectl get secret spicedb-grpc-tls -o jsonpath='{.data.tls\.crt}' | \
   ```
 
 - **Certificate signed by unknown authority**: Clients need the CA certificate:
+
   ```bash
   # Extract CA certificate
   kubectl get secret spicedb-ca-key-pair -o jsonpath='{.data.ca\.crt}' | \
@@ -341,6 +376,7 @@ kubectl get secret spicedb-grpc-tls -o jsonpath='{.data.tls\.crt}' | \
   ```
 
 - **Certificate expired**: Renew certificate or enable cert-manager auto-renewal:
+
   ```bash
   # Check certificate expiration
   kubectl get certificate -o custom-columns=\
@@ -354,6 +390,7 @@ kubectl get secret spicedb-grpc-tls -o jsonpath='{.data.tls\.crt}' | \
   ```
 
 - **Certificate hostname mismatch**: Ensure DNS names in certificate match connection hostname:
+
   ```bash
   # Check DNS names in certificate
   kubectl get secret spicedb-grpc-tls -o jsonpath='{.data.tls\.crt}' | \
@@ -365,6 +402,7 @@ kubectl get secret spicedb-grpc-tls -o jsonpath='{.data.tls\.crt}' | \
 ### mTLS Configuration Issues
 
 **Symptoms:**
+
 ```
 dispatch: connection refused
 dispatch: certificate verification failed
@@ -372,6 +410,7 @@ remote error: tls: bad certificate
 ```
 
 **Diagnosis:**
+
 ```bash
 # Check if all pods have dispatch certificates
 kubectl exec -it spicedb-0 -- ls -la /etc/spicedb/tls/dispatch/
@@ -391,6 +430,7 @@ kubectl exec spicedb-0 -- env | grep DISPATCH.*TLS
 **Solutions:**
 
 - **Missing CA certificate**: Ensure dispatch secret includes `ca.crt`:
+
   ```bash
   # Recreate secret with CA certificate
   kubectl create secret generic spicedb-dispatch-tls \
@@ -401,6 +441,7 @@ kubectl exec spicedb-0 -- env | grep DISPATCH.*TLS
   ```
 
 - **Different CAs**: All pods must use certificates from the same CA:
+
   ```bash
   # Verify all pods use same CA
   for pod in $(kubectl get pods -l app.kubernetes.io/name=spicedb -o name); do
@@ -411,6 +452,7 @@ kubectl exec spicedb-0 -- env | grep DISPATCH.*TLS
   ```
 
 - **Certificate permissions**: Ensure files have correct permissions:
+
   ```bash
   kubectl exec spicedb-0 -- ls -la /etc/spicedb/tls/dispatch/
   # Files should be readable by the spicedb user (UID 1000)
@@ -419,6 +461,7 @@ kubectl exec spicedb-0 -- env | grep DISPATCH.*TLS
 ### CockroachDB SSL Errors
 
 **Symptoms:**
+
 ```
 pq: SSL is not enabled on the server
 x509: certificate is not valid for requested name
@@ -426,6 +469,7 @@ connection requires authentication
 ```
 
 **Diagnosis:**
+
 ```bash
 # Check SSL mode configuration
 helm get values spicedb | grep -A 10 datastore
@@ -444,6 +488,7 @@ kubectl run -it --rm debug --image=cockroachdb/cockroach:latest --restart=Never 
 **Solutions:**
 
 - **SSL not enabled error**: Set correct SSL mode:
+
   ```bash
   helm upgrade spicedb charts/spicedb \
     --set config.datastore.sslMode=verify-full \
@@ -454,6 +499,7 @@ kubectl run -it --rm debug --image=cockroachdb/cockroach:latest --restart=Never 
   ```
 
 - **Client certificate CN mismatch**: CockroachDB requires CN in format `client.<username>`:
+
   ```bash
   # Check certificate CN
   kubectl get secret spicedb-datastore-tls -o jsonpath='{.data.tls\.crt}' | \
@@ -463,6 +509,7 @@ kubectl run -it --rm debug --image=cockroachdb/cockroach:latest --restart=Never 
   ```
 
 - **CA certificate mismatch**: Ensure you have CockroachDB's CA certificate:
+
   ```bash
   # Get CockroachDB CA certificate
   kubectl get secret cockroachdb-ca -n database -o jsonpath='{.data.ca\.crt}' | \
@@ -481,6 +528,7 @@ kubectl run -it --rm debug --image=cockroachdb/cockroach:latest --restart=Never 
 ### Service Discovery Problems
 
 **Symptoms:**
+
 ```
 connection refused
 no such host
@@ -488,6 +536,7 @@ dial tcp: lookup spicedb: no such host
 ```
 
 **Diagnosis:**
+
 ```bash
 # Check if service exists
 kubectl get svc spicedb
@@ -507,6 +556,7 @@ kubectl run -it --rm debug --image=nicolaka/netshoot --restart=Never -- \
 **Solutions:**
 
 - **Service doesn't exist**: Verify Helm deployment created service:
+
   ```bash
   helm list
   kubectl get svc
@@ -516,6 +566,7 @@ kubectl run -it --rm debug --image=nicolaka/netshoot --restart=Never -- \
   ```
 
 - **No endpoints**: Check if pods are running:
+
   ```bash
   kubectl get pods -l app.kubernetes.io/name=spicedb
 
@@ -524,6 +575,7 @@ kubectl run -it --rm debug --image=nicolaka/netshoot --restart=Never -- \
   ```
 
 - **DNS issues**: Verify CoreDNS is working:
+
   ```bash
   kubectl get pods -n kube-system -l k8s-app=kube-dns
   kubectl logs -n kube-system -l k8s-app=kube-dns
@@ -532,6 +584,7 @@ kubectl run -it --rm debug --image=nicolaka/netshoot --restart=Never -- \
 ### Network Policy Blocking
 
 **Symptoms:**
+
 ```
 connection timeout
 no route to host
@@ -539,6 +592,7 @@ connection refused (from specific namespaces)
 ```
 
 **Diagnosis:**
+
 ```bash
 # Check if NetworkPolicy is enabled
 kubectl get networkpolicy
@@ -557,6 +611,7 @@ kubectl run -it --rm debug --image=nicolaka/netshoot -n other-namespace --restar
 **Solutions:**
 
 - **NetworkPolicy blocking traffic**: Update NetworkPolicy to allow required traffic:
+
   ```bash
   # Check actual namespace labels
   kubectl get namespace ingress-nginx --show-labels
@@ -566,6 +621,7 @@ kubectl run -it --rm debug --image=nicolaka/netshoot -n other-namespace --restar
   ```
 
 - **Disable NetworkPolicy temporarily for testing**:
+
   ```bash
   helm upgrade spicedb charts/spicedb \
     --set networkPolicy.enabled=false \
@@ -573,6 +629,7 @@ kubectl run -it --rm debug --image=nicolaka/netshoot -n other-namespace --restar
   ```
 
 - **Test from allowed namespace**:
+
   ```bash
   # Get allowed namespace from NetworkPolicy
   kubectl get networkpolicy spicedb -o yaml
@@ -586,6 +643,7 @@ kubectl run -it --rm debug --image=nicolaka/netshoot -n other-namespace --restar
 ### Port Forwarding Issues
 
 **Symptoms:**
+
 ```
 error: timed out waiting for port-forward
 unable to listen on port
@@ -617,6 +675,7 @@ kubectl get pods -l app.kubernetes.io/name=spicedb
 ### Resource Exhaustion (OOMKilled)
 
 **Symptoms:**
+
 ```
 OOMKilled
 Error: failed to create containerd task: OOM Killed
@@ -624,6 +683,7 @@ pod continuously restarting
 ```
 
 **Diagnosis:**
+
 ```bash
 # Check pod resource usage
 kubectl top pods -l app.kubernetes.io/name=spicedb
@@ -641,6 +701,7 @@ kubectl get events --field-selector reason=OOMKilled
 **Solutions:**
 
 - **Increase memory limits**:
+
   ```bash
   helm upgrade spicedb charts/spicedb \
     --set resources.limits.memory=4Gi \
@@ -649,6 +710,7 @@ kubectl get events --field-selector reason=OOMKilled
   ```
 
 - **Check for memory leaks**:
+
   ```bash
   # Monitor memory usage over time
   kubectl top pods -l app.kubernetes.io/name=spicedb --watch
@@ -662,11 +724,13 @@ kubectl get events --field-selector reason=OOMKilled
 ### CPU Throttling
 
 **Symptoms:**
+
 - High latency
 - Slow response times
 - CPU usage at 100% of limit
 
 **Diagnosis:**
+
 ```bash
 # Check CPU usage
 kubectl top pods -l app.kubernetes.io/name=spicedb
@@ -697,6 +761,7 @@ helm upgrade spicedb charts/spicedb \
 ### Database Connection Pool Exhaustion
 
 **Symptoms:**
+
 ```
 too many clients
 connection pool exhausted
@@ -704,6 +769,7 @@ could not connect to database: max connections reached
 ```
 
 **Diagnosis:**
+
 ```bash
 # Check active connections (PostgreSQL)
 psql -h postgres-host -U postgres -d spicedb -c \
@@ -719,6 +785,7 @@ kubectl logs -l app.kubernetes.io/name=spicedb | grep -i "connection pool"
 **Solutions:**
 
 - **Increase database max_connections**:
+
   ```sql
   -- PostgreSQL
   ALTER SYSTEM SET max_connections = 200;
@@ -728,6 +795,7 @@ kubectl logs -l app.kubernetes.io/name=spicedb | grep -i "connection pool"
   ```
 
 - **Reduce number of SpiceDB replicas temporarily**:
+
   ```bash
   helm upgrade spicedb charts/spicedb \
     --set replicaCount=3 \
@@ -739,11 +807,13 @@ kubectl logs -l app.kubernetes.io/name=spicedb | grep -i "connection pool"
 ### Slow Dispatch Performance
 
 **Symptoms:**
+
 - High latency for permission checks
 - Slow dispatch metrics
 - Timeouts on complex queries
 
 **Diagnosis:**
+
 ```bash
 # Check dispatch metrics
 kubectl port-forward svc/spicedb 9090:9090
@@ -779,12 +849,14 @@ kubectl get hpa spicedb --watch
 ### Pods Stuck in Pending
 
 **Symptoms:**
+
 ```
 Status: Pending
 0/3 nodes are available
 ```
 
 **Diagnosis:**
+
 ```bash
 # Check pod status
 kubectl get pods -l app.kubernetes.io/name=spicedb
@@ -802,6 +874,7 @@ kubectl describe pods -l app.kubernetes.io/name=spicedb
 **Solutions:**
 
 - **Insufficient resources**:
+
   ```bash
   # Check node resources
   kubectl describe nodes
@@ -814,6 +887,7 @@ kubectl describe pods -l app.kubernetes.io/name=spicedb
   ```
 
 - **Anti-affinity constraints too strict**:
+
   ```bash
   # Change from required to preferred anti-affinity
   helm upgrade spicedb charts/spicedb \
@@ -827,6 +901,7 @@ kubectl describe pods -l app.kubernetes.io/name=spicedb
   ```
 
 - **NodeSelector/Taints mismatch**:
+
   ```bash
   # Check node labels
   kubectl get nodes --show-labels
@@ -848,10 +923,12 @@ kubectl describe pods -l app.kubernetes.io/name=spicedb
 ### Pods Not Distributed Across Zones
 
 **Symptoms:**
+
 - All pods running in single availability zone
 - No geographic redundancy
 
 **Diagnosis:**
+
 ```bash
 # Check pod distribution across zones
 kubectl get pods -l app.kubernetes.io/name=spicedb \
@@ -880,11 +957,13 @@ helm upgrade spicedb charts/spicedb \
 ### HPA Not Scaling
 
 **Symptoms:**
+
 - HPA shows "unknown" for metrics
 - Pods not scaling despite high CPU/memory
 - `kubectl get hpa` shows `<unknown>` for TARGETS
 
 **Diagnosis:**
+
 ```bash
 # Check HPA status
 kubectl get hpa spicedb
@@ -903,6 +982,7 @@ kubectl logs -n kube-system -l k8s-app=metrics-server
 **Solutions:**
 
 - **Install metrics-server if missing**:
+
   ```bash
   kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 
@@ -910,6 +990,7 @@ kubectl logs -n kube-system -l k8s-app=metrics-server
   ```
 
 - **Verify resource requests are set** (HPA requires them):
+
   ```bash
   helm get values spicedb | grep -A 5 resources
 
@@ -921,6 +1002,7 @@ kubectl logs -n kube-system -l k8s-app=metrics-server
   ```
 
 - **Check HPA configuration**:
+
   ```bash
   # View HPA details
   kubectl get hpa spicedb -o yaml
@@ -934,12 +1016,14 @@ kubectl logs -n kube-system -l k8s-app=metrics-server
 ### PDB Blocking Drains
 
 **Symptoms:**
+
 ```
 Cannot evict pod: pod disruption budget "spicedb" violation
 error when evicting pod: "spicedb-xxx"
 ```
 
 **Diagnosis:**
+
 ```bash
 # Check PDB status
 kubectl get pdb spicedb
@@ -952,6 +1036,7 @@ kubectl get pdb spicedb -o yaml
 **Solutions:**
 
 - **Temporarily increase replicas**:
+
   ```bash
   # Increase replicas to allow more disruptions
   helm upgrade spicedb charts/spicedb \
@@ -966,6 +1051,7 @@ kubectl get pdb spicedb -o yaml
   ```
 
 - **Adjust PDB settings**:
+
   ```bash
   # Increase maxUnavailable
   helm upgrade spicedb charts/spicedb \
@@ -974,6 +1060,7 @@ kubectl get pdb spicedb -o yaml
   ```
 
 - **Temporarily disable PDB for emergency maintenance**:
+
   ```bash
   # Delete PDB (will be recreated on next helm upgrade)
   kubectl delete pdb spicedb
@@ -1117,6 +1204,6 @@ If you're still experiencing issues after trying these troubleshooting steps:
 5. **Environment details**: Include Kubernetes version, cloud provider, etc.
 6. **Configuration**: Share relevant parts of your Helm values (redact sensitive data)
 
-Report issues at: https://github.com/authzed/spicedb/issues
+Report issues at: <https://github.com/authzed/spicedb/issues>
 
-For questions and discussions: https://github.com/authzed/spicedb/discussions
+For questions and discussions: <https://github.com/authzed/spicedb/discussions>

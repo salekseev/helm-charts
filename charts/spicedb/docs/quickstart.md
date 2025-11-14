@@ -36,6 +36,7 @@ helm install spicedb charts/spicedb -f values-presets/development.yaml
 ```
 
 **What this does:**
+
 - Single replica with in-memory datastore (no database needed)
 - Debug logging enabled
 - Minimal resource requirements
@@ -58,6 +59,7 @@ helm install spicedb charts/spicedb
 ```
 
 **What this does:**
+
 - 2 replicas for basic HA (handles single pod failure)
 - Dispatch cluster enabled for distributed permission checking
 - Memory datastore by default (suitable for testing)
@@ -66,6 +68,7 @@ helm install spicedb charts/spicedb
 **Note:** For production, use Option C with persistent datastore.
 
 **Expected output:**
+
 ```
 NAME: spicedb
 LAST DEPLOYED: ...
@@ -113,6 +116,7 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=spicedb --timeo
 ```
 
 **Expected output:**
+
 ```
 NAME                       READY   STATUS    RESTARTS   AGE
 spicedb-6d9f8b4c7-xyz12    1/1     Running   0          45s
@@ -213,6 +217,7 @@ zed permission check document:readme view user:charlie
 ```
 
 **Expected outputs:**
+
 ```
 true   # Alice can delete
 false  # Bob cannot delete
@@ -233,8 +238,9 @@ curl http://localhost:9090/metrics
 ```
 
 Open in browser:
-- Dashboard: http://localhost:8443
-- Metrics: http://localhost:9090/metrics
+
+- Dashboard: <http://localhost:8443>
+- Metrics: <http://localhost:9090/metrics>
 
 ## Step 6: Cleanup
 
@@ -261,6 +267,7 @@ Now that you have SpiceDB running, explore these next steps:
 Memory datastore is not suitable for production. Switch to PostgreSQL or CockroachDB:
 
 **PostgreSQL:**
+
 ```bash
 helm install spicedb charts/spicedb \
   --set config.datastoreEngine=postgres \
@@ -307,16 +314,17 @@ See [examples/cert-manager-integration.yaml](./examples/cert-manager-integration
 
 ### Learn More
 
-- **SpiceDB Documentation**: https://authzed.com/docs
+- **SpiceDB Documentation**: <https://authzed.com/docs>
 - **Chart README**: [README.md](./README.md) - comprehensive configuration reference
 - **Examples Directory**: [examples/](./examples/) - production-ready configurations
-- **zed CLI Guide**: https://github.com/authzed/zed
+- **zed CLI Guide**: <https://github.com/authzed/zed>
 
 ## Troubleshooting
 
 ### Pod Not Starting
 
 Check pod logs:
+
 ```bash
 kubectl logs -l app.kubernetes.io/name=spicedb
 kubectl describe pod -l app.kubernetes.io/name=spicedb
@@ -325,6 +333,7 @@ kubectl describe pod -l app.kubernetes.io/name=spicedb
 ### Port Forward Connection Refused
 
 Ensure pod is in Running state:
+
 ```bash
 kubectl get pods -l app.kubernetes.io/name=spicedb
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=spicedb
@@ -333,6 +342,7 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=spicedb
 ### Permission Check Returns Error
 
 Verify token is correct:
+
 ```bash
 echo $SPICEDB_TOKEN
 # Should output a non-empty string
@@ -344,6 +354,7 @@ zed context set local localhost:50051 "$SPICEDB_TOKEN" --insecure
 ### Schema Write Fails
 
 Check SpiceDB logs for errors:
+
 ```bash
 kubectl logs -l app.kubernetes.io/name=spicedb --tail=50
 ```
@@ -406,5 +417,5 @@ kubectl logs -l app.kubernetes.io/name=spicedb --tail=10 -f
 
 - **Examples**: Explore [examples/](./examples/) directory for production configurations
 - **Configuration Reference**: See [README.md](./README.md) for all available options
-- **SpiceDB Concepts**: https://authzed.com/docs/concepts
-- **Zanzibar Paper**: https://research.google/pubs/pub48190/ (the inspiration for SpiceDB)
+- **SpiceDB Concepts**: <https://authzed.com/docs/concepts>
+- **Zanzibar Paper**: <https://research.google/pubs/pub48190/> (the inspiration for SpiceDB)

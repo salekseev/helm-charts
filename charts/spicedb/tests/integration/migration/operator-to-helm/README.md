@@ -96,6 +96,7 @@ Or run individual tests:
 - Values schema validation
 
 **Tested Conversions**:
+
 - ✅ Replica count
 - ✅ SpiceDB version
 - ✅ Datastore engine (postgres, memory, cockroachdb)
@@ -119,6 +120,7 @@ Or run individual tests:
 - Verify migration complete
 
 **Validated**:
+
 - ✅ Operator deployment succeeds
 - ✅ Configuration export works
 - ✅ Conversion produces valid Helm values
@@ -138,6 +140,7 @@ Or run individual tests:
 - Validate authentication works post-migration
 
 **Secret Formats Tested**:
+
 - ✅ Operator `preshared-key` format
 - ✅ Operator `datastore-uri` format
 - ✅ Helm `existingSecret` reference
@@ -156,6 +159,7 @@ Or run individual tests:
 - Validate service restoration
 
 **Rollback Scenarios**:
+
 - ✅ Helm installation failures
 - ✅ Configuration errors discovered post-migration
 - ✅ Resource scaling issues
@@ -190,6 +194,7 @@ tests/integration/migration/operator-to-helm/
 #### minimal-cluster.yaml
 
 Simple SpiceDBCluster for basic migration testing:
+
 - 1 replica
 - Memory datastore
 - Minimal resources
@@ -197,6 +202,7 @@ Simple SpiceDBCluster for basic migration testing:
 #### complex-cluster.yaml
 
 Complex SpiceDBCluster for comprehensive testing:
+
 - 3 replicas (HA setup)
 - PostgreSQL datastore
 - TLS enabled (gRPC, HTTP)
@@ -206,6 +212,7 @@ Complex SpiceDBCluster for comprehensive testing:
 #### test-secrets.yaml
 
 Pre-configured secrets for testing:
+
 - `spicedb-operator-config` - Operator configuration secret
 - `postgres-uri` - PostgreSQL connection secret
 - `spicedb-grpc-tls` - TLS certificates (self-signed for testing)
@@ -273,6 +280,7 @@ Tests CR → Helm values conversion without requiring a cluster. Fast validation
 ```
 
 Full end-to-end migration workflow:
+
 1. Deploy via operator
 2. Convert configuration
 3. Migrate to Helm
@@ -287,6 +295,7 @@ Full end-to-end migration workflow:
 ```
 
 Tests secret extraction and reuse:
+
 1. Extract operator secrets
 2. Verify format compatibility
 3. Install Helm with existing secrets
@@ -300,6 +309,7 @@ Tests secret extraction and reuse:
 ```
 
 Simulates failure and rollback:
+
 1. Migrate to Helm
 2. Simulate failure
 3. Rollback to operator
@@ -331,12 +341,14 @@ export SKIP_CLEANUP="true"
 **Use Case**: Migrate simple operator deployment to Helm
 
 **Steps**:
+
 ```bash
 ./setup-cluster.sh
 ./test-basic-migration.sh
 ```
 
 **Validates**:
+
 - Basic operator → Helm migration
 - Service continuity
 - Secret reuse
@@ -347,6 +359,7 @@ export SKIP_CLEANUP="true"
 **Use Case**: Migrate production-like setup with TLS, HA, dispatch
 
 **Steps**:
+
 ```bash
 ./setup-cluster.sh
 
@@ -364,6 +377,7 @@ helm install spicedb-complex ../../../../.. -n spicedb-migration-test -f complex
 ```
 
 **Validates**:
+
 - TLS configuration migration
 - Dispatch cluster preservation
 - HA replica management
@@ -374,12 +388,14 @@ helm install spicedb-complex ../../../../.. -n spicedb-migration-test -f complex
 **Use Case**: Verify existing secrets work with Helm
 
 **Steps**:
+
 ```bash
 ./setup-cluster.sh
 ./test-secret-migration.sh
 ```
 
 **Validates**:
+
 - Secret key compatibility
 - `existingSecret` reference
 - Authentication continuity
@@ -390,12 +406,14 @@ helm install spicedb-complex ../../../../.. -n spicedb-migration-test -f complex
 **Use Case**: Recover from failed migration
 
 **Steps**:
+
 ```bash
 ./setup-cluster.sh
 ./test-rollback.sh
 ```
 
 **Validates**:
+
 - Helm uninstall works cleanly
 - Operator resumes control
 - Data persistence maintained
@@ -449,6 +467,7 @@ kubectl get spicedbcluster spicedb -o yaml | ./common/convert-cr-to-values.sh -f
 ```
 
 **Output**: Helm-compatible values.yaml with:
+
 - Replica count
 - Image version
 - Datastore configuration
@@ -464,11 +483,13 @@ kubectl get spicedbcluster spicedb -o yaml | ./common/convert-cr-to-values.sh -f
 #### 1. Kind Cluster Creation Fails
 
 **Symptom**:
+
 ```
 ERROR: failed to create cluster: node(s) already exist for a cluster with the name "spicedb-migration-test"
 ```
 
 **Solution**:
+
 ```bash
 kind delete cluster --name spicedb-migration-test
 ./setup-cluster.sh
@@ -477,11 +498,13 @@ kind delete cluster --name spicedb-migration-test
 #### 2. Operator Installation Fails
 
 **Symptom**:
+
 ```
 error: unable to fetch SpiceDB operator manifest
 ```
 
 **Solution**:
+
 ```bash
 # Check internet connectivity
 curl -I https://github.com
@@ -494,11 +517,13 @@ export SPICEDB_OPERATOR_VERSION="v1.30.0"
 #### 3. PostgreSQL Not Ready
 
 **Symptom**:
+
 ```
 error: timed out waiting for the condition on pods/postgresql-0
 ```
 
 **Solution**:
+
 ```bash
 # Check PostgreSQL logs
 kubectl logs postgresql-0 -n spicedb-migration-test
@@ -513,11 +538,13 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=postgresql -n s
 #### 4. Conversion Script Fails
 
 **Symptom**:
+
 ```
 jq: command not found
 ```
 
 **Solution**:
+
 ```bash
 # Install jq
 brew install jq  # macOS
@@ -528,11 +555,13 @@ yum install jq  # CentOS/RHEL
 #### 5. Helm Template Rendering Fails
 
 **Symptom**:
+
 ```
 Error: template: spicedb/templates/deployment.yaml:XX:XX: executing "spicedb/templates/deployment.yaml" ...
 ```
 
 **Solution**:
+
 ```bash
 # Validate generated values
 cat /tmp/helm-values.yaml
@@ -550,6 +579,7 @@ grep -E "replicaCount|datastoreEngine|image.tag" /tmp/helm-values.yaml
 Tests appear stuck waiting for pods
 
 **Solution**:
+
 ```bash
 # Check pod status
 kubectl get pods -n spicedb-migration-test
@@ -571,6 +601,7 @@ export TEST_TIMEOUT=300  # 5 minutes
 Operator doesn't recreate pods after rollback
 
 **Solution**:
+
 ```bash
 # Check SpiceDBCluster status
 kubectl get spicedbcluster spicedb-minimal -n spicedb-migration-test -o yaml

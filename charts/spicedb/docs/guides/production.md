@@ -26,12 +26,14 @@ This guide provides step-by-step instructions for deploying SpiceDB in productio
 Choose one of the following databases:
 
 **PostgreSQL:**
+
 - PostgreSQL 13+ (14+ recommended)
 - Dedicated database instance (managed service or self-hosted)
 - Network connectivity from Kubernetes cluster to database
 - Database credentials with appropriate permissions
 
 **CockroachDB:**
+
 - CockroachDB 22.1+ (23.1+ recommended)
 - Multi-node cluster recommended for production
 - TLS certificates (CockroachDB requires TLS in production)
@@ -40,22 +42,26 @@ Choose one of the following databases:
 ### Optional Components
 
 **For TLS (Recommended for Production):**
+
 - [cert-manager](https://cert-manager.io/) v1.13.0+ for automated certificate management
 - OR manual TLS certificates (server certificates, CA certificates)
 
 **For External Secrets:**
+
 - [External Secrets Operator](https://external-secrets.io/) for secure credential management
 - OR Kubernetes secrets created manually/via CI/CD
 
 ### Resource Requirements
 
 **Minimum Production Configuration:**
+
 - 3 nodes (for high availability)
 - 6 vCPUs total (2 vCPUs per node)
 - 12 GB RAM total (4 GB per node)
 - 50 GB disk space for database
 
 **Recommended Production Configuration:**
+
 - 5+ nodes across multiple availability zones
 - 15+ vCPUs total (3+ vCPUs per node)
 - 30+ GB RAM total (6+ GB per node)
@@ -187,10 +193,12 @@ kubectl run -it --rm debug --image=cockroachdb/cockroach:latest --restart=Never 
 Configure security groups/firewall rules:
 
 **PostgreSQL:**
+
 - Allow inbound TCP 5432 from Kubernetes node CIDR ranges
 - Deny all other inbound traffic
 
 **CockroachDB:**
+
 - Allow inbound TCP 26257 (SQL) from Kubernetes node CIDR ranges
 - Allow inbound TCP 8080 (Admin UI) from admin networks (optional)
 - Deny all other inbound traffic
@@ -214,12 +222,14 @@ kubectl run -it --rm debug --image=busybox --restart=Never -- \
 #### Database Storage
 
 **PostgreSQL:**
+
 - Use SSD-backed storage (gp3 on AWS, pd-ssd on GCP)
 - Provision IOPS based on expected workload (minimum 3000 IOPS)
 - Enable automated backups (7-30 day retention)
 - Consider read replicas for read-heavy workloads
 
 **CockroachDB:**
+
 - Use local SSD storage for best performance
 - Provision 2-3x expected data size for compaction overhead
 - Enable incremental backups to S3/GCS
@@ -228,6 +238,7 @@ kubectl run -it --rm debug --image=busybox --restart=Never -- \
 #### Kubernetes Storage
 
 SpiceDB itself is stateless, but consider:
+
 - Ephemeral volume for `/tmp` (if using readOnlyRootFilesystem)
 - EmptyDir for temporary TLS certificate generation
 - Persistent volumes NOT required for SpiceDB pods
@@ -470,21 +481,25 @@ kubectl create secret generic spicedb-datastore-tls \
 Each endpoint has specific certificate requirements:
 
 **gRPC Endpoint (Client API):**
+
 - Server certificate with DNS names matching service endpoints
 - Required usages: `server auth`, `digital signature`, `key encipherment`
 - Optional: CA certificate for client certificate verification (mTLS)
 
 **HTTP Endpoint (Dashboard/Metrics):**
+
 - Server certificate with DNS names matching service endpoints
 - Required usages: `server auth`, `digital signature`, `key encipherment`
 
 **Dispatch Endpoint (Inter-pod Communication):**
+
 - mTLS certificate (both client and server usages)
 - Required usages: `server auth`, `client auth`, `digital signature`, `key encipherment`
 - Must include CA certificate for mutual verification
 - All pods must share the same CA
 
 **Datastore Endpoint (Database Connection):**
+
 - Client certificate for database authentication
 - Required usages: `client auth`, `digital signature`, `key encipherment`
 - For CockroachDB: CN must be `client.<username>` (e.g., `client.spicedb`)
@@ -853,6 +868,7 @@ This section covers HA features for production deployments.
 ### Multiple Replicas
 
 **Important:** SpiceDB achieves consistency through the external datastore (PostgreSQL, CockroachDB, etc.), not through internal consensus between pods. This means:
+
 - **2 replicas = basic HA** (sufficient for most production use cases)
 - **3+ replicas = enhanced HA** (better load distribution and failover)
 - No quorum requirement - odd numbers not necessary
@@ -886,11 +902,13 @@ dispatch:
 ```
 
 The chart automatically configures:
+
 - **Service Discovery**: `kubernetes:///spicedb.namespace:dispatch` (uses gRPC kuberesolver)
 - **RBAC Permissions**: ServiceAccount with `get`, `list`, `watch` on endpoints
 - **Port Name Resolution**: Uses port name `dispatch` instead of port number `50053`
 
 **How it works:**
+
 1. SpiceDB pods register with the `spicedb` Service on the `dispatch` port (50053)
 2. The kubernetes:// resolver watches the Endpoints resource to discover pod IPs
 3. gRPC load balances requests using consistent hash ring across available pods
@@ -940,6 +958,7 @@ kubectl logs -n spicedb -l app.kubernetes.io/name=spicedb | grep -i dispatch
 ```
 
 **References:**
+
 - [Consistent Hash Load Balancing for gRPC](https://authzed.com/blog/consistent-hash-load-balancing-grpc)
 - [SpiceDB Operator Dispatch Configuration](https://github.com/authzed/spicedb-operator/blob/main/pkg/config/config_test.go)
 
@@ -976,6 +995,7 @@ autoscaling:
 ```
 
 Prerequisites:
+
 ```bash
 # Verify metrics-server is installed
 kubectl get apiservice v1beta1.metrics.k8s.io

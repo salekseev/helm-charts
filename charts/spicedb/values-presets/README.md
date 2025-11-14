@@ -41,6 +41,7 @@ For complete preset documentation, customization examples, and best practices, s
 **[Configuration Presets Guide](../docs/configuration/presets.md)**
 
 This includes:
+
 - Detailed configuration explanations
 - Security best practices
 - Customization examples

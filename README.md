@@ -9,6 +9,7 @@ Production-ready Helm charts for various applications and services.
 A production-grade Helm chart for [SpiceDB](https://github.com/authzed/spicedb), Google Zanzibar-inspired authorization system.
 
 **Features:**
+
 - Multiple datastore backends (memory, PostgreSQL, CockroachDB)
 - Automated database migrations
 - Comprehensive TLS support
@@ -48,6 +49,7 @@ helm show chart oci://ghcr.io/salekseev/helm-charts/spicedb --version 1.0.0
 Charts are automatically published to [GitHub Container Registry](https://github.com/salekseev?tab=packages&repo_name=helm-charts) when releases are created.
 
 Each chart maintains its own versioning and changelog. See individual chart directories for:
+
 - Version history and compatibility
 - Breaking changes
 - Upgrade guides
@@ -56,6 +58,7 @@ Each chart maintains its own versioning and changelog. See individual chart dire
 ## Contributing
 
 We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md) for:
+
 - Development setup
 - Commit message format (conventional commits)
 - Pull request process
@@ -80,6 +83,7 @@ We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md)
 ## Automation
 
 This repository uses automated release management:
+
 - **Conventional Commits** for semantic versioning
 - **release-please** for automatic changelog and version updates
 - **Automated OCI publishing** to GitHub Container Registry

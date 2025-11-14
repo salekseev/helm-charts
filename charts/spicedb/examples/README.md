@@ -9,6 +9,7 @@ This directory contains example values files demonstrating various SpiceDB deplo
 **File:** `ingress-multi-host-tls.yaml`
 
 Demonstrates a production-ready setup with:
+
 - Multiple dedicated hosts (API, metrics, dispatch)
 - Path-based routing to different service ports
 - Separate TLS certificates for different host groups
@@ -26,6 +27,7 @@ helm install spicedb authzed/spicedb -f examples/ingress-multi-host-tls.yaml
 **File:** `ingress-tls-passthrough.yaml`
 
 Demonstrates end-to-end encryption where:
+
 - TLS terminates at SpiceDB, not at the ingress controller
 - Ingress controller forwards encrypted traffic (no decryption)
 - Provides maximum security for regulatory compliance
@@ -38,6 +40,7 @@ helm install spicedb authzed/spicedb -f examples/ingress-tls-passthrough.yaml
 ```
 
 **Prerequisites:**
+
 - SpiceDB TLS certificates must be configured (see chart's `tls.*` values)
 - NGINX Ingress Controller must have `--enable-ssl-passthrough` flag enabled
 
@@ -46,6 +49,7 @@ helm install spicedb authzed/spicedb -f examples/ingress-tls-passthrough.yaml
 **File:** `ingress-single-host-multi-path.yaml`
 
 Demonstrates path-based routing on a single hostname:
+
 - All services accessible via different paths on one domain
 - Simplified DNS management (single hostname)
 - Single TLS certificate for all paths
@@ -62,6 +66,7 @@ helm install spicedb authzed/spicedb -f examples/ingress-single-host-multi-path.
 **File:** `ingress-contour-grpc.yaml`
 
 Demonstrates Contour-specific configuration:
+
 - H2C (HTTP/2 Cleartext) protocol for gRPC
 - Contour annotations for timeout management
 - Multi-host setup with separate TLS per host
@@ -77,6 +82,7 @@ helm install spicedb authzed/spicedb -f examples/ingress-contour-grpc.yaml
 **File:** `ingress-traefik-grpc.yaml`
 
 Demonstrates Traefik-specific configuration:
+
 - Traefik entrypoints and router configuration
 - H2C scheme for gRPC support
 - TLS configuration via Traefik annotations
@@ -246,6 +252,7 @@ annotations:
 ### TLS Passthrough Not Working
 
 1. Verify NGINX Ingress Controller has passthrough enabled:
+
    ```bash
    kubectl get deployment nginx-ingress-controller -o yaml | grep ssl-passthrough
    ```
@@ -274,6 +281,7 @@ kubectl logs -n cert-manager -l app=cert-manager
 1. Verify pathType is appropriate for your use case
 2. Check ingress controller logs for routing decisions
 3. Test with curl:
+
    ```bash
    curl -v https://spicedb.example.com/metrics
    ```

@@ -110,42 +110,49 @@ Expected output:
 The integration test suite validates:
 
 ### 1. Infrastructure Setup
+
 - ✅ Kind cluster creation and configuration
 - ✅ PostgreSQL StatefulSet deployment (official postgres:16 image)
 - ✅ PersistentVolumeClaim provisioning and binding
 - ✅ Service connectivity and DNS resolution
 
 ### 2. Chart Installation
+
 - ✅ Helm chart installation with PostgreSQL datastore
 - ✅ Migration job execution (pre-install hook)
 - ✅ SpiceDB pod deployment and readiness
 - ✅ Schema and relationship data loading
 
 ### 3. Upgrade Testing
+
 - ✅ Helm upgrade with modified values (version bump, replica changes)
 - ✅ Pre-upgrade migration hook execution
 - ✅ Rolling update of SpiceDB pods
 - ✅ Data persistence across upgrades
 
 ### 4. Data Persistence
+
 - ✅ Schema persistence (definition preservation)
 - ✅ Relationship persistence (permission data retention)
 - ✅ Permission checks before and after upgrade
 - ✅ Data integrity verification
 
 ### 5. Migration Job Cleanup
+
 - ✅ Hook-delete-policy annotation validation
 - ✅ Old migration job removal
 - ✅ No orphaned pods or jobs
 - ✅ Proper cleanup timing (before-hook-creation)
 
 ### 6. Idempotency
+
 - ✅ Multiple upgrades with same values
 - ✅ Migration job re-execution
 - ✅ No data corruption or drift
 - ✅ Consistent schema state
 
 ### 7. Self-Healing Features (E2E)
+
 - ✅ Liveness probe automatic pod restart on failure
 - ✅ Readiness probe endpoint removal for unready pods
 - ✅ Startup probe protection during slow initialization
@@ -347,48 +354,56 @@ TEST_FILTER=pdb ./tests/integration/self-healing-test.sh
 ### Self-Healing Test Details
 
 #### Test 1: Liveness Probe Restart
+
 - **Purpose**: Verify unhealthy pods are automatically restarted
 - **Method**: Kills SpiceDB process (PID 1) inside container
 - **Success**: Pod restart count increments and pod returns to Ready state
 - **Timeout**: 90 seconds for restart detection
 
 #### Test 2: Readiness Probe Endpoint Removal
+
 - **Purpose**: Verify unready pods are removed from Service endpoints
 - **Method**: Simulates readiness failure by blocking health check
 - **Success**: Pod IP removed from Service endpoints, moved to notReadyAddresses
 - **Timeout**: 60 seconds for endpoint removal
 
 #### Test 3: Startup Probe Slow Initialization
+
 - **Purpose**: Verify startup probe prevents premature liveness probe kills
 - **Method**: Creates pod with 20s startup delay
 - **Success**: Pod not restarted during startup window (no restarts before 25s)
 - **Timeout**: 60 seconds total test time
 
 #### Test 4: Resource Limits and OOM
+
 - **Purpose**: Verify memory limits are enforced and OOMKilled pods restart
 - **Method**: Creates pod with 128Mi limit, attempts to allocate 200Mi
 - **Success**: Container OOMKilled event detected, pod restarts automatically
 - **Timeout**: 60 seconds for OOM detection
 
 #### Test 5: Graceful Shutdown
+
 - **Purpose**: Verify SIGTERM triggers graceful shutdown within grace period
 - **Method**: Deletes pod, monitors shutdown time
 - **Success**: Pod terminates within configured terminationGracePeriodSeconds
 - **Grace Period**: 30 seconds (configurable in chart)
 
 #### Test 6: Anti-Affinity Distribution
+
 - **Purpose**: Verify pods spread across multiple nodes
 - **Method**: Checks pod-to-node mapping for 3 replicas
 - **Success**: Pods distributed across 2+ nodes (preferredDuringScheduling)
 - **Note**: Non-blocking if cluster has insufficient nodes
 
 #### Test 7: Topology Spread Constraints
+
 - **Purpose**: Verify pods spread across topology zones
 - **Method**: Labels nodes with zone labels, checks pod distribution
 - **Success**: Pods distributed across 2+ zones
 - **Note**: Non-blocking in test clusters without zone diversity
 
 #### Test 8: PodDisruptionBudget Enforcement
+
 - **Purpose**: Verify PDB prevents excessive pod eviction
 - **Method**: Attempts node drain, monitors PDB status
 - **Success**: PDB maintains desiredHealthy pods during disruption
@@ -439,26 +454,31 @@ TEST_FILTER=pdb ./tests/integration/self-healing-test.sh
 ### Troubleshooting Self-Healing Tests
 
 #### Liveness Test Failures
+
 - **Issue**: Pod not restarting after process kill
 - **Check**: `kubectl describe pod` for liveness probe configuration
 - **Verify**: Probe settings match chart values (periodSeconds, failureThreshold)
 
 #### Readiness Test Failures
+
 - **Issue**: Pod not removed from endpoints
 - **Check**: `kubectl get endpoints` to see current state
 - **Verify**: Readiness probe configured correctly in deployment
 
 #### Startup Test Failures
+
 - **Issue**: Pod restarted during initialization
 - **Check**: Startup probe failureThreshold * periodSeconds > initialization time
 - **Adjust**: Increase `probes.startup.failureThreshold` in values
 
 #### OOM Test Timeouts
+
 - **Issue**: No OOM detected in test window
 - **Note**: This may be expected if stress test doesn't trigger OOM
 - **Verify**: Resource limits are configured in deployment spec
 
 #### PDB Test Skipped
+
 - **Issue**: Tests skip PDB validation
 - **Check**: Ensure PDB is enabled (`podDisruptionBudget.enabled=true`)
 - **Verify**: `kubectl get pdb` shows PodDisruptionBudget exists
@@ -472,11 +492,13 @@ The integration tests run automatically in GitHub Actions on every push and pull
 **Workflow configuration**: `.github/workflows/ci.yaml`
 
 **Matrix strategy**: Tests run against Kubernetes versions:
+
 - v1.28.0
 - v1.29.0
 - v1.30.0
 
 **Triggers**:
+
 - Push to `main` or `master` branches
 - Pull requests targeting `main` or `master`
 
@@ -506,6 +528,7 @@ git commit -m "docs: update README [skip ci]"
 **Symptom**: `Error: port 50051 already in use`
 
 **Solution**:
+
 ```bash
 # Find process using port
 lsof -ti:50051 | xargs kill -9
@@ -519,6 +542,7 @@ lsof -ti:50051 | xargs kill -9
 **Symptom**: Pods stuck in `Pending` state, events show insufficient CPU/memory
 
 **Solution**:
+
 ```bash
 # Increase Docker Desktop resources:
 # - Docker Desktop → Preferences → Resources
@@ -535,6 +559,7 @@ helm install spicedb charts/spicedb \
 **Symptom**: `ImagePullBackOff` or `ErrImagePull`
 
 **Solution**:
+
 ```bash
 # Pre-load images into Kind cluster
 docker pull postgres:16
@@ -551,6 +576,7 @@ kind load docker-image authzed/zed:latest --name spicedb-test
 **Symptom**: `error: timed out waiting for the condition on jobs/spicedb-migration`
 
 **Solution**:
+
 ```bash
 # Check migration job logs
 kubectl logs -n spicedb-test -l app.kubernetes.io/component=migration
@@ -566,6 +592,7 @@ kubectl logs -n spicedb-test -l app.kubernetes.io/component=migration
 **Symptom**: `verify-persistence.sh` reports permission check failures
 
 **Solution**:
+
 ```bash
 # Verify SpiceDB is healthy
 kubectl get pods -n spicedb-test
@@ -583,6 +610,7 @@ kubectl run -n spicedb-test zed-debug --rm -i --restart=Never \
 **Symptom**: `verify-cleanup.sh` reports multiple migration jobs remaining
 
 **Solution**:
+
 ```bash
 # This may be normal behavior during cleanup grace period
 # Wait 30-60 seconds and re-check
@@ -601,6 +629,7 @@ kubectl delete jobs -n spicedb-test -l app.kubernetes.io/component=migration
 **Symptom**: `ERROR: failed to create cluster`
 
 **Solution**:
+
 ```bash
 # Cleanup stale clusters
 kind delete cluster --name spicedb-test
@@ -620,6 +649,7 @@ kind create cluster --name spicedb-test -v 5
 **Symptom**: Tests appear stuck without progress
 
 **Solution**:
+
 ```bash
 # Set shorter timeout
 timeout 600 ./migration-test.sh

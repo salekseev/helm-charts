@@ -24,6 +24,7 @@ This guide provides procedures for upgrading SpiceDB deployments to new versions
 The chart `appVersion` specifies the default SpiceDB version. You can override this with `image.tag`.
 
 **Important Notes:**
+
 - Always check the [SpiceDB changelog](https://github.com/authzed/spicedb/releases) for breaking changes
 - Test upgrades in a non-production environment first
 - Database schema upgrades are forward-only (no downgrades)
@@ -31,6 +32,7 @@ The chart `appVersion` specifies the default SpiceDB version. You can override t
 ### Operator Compatibility
 
 The chart supports operator compatibility mode for migration:
+
 - Use `operatorCompatibility.enabled: true` for seamless operator transition
 - See [Operator to Helm Migration Guide](../migration/operator-to-helm.md)
 - See [Helm to Operator Migration Guide](../migration/helm-to-operator.md)
@@ -40,6 +42,7 @@ The chart supports operator compatibility mode for migration:
 Refer to [SpiceDB Release Notes](https://github.com/authzed/spicedb/releases) for SpiceDB version-specific breaking changes.
 
 **Common SpiceDB breaking changes:**
+
 - API changes in gRPC schemas
 - Configuration parameter renames
 - Deprecated flags removed
@@ -52,6 +55,7 @@ Before performing any upgrade, complete the following checklist:
 ### 1. Backup Database
 
 **PostgreSQL:**
+
 ```bash
 # Create backup
 pg_dump -h postgres-host -U spicedb -d spicedb -F c -f spicedb-backup-$(date +%Y%m%d-%H%M%S).dump
@@ -61,6 +65,7 @@ pg_restore -l spicedb-backup-*.dump | head -20
 ```
 
 **CockroachDB:**
+
 ```bash
 # Create backup to S3/GCS
 cockroach sql --url="postgresql://root@cockroachdb:26257?sslmode=verify-full" \
@@ -241,6 +246,7 @@ kubectl get pods -n spicedb -l app.kubernetes.io/name=spicedb --watch
 ```
 
 **Zero-downtime upgrade process:**
+
 1. Migrations run automatically (pre-upgrade hook)
 2. New pod created with updated version (maxSurge: 1)
 3. New pod becomes ready (passes readiness probe)
@@ -533,6 +539,7 @@ kubectl logs -n spicedb -l app.kubernetes.io/component=migration
 ```
 
 **Automatic migration process:**
+
 1. Helm upgrade initiated
 2. Migration job created (pre-upgrade hook)
 3. Migration job connects to database
@@ -578,6 +585,7 @@ helm upgrade spicedb charts/spicedb \
 For complex migrations, use SpiceDB's phased migration support:
 
 **Phase 1: Write Phase**
+
 ```bash
 # Run write phase migration
 helm upgrade spicedb charts/spicedb \
@@ -590,6 +598,7 @@ kubectl logs -n spicedb -l app.kubernetes.io/name=spicedb | grep -i error
 ```
 
 **Phase 2: Update Application**
+
 ```bash
 # Update SpiceDB to new version
 helm upgrade spicedb charts/spicedb \
@@ -602,6 +611,7 @@ kubectl wait --for=condition=Ready pods -l app.kubernetes.io/name=spicedb --time
 ```
 
 **Phase 3: Complete Migration**
+
 ```bash
 # Complete the migration
 helm upgrade spicedb charts/spicedb \
@@ -619,6 +629,7 @@ helm upgrade spicedb charts/spicedb \
 If migrations fail, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md#migration-failures) for detailed troubleshooting steps.
 
 **Quick diagnostics:**
+
 ```bash
 # Check migration job status
 kubectl get jobs -n spicedb -l app.kubernetes.io/component=migration

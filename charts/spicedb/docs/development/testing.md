@@ -64,6 +64,7 @@ helm unittest . --file 'tests/unit/*.yaml' --file 'tests/hooks/*.yaml'
 ```
 
 **Expected Output:**
+
 ```
 Charts:      1 passed, 1 total
 Test Suites: 24 passed, 24 total

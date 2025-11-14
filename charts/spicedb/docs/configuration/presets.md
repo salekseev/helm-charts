@@ -20,6 +20,7 @@ This guide provides advanced patterns for using and customizing the SpiceDB Helm
 Configuration presets are pre-configured values files that represent common deployment scenarios. Instead of manually configuring dozens of parameters, presets provide production-tested configurations that work out of the box.
 
 **Benefits**:
+
 - Reduced configuration complexity (50+ lines → 10-15 lines)
 - Production-tested defaults
 - Consistent deployments across environments
@@ -27,6 +28,7 @@ Configuration presets are pre-configured values files that represent common depl
 - Can be layered and customized
 
 **Available Presets**:
+
 - `development.yaml` - Local development with memory datastore
 - `production-postgres.yaml` - Production with PostgreSQL, TLS, HPA, anti-affinity
 - `production-cockroachdb.yaml` - Production with CockroachDB and dispatch
@@ -46,6 +48,7 @@ helm install spicedb charts/spicedb \
 ```
 
 **What this includes**:
+
 1. PostgreSQL datastore configuration
 2. TLS enabled for gRPC and HTTP
 3. HPA with 2-5 replicas (autoscaling enabled)
@@ -63,6 +66,7 @@ helm install crdb-spicedb charts/spicedb \
 ```
 
 **What this includes**:
+
 1. CockroachDB datastore configuration
 2. Dispatch cluster enabled with mTLS
 3. TLS for gRPC and HTTP
@@ -133,6 +137,7 @@ helm install spicedb charts/spicedb \
 ```
 
 **Advantages of custom values files**:
+
 - Better for complex overrides
 - Version controllable
 - Reusable across deployments
@@ -562,11 +567,13 @@ helm install spicedb charts/spicedb \
 ```
 
 **Advantages**:
+
 - Full control over configuration
 - No need to understand value merging
 - Easy to review all settings
 
 **Disadvantages**:
+
 - Doesn't benefit from preset updates
 - More maintenance overhead
 
@@ -579,11 +586,13 @@ helm install spicedb charts/spicedb \
 **Symptom**: Setting a value via `--set` or override file doesn't change the deployment.
 
 **Common causes**:
+
 1. Typo in parameter name
 2. Wrong precedence order (earlier `-f` files overridden by later ones)
 3. Array replacement (trying to merge arrays, but they're replaced)
 
 **Solution**:
+
 ```bash
 # Debug: Render template to see final values
 helm template spicedb charts/spicedb \

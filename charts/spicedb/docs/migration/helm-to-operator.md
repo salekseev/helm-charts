@@ -26,6 +26,7 @@ Consider migrating from Helm to the Operator if you want:
 - **Kubernetes-native API**: Manage SpiceDB with kubectl like any other resource
 
 **Keep using Helm if you need:**
+
 - NetworkPolicy for network isolation
 - Ingress configuration
 - GitOps with Helm-specific tooling
@@ -77,6 +78,7 @@ helm list -n <namespace>
 Create a backup of your datastore **before** proceeding:
 
 **PostgreSQL:**
+
 ```bash
 # Using pg_dump
 kubectl exec -n database postgresql-0 -- \
@@ -87,6 +89,7 @@ kubectl cp database/postgresql-0:/tmp/spicedb-backup.dump ./spicedb-backup.dump
 ```
 
 **CockroachDB:**
+
 ```bash
 # Create backup using CockroachDB BACKUP command
 kubectl exec -n database cockroachdb-0 -- \
@@ -216,6 +219,7 @@ kubectl create secret generic spicedb-operator-config \
 Create a `spicedb-cluster.yaml` file with your configuration:
 
 **Basic Example (PostgreSQL):**
+
 ```yaml
 apiVersion: authzed.com/v1alpha1
 kind: SpiceDBCluster
@@ -245,6 +249,7 @@ spec:
 ```
 
 **Advanced Example (with TLS and Dispatch):**
+
 ```yaml
 apiVersion: authzed.com/v1alpha1
 kind: SpiceDBCluster
@@ -413,6 +418,7 @@ kubectl get all -l app.kubernetes.io/name=spicedb
 ```
 
 **WARNING**: Do **not** delete the following:
+
 - Database (PostgreSQL/CockroachDB)
 - Secrets (unless you created new ones)
 - TLS certificates
@@ -487,6 +493,7 @@ spec:
 ```
 
 Apply it:
+
 ```bash
 kubectl apply -f spicedb-networkpolicy.yaml
 ```
@@ -525,6 +532,7 @@ spec:
 ```
 
 Apply it:
+
 ```bash
 kubectl apply -f spicedb-ingress.yaml
 ```
@@ -553,6 +561,7 @@ spec:
 ```
 
 Apply it:
+
 ```bash
 kubectl apply -f spicedb-servicemonitor.yaml
 ```
@@ -579,6 +588,7 @@ Use this reference to convert Helm `values.yaml` to SpiceDBCluster spec:
 **PostgreSQL:**
 
 Helm:
+
 ```yaml
 config:
   datastoreEngine: postgres
@@ -592,6 +602,7 @@ config:
 ```
 
 Operator:
+
 ```yaml
 spec:
   datastoreEngine:
@@ -607,6 +618,7 @@ spec:
 **CockroachDB:**
 
 Helm:
+
 ```yaml
 config:
   datastoreEngine: cockroachdb
@@ -619,6 +631,7 @@ config:
 ```
 
 Operator:
+
 ```yaml
 spec:
   datastoreEngine:
@@ -634,12 +647,14 @@ spec:
 **Memory (Development):**
 
 Helm:
+
 ```yaml
 config:
   datastoreEngine: memory
 ```
 
 Operator:
+
 ```yaml
 spec:
   datastoreEngine:
@@ -649,6 +664,7 @@ spec:
 ### TLS Configuration
 
 Helm:
+
 ```yaml
 tls:
   enabled: true
@@ -661,6 +677,7 @@ tls:
 ```
 
 Operator:
+
 ```yaml
 spec:
   tlsSecretName: spicedb-grpc-tls  # Unified secret for gRPC/HTTP
@@ -674,6 +691,7 @@ spec:
 ### Dispatch Configuration
 
 Helm:
+
 ```yaml
 dispatch:
   enabled: true
@@ -682,6 +700,7 @@ dispatch:
 ```
 
 Operator:
+
 ```yaml
 spec:
   dispatchCluster:
@@ -693,6 +712,7 @@ spec:
 ### Resource Configuration
 
 Helm:
+
 ```yaml
 resources:
   requests:
@@ -704,6 +724,7 @@ resources:
 ```
 
 Operator:
+
 ```yaml
 spec:
   resources:
@@ -718,6 +739,7 @@ spec:
 ### High Availability Configuration
 
 Helm:
+
 ```yaml
 podDisruptionBudget:
   enabled: true
@@ -731,6 +753,7 @@ autoscaling:
 ```
 
 Operator:
+
 ```yaml
 spec:
   replicas: 3  # PDB created automatically by operator
@@ -840,6 +863,7 @@ echo "Run: kubectl apply -f $OUTPUT --dry-run=client"
 ```
 
 Usage:
+
 ```bash
 # Make script executable
 chmod +x scripts/convert-helm-to-operator.sh
@@ -1107,6 +1131,7 @@ kubectl top pods -l app.kubernetes.io/name=spicedb
 ### Issue: SpiceDBCluster stuck in "Pending" status
 
 **Symptoms:**
+
 ```bash
 kubectl get spicedbcluster spicedb
 # NAME      READY   STATUS    AGE
@@ -1114,6 +1139,7 @@ kubectl get spicedbcluster spicedb
 ```
 
 **Diagnosis:**
+
 ```bash
 # Check operator logs
 kubectl logs -n spicedb-operator-system -l control-plane=controller-manager --tail=100
@@ -1123,7 +1149,9 @@ kubectl describe spicedbcluster spicedb
 ```
 
 **Common Causes:**
+
 1. **Invalid secret reference**: Secret doesn't exist or has wrong keys
+
    ```bash
    # Verify secret exists
    kubectl get secret spicedb-operator-config
@@ -1134,12 +1162,14 @@ kubectl describe spicedbcluster spicedb
    ```
 
 2. **Invalid version**: Version doesn't exist or is incompatible
+
    ```bash
    # Check available versions at https://github.com/authzed/spicedb/releases
    # Update spec.version to valid version
    ```
 
 3. **Database connection failure**: Can't connect to datastore
+
    ```bash
    # Test database connection from cluster
    kubectl run -it --rm debug --image=postgres:15 --restart=Never -- \
@@ -1147,6 +1177,7 @@ kubectl describe spicedbcluster spicedb
    ```
 
 **Resolution:**
+
 ```bash
 # Fix the issue (update secret, version, etc.)
 # Update SpiceDBCluster
@@ -1158,6 +1189,7 @@ kubectl apply -f spicedb-cluster.yaml
 ### Issue: Pods crash-looping after migration
 
 **Symptoms:**
+
 ```bash
 kubectl get pods -l app.kubernetes.io/name=spicedb
 # NAME        READY   STATUS             RESTARTS   AGE
@@ -1165,6 +1197,7 @@ kubectl get pods -l app.kubernetes.io/name=spicedb
 ```
 
 **Diagnosis:**
+
 ```bash
 # Check pod logs
 kubectl logs spicedb-0 --previous
@@ -1174,7 +1207,9 @@ kubectl describe pod spicedb-0
 ```
 
 **Common Causes:**
+
 1. **Missing secret**: Preshared key or datastore URI not found
+
    ```bash
    # Check logs for error like:
    # "failed to load secret"
@@ -1184,6 +1219,7 @@ kubectl describe pod spicedb-0
    ```
 
 2. **Database migration failure**: Migration failed during startup
+
    ```bash
    # Check logs for migration errors
    kubectl logs spicedb-0 | grep -i migration
@@ -1196,6 +1232,7 @@ kubectl describe pod spicedb-0
    ```
 
 3. **TLS certificate issues**: Invalid or missing TLS certificates
+
    ```bash
    # Check TLS secret exists
    kubectl get secret spicedb-grpc-tls
@@ -1205,6 +1242,7 @@ kubectl describe pod spicedb-0
    ```
 
 **Resolution:**
+
 ```bash
 # Fix the underlying issue
 # Delete the pod to force restart
@@ -1219,6 +1257,7 @@ kubectl delete pod spicedb-0
 Clients can't connect using same port as before migration
 
 **Diagnosis:**
+
 ```bash
 # Check operator-created service
 kubectl get svc spicedb -o yaml
@@ -1231,6 +1270,7 @@ diff <(kubectl get svc spicedb -o yaml) service-backup.yaml
 Operator creates service with standard ports that may differ from Helm customization
 
 **Resolution:**
+
 ```bash
 # Option 1: Update client configuration to use new ports
 # Option 2: Patch service to use original ports
@@ -1247,6 +1287,7 @@ kubectl patch svc spicedb --type=json -p='[
 Clients can't connect even though pods are ready
 
 **Diagnosis:**
+
 ```bash
 # Check if NetworkPolicy exists
 kubectl get networkpolicy spicedb
@@ -1260,6 +1301,7 @@ kubectl run -it --rm test --image=curlimages/curl -- \
 NetworkPolicy from Helm may not match operator-created pod labels
 
 **Resolution:**
+
 ```bash
 # Check pod labels created by operator
 kubectl get pods -l app.kubernetes.io/name=spicedb --show-labels
@@ -1276,6 +1318,7 @@ kubectl edit networkpolicy spicedb
 External clients get 503 Service Unavailable
 
 **Diagnosis:**
+
 ```bash
 # Check Ingress configuration
 kubectl get ingress spicedb -o yaml
@@ -1288,11 +1331,13 @@ kubectl get endpoints spicedb
 ```
 
 **Common Causes:**
+
 1. Ingress backend points to wrong service
 2. Service selector doesn't match operator pods
 3. Ingress annotation incompatible with operator service
 
 **Resolution:**
+
 ```bash
 # Verify Ingress backend
 kubectl get ingress spicedb -o jsonpath='{.spec.rules[0].http.paths[0].backend}'
@@ -1310,6 +1355,7 @@ kubectl patch ingress spicedb --type=json -p='[
 Prometheus doesn't scrape SpiceDB metrics
 
 **Diagnosis:**
+
 ```bash
 # Check ServiceMonitor
 kubectl get servicemonitor spicedb
@@ -1324,11 +1370,13 @@ curl http://localhost:9090/metrics
 ```
 
 **Common Causes:**
+
 1. ServiceMonitor selector doesn't match service labels
 2. Service doesn't have metrics port
 3. Prometheus serviceMonitorSelector doesn't match ServiceMonitor labels
 
 **Resolution:**
+
 ```bash
 # Check service labels
 kubectl get svc spicedb --show-labels
@@ -1347,6 +1395,7 @@ kubectl label servicemonitor spicedb prometheus=kube-prometheus
 **No** - Brief downtime (2-5 minutes) is unavoidable during migration. Both Helm and Operator deployments manage the same statefulset, and you cannot run both simultaneously without conflicts.
 
 For zero-downtime migration, you would need:
+
 1. Blue-green deployment (separate databases)
 2. Dual-write to both deployments
 3. Cutover traffic
@@ -1361,6 +1410,7 @@ For zero-downtime migration, you would need:
 ### Can I use both Helm and Operator in the same cluster?
 
 **Yes**, but not for the same SpiceDB instance. You can have:
+
 - Helm-managed SpiceDB in namespace `production`
 - Operator-managed SpiceDB in namespace `staging`
 
@@ -1385,6 +1435,7 @@ After operator is installed once, you can create multiple `SpiceDBCluster` resou
 ### Will automatic updates break my deployment?
 
 **No** - The operator only updates within your specified channel:
+
 - `channel: stable` - Updates to latest stable (e.g., v1.35.0 → v1.35.1 → v1.36.0)
 - `channel: v1.35.x` - Only patch updates (e.g., v1.35.0 → v1.35.1, not v1.36.0)
 - `channel: manual` - No automatic updates, suggestions only
@@ -1408,6 +1459,7 @@ Then manually update `spec.version` when ready to upgrade.
 The operator may not support all customizations. Check the [Configuration Conversion](#configuration-conversion) section.
 
 If you have unsupported customizations:
+
 1. Create additional Kubernetes resources manually (NetworkPolicy, Ingress, etc.)
 2. Use pod/service patches to add custom configuration
 3. Consider staying with Helm if operator doesn't meet your needs
@@ -1417,6 +1469,7 @@ If you have unsupported customizations:
 **Not recommended** - Always test in a staging environment first.
 
 If you must test in production:
+
 1. Scale Helm to 0 during off-hours
 2. Apply SpiceDBCluster
 3. Verify it works
@@ -1437,9 +1490,9 @@ If you must test in production:
 
 ### Where can I get help?
 
-- **Operator Issues**: https://github.com/authzed/spicedb-operator/issues
-- **Helm Chart Issues**: https://github.com/salekseev/helm-charts/issues
-- **SpiceDB Discord**: https://authzed.com/discord
+- **Operator Issues**: <https://github.com/authzed/spicedb-operator/issues>
+- **Helm Chart Issues**: <https://github.com/salekseev/helm-charts/issues>
+- **SpiceDB Discord**: <https://authzed.com/discord>
 - **Migration Help**: Open issue with [migration] tag
 
 ## Additional Resources

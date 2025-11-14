@@ -27,6 +27,7 @@ Consider migrating from the Operator to Helm if you need:
 - **Helm ecosystem**: Integration with Helm-based tools and workflows
 
 **Keep using the Operator if you value:**
+
 - Automated update management with channels
 - Simplified CRD-based configuration
 - Automatic reconciliation and self-healing
@@ -93,6 +94,7 @@ kubectl get deployment -n spicedb-operator-system spicedb-operator-controller-ma
 Create a backup of your datastore **before** proceeding:
 
 **PostgreSQL:**
+
 ```bash
 # Extract connection string from secret
 export DATASTORE_URI=$(kubectl get spicedbcluster spicedb -o jsonpath='{.spec.datastoreEngine.postgres.connectionString.secretKeyRef.name}' | xargs -I {} kubectl get secret {} -o jsonpath='{.data.datastore-uri}' | base64 -d)
@@ -110,6 +112,7 @@ kubectl cp database/postgresql-0:/tmp/spicedb-backup.dump ./spicedb-backup.dump
 ```
 
 **CockroachDB:**
+
 ```bash
 # Create backup
 kubectl exec -n database cockroachdb-0 -- \
@@ -483,6 +486,7 @@ kubectl get all -l app.kubernetes.io/name=spicedb
 ```
 
 **Note**: Deleting SpiceDBCluster does **not** delete:
+
 - The database (PostgreSQL/CockroachDB)
 - Secrets
 - TLS certificates
@@ -588,6 +592,7 @@ spec:
 ```
 
 Apply:
+
 ```bash
 kubectl apply -f spicedb-networkpolicy.yaml
 
@@ -597,6 +602,7 @@ kubectl describe networkpolicy spicedb
 ```
 
 Or add to values.yaml:
+
 ```yaml
 networkPolicy:
   enabled: true
@@ -617,6 +623,7 @@ networkPolicy:
 ```
 
 Then upgrade:
+
 ```bash
 helm upgrade spicedb charts/spicedb -f values.yaml
 ```
@@ -677,6 +684,7 @@ spec:
 ```
 
 Apply:
+
 ```bash
 kubectl apply -f spicedb-ingress.yaml
 
@@ -690,6 +698,7 @@ grpcurl -d '{"service":"authzed.api.v1.SchemaService"}' \
 ```
 
 Or add to values.yaml:
+
 ```yaml
 ingress:
   enabled: true
@@ -710,6 +719,7 @@ ingress:
 ```
 
 Then upgrade:
+
 ```bash
 helm upgrade spicedb charts/spicedb -f values.yaml
 ```
@@ -741,6 +751,7 @@ spec:
 ```
 
 Apply:
+
 ```bash
 kubectl apply -f spicedb-servicemonitor.yaml
 
@@ -753,6 +764,7 @@ curl -s http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | selec
 ```
 
 Or add to values.yaml:
+
 ```yaml
 monitoring:
   enabled: true
@@ -765,6 +777,7 @@ monitoring:
 ```
 
 Then upgrade:
+
 ```bash
 helm upgrade spicedb charts/spicedb -f values.yaml
 ```
@@ -783,6 +796,7 @@ autoscaling:
 ```
 
 Upgrade:
+
 ```bash
 helm upgrade spicedb charts/spicedb -f values.yaml
 
@@ -812,6 +826,7 @@ Reference for converting SpiceDBCluster spec to Helm values.yaml:
 **PostgreSQL:**
 
 Operator:
+
 ```yaml
 spec:
   datastoreEngine:
@@ -823,6 +838,7 @@ spec:
 ```
 
 Helm:
+
 ```yaml
 config:
   datastoreEngine: postgres
@@ -832,6 +848,7 @@ config:
 **Memory:**
 
 Operator:
+
 ```yaml
 spec:
   datastoreEngine:
@@ -839,6 +856,7 @@ spec:
 ```
 
 Helm:
+
 ```yaml
 config:
   datastoreEngine: memory
@@ -847,6 +865,7 @@ config:
 ### TLS Configuration
 
 Operator:
+
 ```yaml
 spec:
   tlsSecretName: spicedb-tls  # Single secret for gRPC + HTTP
@@ -856,6 +875,7 @@ spec:
 ```
 
 Helm:
+
 ```yaml
 tls:
   enabled: true
@@ -873,6 +893,7 @@ dispatch:
 ### Resource Configuration
 
 Operator:
+
 ```yaml
 spec:
   resources:
@@ -885,6 +906,7 @@ spec:
 ```
 
 Helm:
+
 ```yaml
 resources:
   requests:
@@ -1032,6 +1054,7 @@ rm /tmp/cluster.json
 ```
 
 Usage:
+
 ```bash
 # Make script executable
 chmod +x scripts/convert-operator-to-helm.sh
@@ -1113,6 +1136,7 @@ kubectl get spicedbcluster spicedb
 ### Issue: Helm pods crash with "secret not found"
 
 **Symptoms:**
+
 ```bash
 kubectl get pods -l app.kubernetes.io/name=spicedb
 # NAME                       READY   STATUS             RESTARTS   AGE
@@ -1120,6 +1144,7 @@ kubectl get pods -l app.kubernetes.io/name=spicedb
 ```
 
 **Diagnosis:**
+
 ```bash
 kubectl logs spicedb-xxxxx-yyyyy
 
@@ -1130,6 +1155,7 @@ kubectl logs spicedb-xxxxx-yyyyy
 Secret name in values.yaml doesn't match actual secret
 
 **Resolution:**
+
 ```bash
 # Check secret exists
 kubectl get secret spicedb-operator-config
@@ -1151,6 +1177,7 @@ helm upgrade spicedb charts/spicedb -f values.yaml
 Pods being created/deleted repeatedly, services changing
 
 **Diagnosis:**
+
 ```bash
 kubectl get pods -l app.kubernetes.io/name=spicedb -o yaml | grep ownerReferences
 
@@ -1161,6 +1188,7 @@ kubectl get pods -l app.kubernetes.io/name=spicedb -o yaml | grep ownerReference
 SpiceDBCluster wasn't scaled to 0 before Helm install
 
 **Resolution:**
+
 ```bash
 # Scale SpiceDBCluster to 0
 kubectl patch spicedbcluster spicedb --type=merge -p '{"spec":{"replicas":0}}'
@@ -1179,6 +1207,7 @@ helm install spicedb charts/spicedb -f values.yaml
 Clients can't connect after creating NetworkPolicy
 
 **Diagnosis:**
+
 ```bash
 # Check NetworkPolicy exists
 kubectl get networkpolicy spicedb -o yaml
@@ -1192,6 +1221,7 @@ kubectl run -it --rm test --image=curlimages/curl -- \
 NetworkPolicy is too restrictive or has wrong selectors
 
 **Resolution:**
+
 ```bash
 # Delete NetworkPolicy temporarily
 kubectl delete networkpolicy spicedb
@@ -1210,6 +1240,7 @@ kubectl get pods -l app.kubernetes.io/name=spicedb --show-labels
 External requests fail through Ingress
 
 **Diagnosis:**
+
 ```bash
 # Check Ingress
 kubectl get ingress spicedb -o yaml
@@ -1222,11 +1253,13 @@ kubectl get endpoints spicedb
 ```
 
 **Common Causes:**
+
 1. Service name in Ingress doesn't match Helm service
 2. Port numbers incorrect
 3. Ingress annotations wrong for gRPC
 
 **Resolution:**
+
 ```bash
 # Verify service name
 kubectl get svc -l app.kubernetes.io/name=spicedb
@@ -1248,6 +1281,7 @@ kubectl annotate ingress spicedb \
 Prometheus targets show no spicedb metrics
 
 **Diagnosis:**
+
 ```bash
 # Check ServiceMonitor
 kubectl get servicemonitor spicedb
@@ -1265,6 +1299,7 @@ curl http://localhost:9090/metrics
 ServiceMonitor not created or has wrong labels
 
 **Resolution:**
+
 ```bash
 # Add ServiceMonitor to values.yaml
 # monitoring:
@@ -1311,6 +1346,7 @@ Consider using Renovate or Dependabot to automate Helm updates.
 ### Will Helm manage the same resources as the operator?
 
 **Similar, but not identical**:
+
 - Helm creates: Deployment/StatefulSet, Service, ConfigMap, Secret, Job (migrations)
 - Operator creates: StatefulSet, Service
 - Helm adds: NetworkPolicy, Ingress, ServiceMonitor (if configured)
@@ -1332,6 +1368,7 @@ helm upgrade spicedb charts/spicedb --set image.tag=v1.36.0
 ### Can I use both Helm and operator in the same cluster?
 
 **Yes**, but not for the same SpiceDB instance. You can have:
+
 - Operator-managed SpiceDB in `production` namespace
 - Helm-managed SpiceDB in `staging` namespace
 
@@ -1340,6 +1377,7 @@ helm upgrade spicedb charts/spicedb --set image.tag=v1.36.0
 Check [Configuration Conversion](#configuration-conversion) for supported customizations.
 
 If you have unsupported customizations:
+
 - Use Helm hooks for custom logic
 - Use initContainers for custom setup
 - Patch Helm resources with kubectl
@@ -1347,6 +1385,7 @@ If you have unsupported customizations:
 ### How do I automate Helm updates?
 
 Use GitOps tools:
+
 - **ArgoCD**: Auto-sync Helm releases
 - **Flux**: HelmRelease with automated updates
 - **Renovate**: Automated PRs for version updates
@@ -1386,8 +1425,8 @@ Use GitOps tools:
 
 ## Support
 
-- **Helm Chart Issues**: https://github.com/salekseev/helm-charts/issues
-- **SpiceDB Discord**: https://authzed.com/discord
+- **Helm Chart Issues**: <https://github.com/salekseev/helm-charts/issues>
+- **SpiceDB Discord**: <https://authzed.com/discord>
 - **Migration Help**: Open issue with [migration] tag
 
 ## Changelog

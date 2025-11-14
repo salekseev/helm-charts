@@ -33,28 +33,34 @@ See the [Quick Start Guide](docs/quickstart.md) for detailed setup instructions.
 ## Documentation
 
 ### Getting Started
+
 - [Quick Start Guide](docs/quickstart.md) - Get up and running in minutes
 - [Configuration Presets](docs/configuration/presets.md) - Production-ready configurations
 
 ### Configuration
+
 - [Values Reference](values.yaml) - Complete configuration options with inline documentation
 - [Preset Guide](docs/configuration/presets.md) - Detailed preset documentation and customization
 
 ### Migration
+
 - [Operator Comparison](docs/migration/operator-comparison.md) - Feature comparison with Kubernetes operator
 - [Helm to Operator Migration](docs/migration/helm-to-operator.md) - Migrate from Helm to operator
 - [Operator to Helm Migration](docs/migration/operator-to-helm.md) - Migrate from operator to Helm
 
 ### Operations
+
 - [Status Monitoring](docs/operations/status-script.md) - Check deployment health with scripts/status.sh
 
 ### Guides
+
 - [Production Guide](docs/guides/production.md) - Production deployment best practices
 - [Security Guide](docs/guides/security.md) - Security hardening and compliance
 - [Troubleshooting Guide](docs/guides/troubleshooting.md) - Common issues and solutions
 - [Upgrade Guide](docs/guides/upgrading.md) - Version upgrade procedures
 
 ### Development
+
 - [Testing Guide](docs/development/testing.md) - Running unit and integration tests
 - [Technical Debt](docs/development/tech-debt.md) - Known issues and improvements
 - [Changelog](docs/CHANGELOG.md) - Release history and changes
@@ -153,9 +159,9 @@ helm uninstall spicedb
 
 ## Support & Contributing
 
-- **Documentation**: https://authzed.com/docs
-- **SpiceDB GitHub**: https://github.com/authzed/spicedb
-- **Issues**: https://github.com/salekseev/helm-charts/issues
+- **Documentation**: <https://authzed.com/docs>
+- **SpiceDB GitHub**: <https://github.com/authzed/spicedb>
+- **Issues**: <https://github.com/salekseev/helm-charts/issues>
 
 ## License
 

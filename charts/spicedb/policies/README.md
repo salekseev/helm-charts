@@ -7,17 +7,20 @@ This directory contains Open Policy Agent (OPA) policies written in Rego for val
 ### Install Conftest
 
 **Linux:**
+
 ```bash
 curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.56.0/conftest_0.56.0_Linux_x86_64.tar.gz | tar xz
 sudo mv conftest /usr/local/bin/
 ```
 
 **macOS:**
+
 ```bash
 brew install conftest
 ```
 
 **Verify installation:**
+
 ```bash
 conftest --version
 ```

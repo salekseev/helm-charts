@@ -86,6 +86,7 @@ When requesting a feature:
 ### Good First Issues
 
 Looking for a place to start? Check issues labeled with:
+
 - `good first issue` - Great for newcomers
 - `help wanted` - We'd love community contributions
 
@@ -96,6 +97,7 @@ We welcome contributions! Here's the general workflow:
 ### 1. Discussion First
 
 For significant changes, please open an issue first to discuss:
+
 - What you plan to change
 - Why the change is needed
 - How you plan to implement it
@@ -374,6 +376,7 @@ git commit --no-verify -m "message"
 ### Template Best Practices
 
 1. **Use Helper Templates**: Define common patterns in `_helpers.tpl`
+
    ```yaml
    {{- define "mychart.labels" -}}
    app.kubernetes.io/name: {{ include "mychart.name" . }}
@@ -381,17 +384,20 @@ git commit --no-verify -m "message"
    ```
 
 2. **Make Everything Configurable**: Use values.yaml for all configuration
+
    ```yaml
    replicas: {{ .Values.replicaCount }}
    ```
 
 3. **Provide Sensible Defaults**: Ensure chart works with minimal configuration
+
    ```yaml
    # values.yaml
    replicaCount: 1
    ```
 
 4. **Use Conditional Logic Sparingly**: Keep templates readable
+
    ```yaml
    {{- if .Values.ingress.enabled }}
    # ingress config
@@ -399,6 +405,7 @@ git commit --no-verify -m "message"
    ```
 
 5. **Follow Kubernetes Best Practices**: Security contexts, resource limits, probes
+
    ```yaml
    securityContext:
      runAsNonRoot: true
@@ -476,6 +483,7 @@ See [.github/workflows/ci-integration.yaml](.github/workflows/ci-integration.yam
 
 1. **Fork the repository**
 2. **Create a feature branch**
+
    ```bash
    git checkout -b feature/my-feature
    ```
@@ -483,6 +491,7 @@ See [.github/workflows/ci-integration.yaml](.github/workflows/ci-integration.yam
 3. **Follow TDD workflow** (write test, implement, verify)
 
 4. **Ensure all tests pass**
+
    ```bash
    helm unittest charts/<chart-name>
    helm lint charts/<chart-name> --strict
@@ -490,11 +499,13 @@ See [.github/workflows/ci-integration.yaml](.github/workflows/ci-integration.yam
    ```
 
 5. **Commit with meaningful messages**
+
    ```bash
    git commit -m "feat: add support for custom TLS certificates"
    ```
 
 6. **Push to your fork**
+
    ```bash
    git push origin feature/my-feature
    ```
@@ -520,6 +531,7 @@ See [.github/workflows/ci-integration.yaml](.github/workflows/ci-integration.yam
 ### Pull Request Guidelines
 
 **Do:**
+
 - Keep PRs focused on a single feature or bug fix
 - Write clear PR descriptions explaining the change
 - Update documentation if behavior changes
@@ -528,6 +540,7 @@ See [.github/workflows/ci-integration.yaml](.github/workflows/ci-integration.yam
 - Ensure all CI checks pass
 
 **Don't:**
+
 - Submit PRs with unrelated changes
 - Include merge commits in your branch
 - Force push after review has started (unless requested)

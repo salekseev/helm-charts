@@ -20,12 +20,14 @@ SpiceDB and this Helm chart provide multiple layers of security:
 ### Transport Layer Security (TLS)
 
 **Available for all endpoints:**
+
 - gRPC API (client-to-server)
 - HTTP Dashboard (client-to-server)
 - Dispatch cluster (mutual TLS for pod-to-pod)
 - Datastore connections (client-to-server or mutual TLS)
 
 **Benefits:**
+
 - Encrypts data in transit
 - Prevents man-in-the-middle attacks
 - Authenticates endpoints (mutual TLS)
@@ -34,12 +36,14 @@ SpiceDB and this Helm chart provide multiple layers of security:
 ### Network Isolation
 
 **NetworkPolicy support:**
+
 - Namespace-level isolation
 - Pod-level access control
 - Ingress and egress filtering
 - Defense-in-depth security
 
 **Benefits:**
+
 - Limits attack surface
 - Prevents lateral movement
 - Implements zero-trust principles
@@ -48,6 +52,7 @@ SpiceDB and this Helm chart provide multiple layers of security:
 ### Pod Security Standards
 
 **Implements Kubernetes restricted profile:**
+
 - Non-root containers
 - Read-only root filesystem
 - Dropped capabilities
@@ -55,6 +60,7 @@ SpiceDB and this Helm chart provide multiple layers of security:
 - No privilege escalation
 
 **Benefits:**
+
 - Reduces container breakout risk
 - Limits impact of vulnerabilities
 - Meets security baselines
@@ -63,12 +69,14 @@ SpiceDB and this Helm chart provide multiple layers of security:
 ### RBAC Integration
 
 **Kubernetes RBAC:**
+
 - Service account with minimal permissions
 - Role-based access control
 - Optional pod identity (IRSA, Workload Identity)
 - Secrets access control
 
 **Benefits:**
+
 - Least privilege principle
 - Audit trail for actions
 - Fine-grained access control
@@ -132,6 +140,7 @@ kubectl wait --for=condition=Ready certificate --all
 ```
 
 **Benefits:**
+
 - Automated renewal (no manual intervention)
 - Consistent certificate management
 - Supports multiple CAs (Let's Encrypt, private CA, etc.)
@@ -160,6 +169,7 @@ kubectl create secret generic spicedb-dispatch-tls \
 ### TLS Best Practices
 
 1. **Use TLS for all endpoints in production**
+
    ```yaml
    tls:
      enabled: true
@@ -177,6 +187,7 @@ kubectl create secret generic spicedb-dispatch-tls \
    - Required for zero-trust environments
 
 3. **Use verify-full SSL mode for databases**
+
    ```yaml
    config:
      datastore:
@@ -190,6 +201,7 @@ kubectl create secret generic spicedb-dispatch-tls \
    - Recommended: 90-day certificates, rotate at 60 days
 
 5. **Monitor certificate expiration**
+
    ```bash
    # Check expiration dates
    kubectl get certificate -o custom-columns=\
@@ -209,6 +221,7 @@ kubectl create secret generic spicedb-dispatch-tls \
    - Regularly update to latest SpiceDB version for security patches
 
 8. **Backup CA certificates and keys**
+
    ```bash
    kubectl get secret spicedb-ca-key-pair -o yaml > spicedb-ca-backup.yaml
    # Store securely outside the cluster (encrypted backup)
@@ -219,11 +232,13 @@ kubectl create secret generic spicedb-dispatch-tls \
 Mutual TLS (mTLS) for dispatch is critical in multi-replica deployments:
 
 **Why mTLS?**
+
 - Prevents rogue pods from joining the cluster
 - Ensures both client and server are authenticated
 - Encrypts sensitive authorization data in transit
 
 **Configuration:**
+
 ```yaml
 dispatch:
   enabled: true
@@ -237,11 +252,13 @@ replicaCount: 3  # Multiple replicas required
 ```
 
 **Certificate requirements:**
+
 - Must include both `server auth` and `client auth` usages
 - All pods must use certificates from the same CA
 - Secret must contain: `tls.crt`, `tls.key`, `ca.crt`
 
 **Verification:**
+
 ```bash
 # Check certificate has correct usages
 kubectl get secret spicedb-dispatch-tls -o jsonpath='{.data.tls\.crt}' | \
@@ -257,23 +274,28 @@ kubectl get secret spicedb-dispatch-tls -o jsonpath='{.data.tls\.crt}' | \
 SpiceDB uses preshared keys for API authentication:
 
 **Configuration:**
+
 ```yaml
 config:
   presharedKey: "your-secure-random-key-here"
 ```
 
 **Best practices:**
+
 1. **Generate cryptographically secure keys:**
+
    ```bash
    # Generate 32-byte random key (base64 encoded)
    openssl rand -base64 32
    ```
 
 2. **Store in existing secret (recommended):**
+
    ```yaml
    config:
      existingSecret: spicedb-credentials
    ```
+
    ```bash
    kubectl create secret generic spicedb-credentials \
      --from-literal=preshared-key="$(openssl rand -base64 32)"
@@ -304,12 +326,14 @@ serviceAccount:
 ```
 
 **Default permissions:**
+
 - Get/list pods (for dispatch discovery)
 - Get/list/delete jobs (for migration cleanup)
 
 **Cloud IAM integration:**
 
 **AWS (IRSA):**
+
 ```yaml
 serviceAccount:
   annotations:
@@ -317,6 +341,7 @@ serviceAccount:
 ```
 
 **GCP (Workload Identity):**
+
 ```yaml
 serviceAccount:
   annotations:
@@ -324,6 +349,7 @@ serviceAccount:
 ```
 
 **Azure (Workload Identity):**
+
 ```yaml
 serviceAccount:
   annotations:
@@ -346,10 +372,12 @@ config:
 ```
 
 **Recommended: Use existing secret:**
+
 ```yaml
 config:
   existingSecret: spicedb-database
 ```
+
 ```bash
 kubectl create secret generic spicedb-database \
   --from-literal=datastore-uri='postgresql://user:password@host:5432/db?sslmode=require'
@@ -387,6 +415,7 @@ spec:
 See [examples/postgres-external-secrets.yaml](examples/postgres-external-secrets.yaml) for complete configuration.
 
 **Benefits:**
+
 - Centralized secret management
 - Automatic secret rotation
 - Audit trail for secret access
@@ -409,6 +438,7 @@ See [examples/postgres-external-secrets.yaml](examples/postgres-external-secrets
    - TLS certificates: Every 90 days (automated with cert-manager)
 
 4. **Limit secret access:**
+
    ```bash
    # Check who can access secrets
    kubectl auth can-i get secrets --as=system:serviceaccount:spicedb:spicedb
@@ -457,6 +487,7 @@ networkPolicy:
 ```
 
 **What NetworkPolicy provides:**
+
 - **Namespace isolation**: Only allowed namespaces can access SpiceDB
 - **Pod-level access control**: Only specific pods can connect
 - **Egress control**: Limit outbound connections
@@ -503,6 +534,7 @@ networkPolicy:
 ```
 
 **Verification:**
+
 ```bash
 # Check NetworkPolicy is created
 kubectl get networkpolicy -n spicedb
@@ -557,6 +589,7 @@ spec:
 ```
 
 **Benefits:**
+
 - Automatic mTLS between services
 - Fine-grained authorization policies
 - Traffic encryption without application changes
@@ -567,6 +600,7 @@ spec:
 **Cloud provider security groups:**
 
 **AWS Security Groups:**
+
 ```hcl
 # Terraform example
 resource "aws_security_group" "spicedb" {
@@ -606,6 +640,7 @@ resource "aws_security_group" "spicedb" {
 This chart implements the Kubernetes **restricted** Pod Security Standard:
 
 **Pod-level security context:**
+
 ```yaml
 podSecurityContext:
   runAsNonRoot: true
@@ -617,6 +652,7 @@ podSecurityContext:
 ```
 
 **Container-level security context:**
+
 ```yaml
 securityContext:
   allowPrivilegeEscalation: false
@@ -628,6 +664,7 @@ securityContext:
 ```
 
 **What this provides:**
+
 - **Non-root execution**: Reduces container breakout risk
 - **Read-only filesystem**: Prevents malicious writes
 - **Dropped capabilities**: Minimal Linux capabilities
@@ -651,6 +688,7 @@ metadata:
 ```
 
 **Verification:**
+
 ```bash
 # Check namespace labels
 kubectl get namespace spicedb -o yaml | grep pod-security
@@ -665,12 +703,14 @@ kubectl run test --image=nginx --privileged -n spicedb
 **Best practices for container images:**
 
 1. **Use specific image tags:**
+
    ```yaml
    image:
      tag: "v1.39.0"  # NOT "latest"
    ```
 
 2. **Scan images for vulnerabilities:**
+
    ```bash
    # Using Trivy
    trivy image authzed/spicedb:v1.39.0
@@ -680,6 +720,7 @@ kubectl run test --image=nginx --privileged -n spicedb
    ```
 
 3. **Use image pull secrets for private registries:**
+
    ```yaml
    imagePullSecrets:
    - name: registry-credentials
@@ -704,6 +745,7 @@ resources:
 ```
 
 **Why resource limits matter:**
+
 - Prevents DoS via resource exhaustion
 - Ensures fair resource sharing
 - Protects cluster stability
@@ -714,6 +756,7 @@ resources:
 ### Encryption
 
 **Encryption at rest:**
+
 - **Database**: Enable encryption at rest for PostgreSQL/CockroachDB
   - AWS RDS: Enable storage encryption
   - GCP Cloud SQL: Automatic encryption
@@ -722,12 +765,14 @@ resources:
 - **Backups**: Encrypt database backups
 
 **Encryption in transit:**
+
 - **Client to SpiceDB**: TLS required (gRPC, HTTP)
 - **SpiceDB to database**: SSL/TLS required (sslMode: require/verify-full)
 - **Pod-to-pod**: mTLS for dispatch (strongly recommended)
 - **Ingress**: TLS termination or passthrough
 
 **Configuration for full encryption:**
+
 ```yaml
 tls:
   enabled: true
@@ -783,6 +828,7 @@ logging:
 ```
 
 **What to audit:**
+
 - Database connection attempts
 - Migration executions
 - Configuration changes
@@ -795,6 +841,7 @@ logging:
 **Principle of least privilege:**
 
 1. **Database permissions:**
+
    ```sql
    -- Grant only required permissions
    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO spicedb;
@@ -802,6 +849,7 @@ logging:
    ```
 
 2. **Kubernetes RBAC:**
+
    ```yaml
    # Minimal RBAC (created by chart)
    rbac:
@@ -809,6 +857,7 @@ logging:
    ```
 
 3. **Network access:**
+
    ```yaml
    # Restrict to required namespaces only
    networkPolicy:
@@ -822,6 +871,7 @@ logging:
 ### Compliance Frameworks
 
 **PCI DSS:**
+
 - ✅ Encryption in transit (TLS)
 - ✅ Encryption at rest (database, secrets)
 - ✅ Access controls (RBAC, NetworkPolicy)
@@ -830,6 +880,7 @@ logging:
 - ✅ Network segmentation
 
 **HIPAA:**
+
 - ✅ PHI encryption (TLS + database encryption)
 - ✅ Access controls and authentication
 - ✅ Audit logs for PHI access
@@ -837,6 +888,7 @@ logging:
 - ✅ Security assessments (vulnerability scanning)
 
 **SOC 2:**
+
 - ✅ Logical access controls
 - ✅ Encryption
 - ✅ Monitoring and logging
@@ -844,6 +896,7 @@ logging:
 - ✅ Incident response
 
 **GDPR:**
+
 - ✅ Data encryption
 - ✅ Access controls
 - ✅ Audit trail
@@ -853,6 +906,7 @@ logging:
 ### Regular Security Updates
 
 **Keep SpiceDB updated:**
+
 ```bash
 # Subscribe to security advisories
 # https://github.com/authzed/spicedb/security/advisories
@@ -867,6 +921,7 @@ helm upgrade spicedb charts/spicedb \
 ```
 
 **Update dependencies:**
+
 - Kubernetes cluster
 - Database (PostgreSQL/CockroachDB)
 - cert-manager
@@ -926,6 +981,7 @@ helm upgrade spicedb charts/spicedb \
 ### Runtime Security Monitoring
 
 **Monitor for:**
+
 - Failed authentication attempts
 - Unusual network traffic patterns
 - Resource exhaustion attempts
@@ -934,6 +990,7 @@ helm upgrade spicedb charts/spicedb \
 - Unauthorized access attempts
 
 **Tools:**
+
 - Falco: Runtime security monitoring
 - Prometheus + Grafana: Metrics and alerting
 - ELK/Splunk: Log analysis

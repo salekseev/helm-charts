@@ -11,6 +11,7 @@ These scripts help migrate between the SpiceDB Helm chart and the SpiceDB Operat
 Converts Helm `values.yaml` configuration to SpiceDB Operator `SpiceDBCluster` CRD format.
 
 **Usage:**
+
 ```bash
 # Convert development preset
 ./convert-helm-to-operator.sh -i ../values-presets/development.yaml
@@ -23,6 +24,7 @@ Converts Helm `values.yaml` configuration to SpiceDB Operator `SpiceDBCluster` C
 ```
 
 **Options:**
+
 - `-i, --input FILE` - Input Helm values.yaml file
 - `-o, --output FILE` - Output SpiceDBCluster YAML file (default: stdout)
 - `--name NAME` - SpiceDBCluster resource name (default: spicedb)
@@ -31,12 +33,14 @@ Converts Helm `values.yaml` configuration to SpiceDB Operator `SpiceDBCluster` C
 - `-h, --help` - Show help message
 
 **Limitations:**
+
 - NetworkPolicy configurations are not transferred (Helm chart exclusive)
 - Ingress configurations are not transferred (not managed by operator)
 - ServiceMonitor configurations are not transferred
 - PodDisruptionBudget settings handled differently by operator
 
 **See Also:**
+
 - [MIGRATION_HELM_TO_OPERATOR.md](../MIGRATION_HELM_TO_OPERATOR.md) - Full migration guide
 - [OPERATOR_COMPARISON.md](../OPERATOR_COMPARISON.md) - Feature comparison
 
@@ -47,6 +51,7 @@ Converts Helm `values.yaml` configuration to SpiceDB Operator `SpiceDBCluster` C
 Converts SpiceDB Operator `SpiceDBCluster` CRD to Helm `values.yaml` format.
 
 **Usage:**
+
 ```bash
 # Convert SpiceDBCluster
 ./convert-operator-to-helm.sh -i spicedb-cluster.yaml
@@ -62,6 +67,7 @@ Converts SpiceDB Operator `SpiceDBCluster` CRD to Helm `values.yaml` format.
 ```
 
 **Options:**
+
 - `-i, --input FILE` - Input SpiceDBCluster YAML file (required)
 - `-o, --output FILE` - Output values.yaml file (default: stdout)
 - `--preset NAME` - Base preset to use (development, production-postgres, production-cockroachdb)
@@ -69,15 +75,18 @@ Converts SpiceDB Operator `SpiceDBCluster` CRD to Helm `values.yaml` format.
 - `-h, --help` - Show help message
 
 **Operator-Exclusive Features:**
+
 - `spec.channel` - Operator version update channels (not in Helm, requires manual image.tag updates)
 - `spec.patches` - Operator JSON patches (must be manually applied to Helm values)
 
 **Helm Features to Configure Manually:**
+
 - NetworkPolicy - Network isolation (not available in operator)
 - Ingress - External access configuration (not managed by operator)
 - ServiceMonitor - Prometheus integration (not in operator)
 
 **See Also:**
+
 - [MIGRATION_OPERATOR_TO_HELM.md](../MIGRATION_OPERATOR_TO_HELM.md) - Full migration guide
 - [OPERATOR_COMPARISON.md](../OPERATOR_COMPARISON.md) - Feature comparison
 
@@ -86,10 +95,12 @@ Converts SpiceDB Operator `SpiceDBCluster` CRD to Helm `values.yaml` format.
 ## Prerequisites
 
 Both scripts require:
+
 - **yq v4+** - YAML processor ([Installation guide](https://github.com/mikefarah/yq#install))
 - **bash** - Bash shell (usually pre-installed on Linux/macOS)
 
 Install yq:
+
 ```bash
 # macOS (Homebrew)
 brew install yq
@@ -187,6 +198,7 @@ Error: Input file is not valid YAML: values.yaml
 ```
 
 **Solution:** Validate your YAML file:
+
 ```bash
 yq eval '.' values.yaml
 ```
@@ -198,6 +210,7 @@ Warnings are normal and indicate features that don't directly map between Helm a
 ### Generated YAML invalid
 
 If generated YAML is invalid:
+
 1. Check input file is valid
 2. Report issue with example input/output to [GitHub Issues](https://github.com/salekseev/helm-charts/issues)
 

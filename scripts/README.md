@@ -28,21 +28,25 @@ Check the health and status of a SpiceDB deployment.
 ### Examples
 
 **Check status in default namespace:**
+
 ```bash
 ./scripts/status.sh
 ```
 
 **Check status in a specific namespace and release:**
+
 ```bash
 ./scripts/status.sh --namespace spicedb-prod --release my-spicedb
 ```
 
 **Get JSON output for programmatic processing:**
+
 ```bash
 ./scripts/status.sh -n production -r spicedb -f json
 ```
 
 **Pipe JSON output to jq for filtering:**
+
 ```bash
 ./scripts/status.sh -f json | jq '.deployment.ready'
 ```
@@ -135,15 +139,19 @@ Migration Status:
 ### Troubleshooting
 
 **Error: Deployment not found**
+
 - Verify the namespace and release name are correct
 - Check that SpiceDB is installed: `helm list -n <namespace>`
 
 **Error: kubectl is required but not installed**
-- Install kubectl: https://kubernetes.io/docs/tasks/tools/
+
+- Install kubectl: <https://kubernetes.io/docs/tasks/tools/>
 
 **Error: jq is required but not installed**
-- Install jq: https://stedolan.github.io/jq/download/
+
+- Install jq: <https://stedolan.github.io/jq/download/>
 
 **Permission denied errors**
+
 - Ensure your kubeconfig has access to the namespace
 - Check RBAC permissions for reading Deployments, ConfigMaps, and Pods

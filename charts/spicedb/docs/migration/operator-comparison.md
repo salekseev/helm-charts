@@ -5,6 +5,7 @@
 This guide helps you choose between deploying SpiceDB using the **Helm chart** or the **SpiceDB Operator**. Both approaches are production-ready and officially supported, but they offer different trade-offs.
 
 **Choose the Helm Chart if you:**
+
 - Have existing Helm-based workflows and GitOps pipelines (ArgoCD, Flux)
 - Need NetworkPolicy for network isolation and security
 - Require Ingress configuration for external access
@@ -14,6 +15,7 @@ This guide helps you choose between deploying SpiceDB using the **Helm chart** o
 - Need to integrate with existing Helm-based monitoring/security tools
 
 **Choose the SpiceDB Operator if you:**
+
 - Want automated update management with release channels
 - Prefer simplified Kubernetes-native API (CRD-based)
 - Need automatic datastore migration during upgrades
@@ -133,6 +135,7 @@ networkPolicy:
 ```
 
 **Why this matters:**
+
 - Implements defense-in-depth security
 - Restricts network traffic to only necessary paths
 - Required for compliance (PCI-DSS, SOC 2)
@@ -168,6 +171,7 @@ ingress:
 ```
 
 **Why this matters:**
+
 - Expose SpiceDB externally without manual Service configuration
 - Support for multiple ingress controllers (NGINX, Contour, Traefik)
 - Automated TLS with cert-manager
@@ -209,6 +213,7 @@ podDisruptionBudget:
 ```
 
 **Why this matters:**
+
 - Cost optimization through precise resource allocation
 - Separate limits for migrations vs runtime
 - Fine-tuned update behavior for zero-downtime
@@ -226,6 +231,7 @@ First-class support for GitOps workflows:
 ```
 
 **Why this matters:**
+
 - Standard Helm tooling (helm diff, helm template)
 - Native ArgoCD and Flux integration
 - values.yaml is easier to review than CRDs
@@ -246,6 +252,7 @@ helm install spicedb charts/spicedb -f values.yaml
 ```
 
 **Why this matters:**
+
 - Reduced cluster dependencies
 - No operator upgrade coordination
 - Works in environments that prohibit operators
@@ -258,6 +265,7 @@ helm install spicedb charts/spicedb -f values.yaml
 Compare 10-line operator config vs 50-line Helm config for the same deployment:
 
 **SpiceDB Operator:**
+
 ```yaml
 apiVersion: authzed.com/v1alpha1
 kind: SpiceDBCluster
@@ -277,6 +285,7 @@ spec:
 ```
 
 **Helm Chart (equivalent):**
+
 ```yaml
 replicaCount: 3
 image:
@@ -312,6 +321,7 @@ monitoring:
 ```
 
 **Why this matters:**
+
 - Less configuration to maintain
 - Fewer opportunities for misconfiguration
 - Operator sets production-ready defaults
@@ -332,11 +342,13 @@ spec:
 ```
 
 **Update Channels:**
+
 - `stable`: Latest stable release, automatic updates
 - `v1.35.x`: Latest patch within v1.35, automatic patches
 - `manual`: Operator suggests updates via status, you approve
 
 **Why this matters:**
+
 - Automatic security patches within channel
 - No manual version tracking
 - Safe upgrade paths validated by operator
@@ -363,6 +375,7 @@ kubectl get spicedbcluster spicedb -o yaml
 ```
 
 **Why this matters:**
+
 - Kubernetes-native status checks
 - Programmatic health monitoring
 - Integration with cluster monitoring tools
@@ -381,6 +394,7 @@ kubectl scale deployment spicedb --replicas=5
 ```
 
 **Why this matters:**
+
 - Self-healing deployments
 - Prevents configuration drift
 - No manual intervention for most issues
@@ -391,6 +405,7 @@ kubectl scale deployment spicedb --replicas=5
 ### Example 1: Basic Production Deployment
 
 **SpiceDB Operator:**
+
 ```yaml
 apiVersion: authzed.com/v1alpha1
 kind: SpiceDBCluster
@@ -410,6 +425,7 @@ spec:
 ```
 
 **Helm Chart:**
+
 ```bash
 helm install spicedb-prod charts/spicedb -f - <<EOF
 replicaCount: 3
@@ -434,6 +450,7 @@ EOF
 ### Example 2: High Availability with TLS
 
 **SpiceDB Operator:**
+
 ```yaml
 apiVersion: authzed.com/v1alpha1
 kind: SpiceDBCluster
@@ -456,6 +473,7 @@ spec:
 ```
 
 **Helm Chart:**
+
 ```yaml
 replicaCount: 5
 tls:
@@ -479,6 +497,7 @@ podDisruptionBudget:
 ### Example 3: Development with Memory Datastore
 
 **SpiceDB Operator:**
+
 ```yaml
 apiVersion: authzed.com/v1alpha1
 kind: SpiceDBCluster
@@ -493,6 +512,7 @@ spec:
 ```
 
 **Helm Chart:**
+
 ```yaml
 replicaCount: 1
 config:
@@ -546,7 +566,7 @@ resources:
 
 ## Decision Matrix
 
-### Use Helm Chart If:
+### Use Helm Chart If
 
 1. **Existing Helm Workflows**
    - You have GitOps pipelines (ArgoCD, Flux) for Helm charts
@@ -578,7 +598,7 @@ resources:
    - You need to customize deployment templates
    - You require specific pod scheduling constraints
 
-### Use SpiceDB Operator If:
+### Use SpiceDB Operator If
 
 1. **Automated Operations**
    - You want automatic security patches
@@ -610,7 +630,7 @@ resources:
    - You need operator-validated configurations
    - You want datastore-specific optimizations
 
-### Consider Both If:
+### Consider Both If
 
 You can run both deployment methods in different environments:
 
@@ -650,23 +670,26 @@ Both migration paths are supported:
 ## Resources
 
 ### SpiceDB Operator
-- **Repository**: https://github.com/authzed/spicedb-operator
-- **Documentation**: https://github.com/authzed/spicedb-operator/tree/main/docs
-- **Installation**: https://github.com/authzed/spicedb-operator/releases
+
+- **Repository**: <https://github.com/authzed/spicedb-operator>
+- **Documentation**: <https://github.com/authzed/spicedb-operator/tree/main/docs>
+- **Installation**: <https://github.com/authzed/spicedb-operator/releases>
 
 ### Helm Chart
-- **Repository**: https://github.com/salekseev/helm-charts
+
+- **Repository**: <https://github.com/salekseev/helm-charts>
 - **Documentation**: [README.md](./README.md), [PRODUCTION_GUIDE.md](./PRODUCTION_GUIDE.md)
 - **Installation**: `helm install spicedb charts/spicedb`
 
 ### SpiceDB
-- **Official Site**: https://authzed.com/spicedb
-- **Documentation**: https://authzed.com/docs
-- **GitHub**: https://github.com/authzed/spicedb
+
+- **Official Site**: <https://authzed.com/spicedb>
+- **Documentation**: <https://authzed.com/docs>
+- **GitHub**: <https://github.com/authzed/spicedb>
 
 ## Support
 
-- **Helm Chart Issues**: https://github.com/salekseev/helm-charts/issues
-- **Operator Issues**: https://github.com/authzed/spicedb-operator/issues
-- **SpiceDB Discord**: https://authzed.com/discord
-- **SpiceDB Discussions**: https://github.com/authzed/spicedb/discussions
+- **Helm Chart Issues**: <https://github.com/salekseev/helm-charts/issues>
+- **Operator Issues**: <https://github.com/authzed/spicedb-operator/issues>
+- **SpiceDB Discord**: <https://authzed.com/discord>
+- **SpiceDB Discussions**: <https://github.com/authzed/spicedb/discussions>
