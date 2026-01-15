@@ -14,7 +14,7 @@ jobs:
     steps:
       - name: Get GitHub App token
         id: get-token
-        uses: octo-sts/action@d6c70ad3b9ac85df6da6b9749014d7283987cfec # v1.0.3
+        uses: octo-sts/action@f603d3be9d8dd9871a265776e625a27b00effe05 # v1.1.1
         with:
           scope: salekseev/helm-charts
           identity: release-please
